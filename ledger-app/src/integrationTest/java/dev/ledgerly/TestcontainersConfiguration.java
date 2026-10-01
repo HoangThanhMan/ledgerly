@@ -18,7 +18,7 @@ import org.testcontainers.utility.DockerImageName;
 class TestcontainersConfiguration {
 
     static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer(DockerImageName.parse("postgres:18-alpine"));
-    static final KafkaContainer KAFKA = new KafkaContainer(DockerImageName.parse("apache/kafka-native:4.3.1"));
+    static final KafkaContainer KAFKA = new KafkaContainer(DockerImageName.parse("apache/kafka:4.3.1"));
 
     @Bean(destroyMethod = "")
     @ServiceConnection
