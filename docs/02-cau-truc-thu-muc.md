@@ -49,8 +49,9 @@ ledgerly/
 │       ├── main/resources/
 │       │   ├── application.yaml                                                     [T0]
 │       │   └── db/migration/              # V1__ledger_core.sql, ...                  [T2+]
-│       ├── test/java/                     # unit test, slice test, ArchitectureTest
+│       ├── test/java/                     # chỉ unit test: thuần Java, không cần Docker
 │       └── integrationTest/java/          # Testcontainers, concurrency, chaos        [T2]
+│                                          # kèm TestcontainersConfiguration, Test<App>Application
 │
 ├── mock-bank/                             # ngân hàng giả lập                         [T0]
 │   ├── Dockerfile                                                                   [T8]
@@ -78,7 +79,9 @@ ledgerly/
 ├── scripts/
 │   ├── invariants.sql                     # truy vấn kiểm tra bất biến I1–I4          [T4]
 │   ├── seed.sh                            # tạo ví & nạp tiền cho demo                [T7]
-│   └── chaos/                             # script chạy từng kịch bản chaos           [T10]
+│   ├── chaos/                             # script chạy từng kịch bản chaos           [T10]
+│   ├── ci/coverage-summary.py             # bảng coverage cho job summary của CI      [T2]
+│   └── spikes/locking.sh                  # spike khóa dòng và deadlock               [T1]
 │
 ├── docs/                                  # toàn bộ tài liệu dự án                    [T0]
 │   ├── README.md                          # mục lục tài liệu
