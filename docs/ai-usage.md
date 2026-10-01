@@ -18,7 +18,7 @@ Mỗi mục ghi: hỏi AI gì, AI gợi ý gì, mình quyết định gì (chấ
 - Hỏi AI: làm W01-07, và chuẩn bị cho W01-01, W01-09.
 - AI gợi ý: issue form `task` và `bug` (bug có ô chọn bất biến I1–I7). Thư mục `docs/journal/` có khung cho 6 tài liệu đọc và khung nhật ký tuần, kèm câu hỏi gợi ý. AI không viết nội dung ghi chú hay cảm nhận thay mình.
 - Quyết định: ✍️
-- Kiểm chứng: PR mẫu issue/journal. Tạo thử một issue bằng mẫu `task` sau khi merge.
+- Kiểm chứng: PR #71. Tạo thử một issue bằng mẫu `task` sau khi merge.
 
 ### 2026-10-01: Spike khóa SQL (W01-08)
 - Hỏi AI: làm spike khóa dòng và deadlock của tuần 1.
