@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: mock-bank
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: jdbc:postgresql://localhost:5433/mockbank
+    username: ledgerly
+    password: ledgerly
+
+server:
+  port: 8081
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

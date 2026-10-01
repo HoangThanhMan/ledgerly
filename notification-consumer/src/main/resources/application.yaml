@@ -1,0 +1,24 @@
+spring:
+  application:
+    name: notification-consumer
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: jdbc:postgresql://localhost:5433/notification
+    username: ledgerly
+    password: ledgerly
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: notification-consumer
+      auto-offset-reset: earliest
+
+server:
+  port: 8082
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
