@@ -25,10 +25,15 @@ jobs:
           distribution: temurin
           java-version: "25"
 
+      # Cache Gradle (dependency, wrapper, build cache). Chỉ nhánh main ghi cache, các nhánh khác chỉ đọc.
       - uses: gradle/actions/setup-gradle@v6
 
-      - name: Build (compile + test với Testcontainers)
+      - name: Build (Spotless, Error Prone, NullAway, unit test, integration test, JaCoCo)
         run: ./gradlew build
+
+      - name: Coverage summary
+        if: always()
+        run: python3 scripts/ci/coverage-summary.py >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload test reports
         if: failure()
@@ -36,4 +41,11 @@ jobs:
         with:
           name: test-reports
           path: "**/build/reports/tests/"
+          retention-days: 7
+
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-reports
+          path: "**/build/reports/jacoco/"
           retention-days: 7
