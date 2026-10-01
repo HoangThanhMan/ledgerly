@@ -35,6 +35,11 @@
 
 Xem [adr/README.md](adr/README.md).
 
+## Nhật ký và cách dùng AI
+
+- [journal/](journal/README.md): nhật ký tuần, ghi chú đọc, spike.
+- [ai-usage.md](ai-usage.md): AI đã gợi ý gì, mình chấp nhận hay bác bỏ gì, kiểm chứng bằng gì.
+
 ## Nghiên cứu nền
 
 Hai báo cáo dùng để chọn đề tài nằm trong [research/](research/). Kết luận: chọn **Ledgerly** (modular monolith, sổ cái kép), lấy thêm một số ý từ phương án "Settlement Engine" (JFR pinning, semantic lock cho hold/saga, circuit breaker), và không theo các điểm yếu của phương án đó (4 microservice, bắt buộc Debezium, đặt mục tiêu 10k TPS không có phương pháp đo).

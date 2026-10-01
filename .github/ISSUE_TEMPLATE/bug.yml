@@ -1,0 +1,61 @@
+name: Bug
+description: Hành vi sai, test đỏ hoặc bất biến bị vi phạm
+title: "bug: "
+labels: ["type:bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: Mô tả
+      description: Chuyện gì xảy ra, một hai câu.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Các bước tái hiện
+      description: Lệnh, request hoặc test cụ thể. Ghi rõ nếu chỉ thỉnh thoảng mới xảy ra (flaky).
+      placeholder: |
+        1. docker compose up -d
+        2. ./gradlew :ledger-app:integrationTest --tests ConcurrentTransferIT
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Kỳ vọng
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Thực tế
+    validations:
+      required: true
+  - type: dropdown
+    id: invariants
+    attributes:
+      label: Bất biến bị vi phạm
+      description: Xem docs/04-chien-luoc-kiem-thu.md §2
+      multiple: true
+      options:
+        - Không
+        - I1 Giao dịch cân bằng
+        - I2 Không âm
+        - I3 Số dư khớp lịch sử
+        - I4 Bảo toàn
+        - I5 Idempotency
+        - I6 Outbox đầy đủ
+        - I7 Xử lý một lần
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log hoặc stack trace
+      render: text
+  - type: input
+    id: commit
+    attributes:
+      label: Commit
+      description: Kết quả của git rev-parse --short HEAD
