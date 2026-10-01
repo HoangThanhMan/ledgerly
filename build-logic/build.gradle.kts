@@ -5,4 +5,6 @@ plugins {
 dependencies {
     implementation(libs.spring.boot.gradle.plugin)
     implementation(libs.spring.dependency.management.plugin)
+    implementation(libs.spotless.gradle.plugin)
+    implementation(libs.errorprone.gradle.plugin)
 }

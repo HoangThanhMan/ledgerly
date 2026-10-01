@@ -51,6 +51,9 @@ Chi tiết: [docs/01-kien-truc.md](docs/01-kien-truc.md).
 # 1. Build và chạy toàn bộ test (Testcontainers tự bật PostgreSQL và Kafka)
 ./gradlew build
 
+# Sửa format trước khi commit (build sẽ đỏ nếu lệch format, lỗi null hoặc lỗi Error Prone)
+./gradlew spotlessApply
+
 # 2. Bật hạ tầng dev: PostgreSQL ở cổng 5433, Kafka ở cổng 9092
 docker compose up -d
 

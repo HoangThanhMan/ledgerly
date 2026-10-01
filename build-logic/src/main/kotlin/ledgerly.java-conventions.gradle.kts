@@ -1,6 +1,7 @@
 // Cấu hình Java dùng chung cho mọi module.
 plugins {
     java
+    id("ledgerly.quality")
 }
 
 java {
