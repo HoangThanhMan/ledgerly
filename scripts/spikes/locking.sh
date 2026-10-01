@@ -2,7 +2,7 @@
 # Spike W01-08: thấy khóa dòng chờ nhau, và deadlock khi hai phiên khóa ngược thứ tự.
 #
 # Cần PostgreSQL của compose đang chạy:  docker compose up -d postgres
-# Chạy:                                  scripts/spikes/locking.sh [1|2|3]   (bỏ trống = cả ba)
+# Chạy:                                  scripts/spikes/locking.sh [1|2|3|4]   (bỏ trống = cả bốn)
 #
 # Script tạo database tạm `spike`, chạy hai phiên psql song song theo một kịch bản thời gian
 # cố định, rồi xóa database. Dòng ">>" là lúc script gửi câu lệnh, các dòng còn lại là output
@@ -80,8 +80,20 @@ scenario_3() {
     wait
 }
 
+# move ID SỐ_TIỀN: cộng (số dương) hoặc trừ (số âm) vào số dư của account ID.
+move() { if (( $2 < 0 )); then echo "UPDATE accounts SET balance = balance - ${2#-} WHERE id = $1;"; else echo "UPDATE accounts SET balance = balance + $2 WHERE id = $1;"; fi; }
+
+scenario_4() {
+    echo "== Kịch bản 4: chuyển tiền bằng UPDATE, ngược chiều nhau (S1: 1→2, S2: 2→1)"
+    session S1 'BEGIN;' "$(move 1 -100)" 'sleep 2' "$(move 2 100)" 'sleep 2' 'COMMIT;' &
+    session S2 'sleep 1' 'BEGIN;' "$(move 2 -100)" 'sleep 1.7' "$(move 1 100)" 'sleep 1.8' 'COMMIT;' &
+    wait
+    echo "-- Sau khi cả hai phiên kết thúc:"
+    psql_in spike -c 'SELECT id, balance FROM accounts ORDER BY id;' -c 'SELECT sum(balance) AS tong FROM accounts;'
+}
+
 trap teardown EXIT
-for n in "${@:-1 2 3}"; do
+for n in "${@:-1 2 3 4}"; do
     for s in $n; do
         setup
         "scenario_$s"
