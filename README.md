@@ -2,6 +2,7 @@
 
 **Ví điện tử theo mô hình sổ cái kép (double-entry ledger), có bất biến được kiểm chứng bằng máy.**
 
+[![CI](https://github.com/HoangThanhMan/ledgerly/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/HoangThanhMan/ledgerly/actions/workflows/ci.yml)
 ![Java 25](https://img.shields.io/badge/Java-25_LTS-orange)
 ![Spring Boot 4.1](https://img.shields.io/badge/Spring_Boot-4.1-6DB33F)
 ![PostgreSQL 18](https://img.shields.io/badge/PostgreSQL-18-336791)
