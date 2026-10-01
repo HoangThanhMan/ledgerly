@@ -39,3 +39,10 @@ Dự kiến X giờ, thực tế Y giờ. Lệch vì ...
 | [spike-locking.md](spike-locking.md) | Spike W01-08 | 4 kịch bản, có log và kết luận (PR #70) |
 | [m1-cau-hoi.md](m1-cau-hoi.md) | Đáp án tham khảo 5 câu hỏi mốc M1 | Chờ tác giả luyện trả lời thành tiếng |
 | [2026-W41.md](2026-W41.md) | Nhật ký tuần 1 | Xong |
+
+## Tuần 2
+
+| File | Nội dung | Trạng thái |
+|---|---|---|
+| [2026-W42.md](2026-W42.md) | Nhật ký tuần 2 | Xong |
+| [tuan-02-cau-hoi.md](tuan-02-cau-hoi.md) | Đáp án tham khảo 4 câu hỏi tuần 2 | Chờ tác giả luyện |

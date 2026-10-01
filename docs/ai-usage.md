@@ -14,6 +14,16 @@ Mỗi mục ghi: hỏi AI gì, AI gợi ý gì, mình quyết định gì (chấ
 
 ---
 
+### 2026-10-01: Tuần 2, chất lượng build và schema lõi (W02-01 … W02-09)
+- Hỏi AI: "Thực hiện luôn tuần 2".
+- AI gợi ý: 4 PR code xếp chồng (#72–#75) và 1 PR tài liệu (#76). Phiên bản plugin lấy bản mới nhất trên Maven Central và Gradle Plugin Portal ngày 01/10/2026, rồi kiểm chứng bằng build thật trên JDK 25.
+- Quyết định:
+  - **Bác bỏ** `failOnNoDiscoveredTests = false` để `src/test` chứa được lớp hỗ trợ. Thay vào đó chuyển lớp hỗ trợ sang `src/integrationTest` và trỏ `bootTestRun` sang suite đó. Giữ lưới an toàn của Gradle.
+  - **Bác bỏ** image `apache/kafka-native` trong Testcontainers sau khi đo: segfault 2/15 lần khởi động. Dùng `apache/kafka` (JVM), 15/15.
+  - **Thêm ngoài kế hoạch:** chặn `TRUNCATE`, cho `ledger_transactions` chỉ được thêm, ràng buộc "giao dịch phải có entry" và kiểm tra mã ISO 4217. Mỗi ràng buộc có test riêng.
+  - Merge PR bị chặn quyền, nên PR được xếp chồng để tác giả merge một lượt.
+- Kiểm chứng: lỗi null, Error Prone và format cố ý thêm vào đều làm build đỏ. `SchemaConstraintsIT` đi qua hai bước RED (bảng chưa có, rồi bảng chưa có ràng buộc) trước khi GREEN 13/13. Đếm container: 2 context, 1 PostgreSQL. 5 lượt suite có Kafka xanh liên tiếp.
+
 ### 2026-10-01: Giao toàn bộ tuần 1 cho AI
 - Hỏi AI: "Mọi việc để bạn làm, hãy thực hiện cho xong tuần 1". Lệnh này thay cho lựa chọn trước đó (AI chỉ chuẩn bị, mình viết lập luận, mình merge).
 - AI gợi ý: viết trọn ADR-0003 (Accepted), 6 ghi chú đọc, nhật ký W41, kết luận spike, đáp án tham khảo cho 5 câu hỏi M1, và sửa §7.3 cho khớp thực tế.

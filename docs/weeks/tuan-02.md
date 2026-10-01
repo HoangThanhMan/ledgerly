@@ -2,7 +2,7 @@
 
 | Thời gian | Giai đoạn | Mốc | Ngân sách | Trạng thái |
 |---|---|---|---|---|
-| 12/10 – 18/10/2026 | 1: Nền móng | | 13 giờ | ⬜ Chưa bắt đầu |
+| 12/10 – 18/10/2026 | 1: Nền móng | | 13 giờ | 🟡 Code xong (01/10/2026), chờ merge PR #72–#76 |
 
 ## Mục tiêu
 
@@ -12,17 +12,17 @@
 
 ## Công việc
 
-| ID | Việc | Giờ | Đầu ra |
-|---|---|:-:|---|
-| W02-01 | Convention plugin `ledgerly.quality`: Spotless (Palantir Java Format), Error Prone + NullAway, JaCoCo | 3 | `build-logic/.../ledgerly.quality.gradle.kts` |
-| W02-02 | Đánh dấu `@NullMarked` (JSpecify) trong `package-info.java` của mọi module | 0.5 | |
-| W02-03 | JVM Test Suite `integrationTest`. Chuyển test Testcontainers sang đó. `check` phụ thuộc suite này | 2 | `src/integrationTest/java` |
-| W02-04 | Testcontainers dùng chung container cho cả suite (singleton) để test nhanh hơn | 1 | `AbstractIntegrationTest` |
-| W02-05 | Flyway `V1__ledger_core.sql`: `accounts`, `ledger_transactions`, `entries`, constraint, trigger | 3 | |
-| W02-06 | Flyway `V2__system_accounts.sql`: seed `system:funding`, `system:bank-settlement`, `system:withdrawal-suspense` | 0.5 | |
-| W02-07 | `SchemaConstraintsIT`: kiểm tra trigger và constraint hoạt động | 1.5 | |
-| W02-08 | CI: cache Gradle, upload báo cáo test khi lỗi, tóm tắt coverage, badge trong README | 1 | |
-| W02-09 | `dependabot.yml` (Gradle + GitHub Actions, hằng tuần) | 0.5 | |
+| ID | Việc | Giờ | Đầu ra | Trạng thái |
+|---|---|:-:|---|---|
+| W02-01 | Convention plugin `ledgerly.quality`: Spotless (Palantir Java Format), Error Prone + NullAway, JaCoCo | 3 | `build-logic/.../ledgerly.quality.gradle.kts` | ✅ #72 |
+| W02-02 | Đánh dấu `@NullMarked` (JSpecify) trong `package-info.java` của mọi module | 0.5 | | ✅ #72 |
+| W02-03 | JVM Test Suite `integrationTest`. Chuyển test Testcontainers sang đó. `check` phụ thuộc suite này | 2 | `src/integrationTest/java` | ✅ #73 |
+| W02-04 | Testcontainers dùng chung container cho cả suite (singleton) để test nhanh hơn | 1 | `AbstractIntegrationTest` | ✅ #73 |
+| W02-05 | Flyway `V1__ledger_core.sql`: `accounts`, `ledger_transactions`, `entries`, constraint, trigger | 3 | | ✅ #74 |
+| W02-06 | Flyway `V2__system_accounts.sql`: seed `system:funding`, `system:bank-settlement`, `system:withdrawal-suspense` | 0.5 | | ✅ #74 |
+| W02-07 | `SchemaConstraintsIT`: kiểm tra trigger và constraint hoạt động | 1.5 | | ✅ #74 |
+| W02-08 | CI: cache Gradle, upload báo cáo test khi lỗi, tóm tắt coverage, badge trong README | 1 | | ✅ #75 |
+| W02-09 | `dependabot.yml` (Gradle + GitHub Actions, hằng tuần) | 0.5 | | ✅ #75 |
 
 ## Ghi chú kỹ thuật
 
@@ -100,11 +100,17 @@ CREATE CONSTRAINT TRIGGER entries_balanced AFTER INSERT ON entries
 
 ## Definition of Done
 
-- [ ] `./gradlew check` chạy Spotless, Error Prone, unit test, integration test và JaCoCo
-- [ ] Cố ý thêm một lỗi null hoặc format thì build đỏ (thử rồi revert)
-- [ ] `./gradlew test` (chỉ unit) chạy dưới 10 giây
-- [ ] Bốn test schema xanh
-- [ ] CI xanh, README có badge
+- [x] `./gradlew check` chạy Spotless, Error Prone, unit test, integration test và JaCoCo
+- [x] Cố ý thêm một lỗi null hoặc format thì build đỏ (thử rồi revert, log trong PR #72)
+- [x] `./gradlew test` (chỉ unit) chạy dưới 10 giây (0,43 giây, chưa có unit test nào)
+- [x] Bốn test schema xanh (`SchemaConstraintsIT` có 13 test, cả 13 xanh)
+- [ ] CI xanh, README có badge (CI xanh trên các PR, badge đã thêm; chờ merge vào `main`)
+
+## Ghi chú khi thực hiện (01/10/2026)
+
+- **Gradle 9 làm task `test` lỗi khi có class mà không có test nào** (`failOnNoDiscoveredTests`). Vì vậy `TestcontainersConfiguration` và `Test<App>Application` chuyển sang `src/integrationTest/java`, và `bootTestRun` lấy classpath của suite đó (convention `ledgerly.spring-boot-app`). `src/test/java` chỉ còn unit test.
+- **Kafka trong Testcontainers dùng image JVM `apache/kafka`, không dùng `apache/kafka-native`:** bản native bị segfault 2/15 lần khởi động trên máy dev.
+- **Ngoài kế hoạch:** schema có thêm ràng buộc "giao dịch phải có entry", chặn `TRUNCATE`, cho `ledger_transactions` chỉ được thêm, và kiểm tra mã tiền tệ ISO 4217. `SchemaConstraintsIT` có 13 test thay vì 4.
 
 ## Rủi ro và phương án
 
