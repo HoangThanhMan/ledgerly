@@ -51,6 +51,10 @@ Chi tiết: [docs/01-kien-truc.md](docs/01-kien-truc.md).
 # 1. Build và chạy toàn bộ test (Testcontainers tự bật PostgreSQL và Kafka)
 ./gradlew build
 
+# Chỉ unit test (nhanh) hoặc chỉ integration test (Testcontainers)
+./gradlew test
+./gradlew integrationTest
+
 # Sửa format trước khi commit (build sẽ đỏ nếu lệch format, lỗi null hoặc lỗi Error Prone)
 ./gradlew spotlessApply
 

@@ -20,8 +20,8 @@ dependencies {
     testImplementation(libs.spring.boot.starter.jdbc.test)
     testImplementation(libs.spring.boot.starter.kafka.test)
     testImplementation(libs.spring.boot.starter.webmvc.test)
-    testImplementation(libs.spring.boot.testcontainers)
-    testImplementation(libs.testcontainers.junit.jupiter)
-    testImplementation(libs.testcontainers.postgresql)
-    testImplementation(libs.testcontainers.kafka)
+    integrationTestImplementation(libs.spring.boot.testcontainers)
+    integrationTestImplementation(libs.testcontainers.junit.jupiter)
+    integrationTestImplementation(libs.testcontainers.postgresql)
+    integrationTestImplementation(libs.testcontainers.kafka)
 }

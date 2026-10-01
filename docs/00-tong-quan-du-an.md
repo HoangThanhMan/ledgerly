@@ -130,7 +130,7 @@ Dự án được coi là thành công khi đạt cả bốn điều sau:
 | R1 | Trễ tiến độ, bỏ dở | Cao | Rất cao | MVP khóa ở tuần 8. Khi trễ thì cắt *Should/Could*, **không cắt test** |
 | R2 | Phạm vi phình to (scope creep) | Trung bình | Cao | Mọi tính năng mới phải nằm trong danh sách MoSCoW. Nếu chưa có, ghi vào "Hướng phát triển" |
 | R3 | Thư viện chưa tương thích Boot 4 (Jackson 3...) | Trung bình | Trung bình | Kiểm tra tương thích trước khi thêm thư viện, ưu tiên tính năng có sẵn trong Spring Framework 7 |
-| R4 | Test Testcontainers chậm hoặc flaky | Trung bình | Trung bình | Dùng chung container cho cả suite, image `kafka-native`, tách suite `integrationTest` |
+| R4 | Test Testcontainers chậm hoặc flaky | Trung bình | Trung bình | Dùng chung container cho cả suite, tách suite `integrationTest`. Dùng image JVM `apache/kafka`, **không** dùng `kafka-native`: bản native bị segfault 2/15 lần khởi động trên máy dev, bản JVM 15/15 (đo 2026-10-01) |
 | R5 | Không giải thích được code do AI sinh | Trung bình | Rất cao | Ghi nhật ký dùng AI. Mọi đoạn code AI gợi ý phải có test và giải thích được từng dòng |
 | R6 | Số liệu benchmark bị lật lại khi phỏng vấn | Trung bình | Cao | Công bố phương pháp đo, dùng `constant-arrival-rate`, commit kết quả thô |
 | R7 | Dự án ăn hết thời gian luyện thuật toán | Cao | Cao | Khóa cứng 5 giờ/tuần cho LeetCode, không mượn sang |
