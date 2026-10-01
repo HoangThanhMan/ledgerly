@@ -15,7 +15,7 @@ ADR ghi lại **một quyết định kiến trúc quan trọng**: bối cảnh,
 |---|---|---|:-:|
 | [0001](0001-modular-monolith.md) | Modular monolith và hai tiến trình vệ tinh | Accepted | 0 |
 | [0002](0002-postgresql-va-sql-tuong-minh.md) | PostgreSQL, SQL tường minh cho đường nóng | Accepted | 0 |
-| 0003 | Biểu diễn tiền tệ và quy ước dấu của bút toán | *Dự kiến* | 1 |
+| [0003](0003-bieu-dien-tien-te.md) | Biểu diễn tiền tệ và quy ước dấu của bút toán | Proposed | 1 |
 | 0004 | Khóa bi quan có thứ tự ở READ COMMITTED | *Dự kiến* | 4 |
 | 0005 | Idempotency key trong PostgreSQL, thiết kế hai pha | *Dự kiến* | 5 |
 | 0006 | Transactional outbox với polling relay (không dùng dual-write hay Debezium) | *Dự kiến* | 6 |
