@@ -30,7 +30,7 @@ Client retry bao nhiêu lần, đồng thời hay tuần tự, và kể cả khi
 stateDiagram-v2
     [*] --> IN_PROGRESS: Tx1 INSERT ... ON CONFLICT DO NOTHING
     IN_PROGRESS --> COMPLETED: Tx2 commit (nghiệp vụ + response)
-    IN_PROGRESS --> IN_PROGRESS: crash, locked_until hết hạn,<br/>request sau giành lại (CAS)
+    IN_PROGRESS --> IN_PROGRESS: crash hoặc Tx2 quá chậm, locked_until hết hạn,<br/>request sau giành lại (CAS, lease_token mới)
     COMPLETED --> [*]: hết TTL, job dọn xóa
 ```
 
@@ -51,6 +51,8 @@ Với thiết kế hai pha, request đến khi key đang `IN_PROGRESS` sẽ nh�
 ### Giả lập crash (W05-08)
 
 Trong profile test, đăng ký một `FaultInjector` cho phép ném exception **sau Tx1 và trước Tx2**. Key sẽ kẹt ở `IN_PROGRESS`. Chờ `locked_until` hết hạn (đặt 1 giây trong test), gửi lại request, và khẳng định có đúng một giao dịch được tạo.
+
+Thêm ca **zombie**: làm Tx2 của request đầu chậm hơn `locked_until`, để request thứ hai giành lại key và hoàn tất. Khẳng định request đầu bị rollback (0 dòng khớp `lease_token`) và chỉ có đúng một giao dịch.
 
 ## Kiểm thử bắt buộc
 
@@ -75,7 +77,7 @@ Trong profile test, đăng ký một `FaultInjector` cho phép ném exception **
 | Rủi ro | Phương án |
 |---|---|
 | Chuẩn hóa body khó (thứ tự trường JSON) | Hash trên **DTO đã parse**, serialize lại với thứ tự trường cố định, không hash chuỗi thô |
-| `locked_until` quá ngắn gây xử lý trùng | Đặt lớn hơn p99.9 của Tx2 (mặc định 30 giây). Lớp bảo vệ cuối là CAS khi giành lại khóa |
+| `locked_until` quá ngắn gây xử lý trùng | Đặt lớn hơn p99.9 của Tx2 (mặc định 30 giây). Lớp bảo vệ cuối là `lease_token`: Tx2 chỉ được ghi `COMPLETED` khi token còn khớp, không thì rollback ([01-kien-truc §6.1](../01-kien-truc.md#61-chuyển-tiền-idempotent-tuần-35)) |
 
 ## Câu hỏi phỏng vấn tự luyện
 

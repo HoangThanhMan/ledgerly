@@ -11,7 +11,7 @@ Tính đúng đắn của sổ cái phụ thuộc vào việc kiểm soát **ch�
 
 - hỗ trợ đầy đủ các cơ chế trên,
 - chạy được trong Testcontainers và Docker Compose,
-- phổ biến trên thị trường (Stack Overflow 2025: PostgreSQL được 55,6% người dùng).
+- phổ biến trên thị trường ([Stack Overflow Developer Survey 2025](https://survey.stackoverflow.co/2025/technology): PostgreSQL được 55,6% người trả lời sử dụng, MySQL 40,5%).
 
 Cũng cần quyết định cách truy cập dữ liệu từ Java: ORM (JPA/Hibernate) hay SQL tường minh.
 
@@ -19,7 +19,7 @@ Cũng cần quyết định cách truy cập dữ liệu từ Java: ORM (JPA/Hib
 
 | Phương án | Ưu điểm | Nhược điểm |
 |---|---|---|
-| **MySQL 8** | Phổ biến ở Việt Nam | `SKIP LOCKED` có nhưng hành vi khóa (gap lock ở REPEATABLE READ) khó giải thích hơn. Constraint trigger deferred kém hơn |
+| **MySQL 8** | Phổ biến ở Việt Nam | `SKIP LOCKED` có nhưng hành vi khóa (gap lock ở REPEATABLE READ) khó giải thích hơn. **Không hỗ trợ** kiểm tra ràng buộc trì hoãn tới lúc commit (deferred constraint), cũng không có constraint trigger, nên không khóa được bất biến "tổng entries bằng 0" (I1) ở tầng DB |
 | **PostgreSQL 18** | `FOR UPDATE SKIP LOCKED`, constraint trigger `DEFERRABLE`, `uuidv7()` có sẵn, `jsonb` | Cần cấu hình nhiều database cho nhiều service (giải quyết bằng init script) |
 | **Chỉ dùng JPA/Hibernate** | Ít code | SQL bị ẩn: khó thấy khóa nào được lấy, khi nào flush. Dễ dính N+1 |
 | **Chỉ dùng JdbcClient** | Kiểm soát hoàn toàn | Nhiều code lặp cho phần CRUD đơn giản |
