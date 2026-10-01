@@ -131,6 +131,7 @@ flowchart TB
     tc --> bankgw
     rc --> ledger
     rc --> bankgw
+    rc -->|TopUpApi| tc
     ledger --> shared
     idem --> shared
     outbox --> shared
@@ -140,13 +141,15 @@ flowchart TB
 
 ### Ma trận phụ thuộc cho phép (ArchUnit kiểm tra)
 
-| Module ↓ được gọi → | shared | ledger | idempotency | outbox | bankgateway |
-|---|:-:|:-:|:-:|:-:|:-:|
-| `wallet` | ✅ | ✅ | ✅ | ✅ | ❌ |
-| `topup` | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `reconciliation` | ✅ | ✅ | ❌ | ❌ | ✅ |
-| `ledger` | ✅ | | ❌ | ❌ | ❌ |
-| `idempotency`, `outbox`, `bankgateway` | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Module ↓ được gọi → | shared | ledger | idempotency | outbox | bankgateway | topup |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|
+| `wallet` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| `topup` | ✅ | ✅ | ✅ | ✅ | ✅ | |
+| `reconciliation` | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ |
+| `ledger` | ✅ | | ❌ | ❌ | ❌ | ❌ |
+| `idempotency`, `outbox`, `bankgateway` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+
+`reconciliation` cần đọc các lệnh nạp/rút trong ngày và chuyển những lệnh `UNKNOWN` sang trạng thái cuối (luồng [6.5](#65-đối-soát-tuần-11)). Nó làm việc này qua `TopUpApi` chứ không đọc hay ghi thẳng bảng `topups`/`withdrawals`. Khi auto-heal, bút toán và sự kiện outbox vẫn do `topup` ghi trong transaction của nó, nên `reconciliation` không cần quyền gọi `outbox`.
 
 Thêm ba quy tắc nữa:
 
@@ -203,6 +206,7 @@ erDiagram
         text idem_key PK
         text request_hash "SHA-256 của method+path+body"
         text status "IN_PROGRESS | COMPLETED"
+        uuid lease_token "đổi mỗi lần claim hoặc giành lại (fencing)"
         int response_status
         jsonb response_body
         uuid resource_id
@@ -261,6 +265,7 @@ erDiagram
 | Ràng buộc | Cài đặt | Bảo vệ cho |
 |---|---|---|
 | Số dư không âm | `CHECK (allow_negative OR balance >= 0)` | I2, lớp chặn cuối nếu code có bug |
+| Chỉ account hệ thống được âm | `CHECK (type = 'SYSTEM' OR NOT allow_negative)` | I2: một ví người dùng không thể bị bật `allow_negative` do nhầm |
 | Bút toán khác 0 | `CHECK (amount <> 0)` | Dữ liệu rác |
 | Entry bất biến | Trigger `BEFORE UPDATE OR DELETE ON entries`, gọi `RAISE EXCEPTION` | P2, I1 |
 | Tổng entries của transaction bằng 0 | Constraint trigger `DEFERRABLE INITIALLY DEFERRED`, kiểm tra lúc commit | I1 |
@@ -307,39 +312,49 @@ sequenceDiagram
     participant DB as PostgreSQL
 
     C->>A: POST /v1/transfers<br/>Idempotency-Key: k1
-    A->>A: validate body, hash = SHA-256(method+path+body)
+    A->>A: validate body → DTO<br/>hash = SHA-256(method + path + DTO serialize lại theo thứ tự trường cố định)
 
     rect rgb(235, 245, 255)
     Note over A,DB: Tx1: claim (rất ngắn)
-    A->>DB: INSERT idempotency_keys(k1, hash, IN_PROGRESS, locked_until=now()+30s)<br/>ON CONFLICT DO NOTHING RETURNING *
+    A->>DB: INSERT idempotency_keys(k1, hash, IN_PROGRESS,<br/>lease_token = t1, locked_until = now()+30s)<br/>ON CONFLICT DO NOTHING RETURNING *
     end
 
-    alt key đã tồn tại
+    opt INSERT trả 0 dòng (key đã tồn tại)
         A->>DB: SELECT * FROM idempotency_keys WHERE idem_key = k1
-        alt COMPLETED và cùng hash
-            A-->>C: status + body đã lưu<br/>Idempotent-Replayed: true
-        else khác hash
+        alt khác hash
             A-->>C: 422 idempotency-key-reused
+        else COMPLETED
+            A-->>C: status + body đã lưu<br/>Idempotent-Replayed: true
         else IN_PROGRESS, chưa hết hạn
             A-->>C: 409 + Retry-After: 1
-        else IN_PROGRESS, hết hạn (tiến trình trước đã crash)
-            A->>DB: UPDATE ... SET locked_until = now()+30s<br/>WHERE idem_key = k1 AND locked_until < now()
-            Note over A: giành lại quyền xử lý, sang Tx2
+        else IN_PROGRESS, hết hạn (tiến trình trước đã crash hoặc quá chậm)
+            A->>DB: UPDATE idempotency_keys SET lease_token = t2, locked_until = now()+30s<br/>WHERE idem_key = k1 AND status = 'IN_PROGRESS' AND locked_until < now()
+            Note over A: 1 dòng: giành lại được, sang Tx2 với token t2<br/>0 dòng: request khác đã giành trước, trả 409
         end
-    else key mới
-        rect rgb(235, 255, 235)
-        Note over A,DB: Tx2: nghiệp vụ (atomic)
-        A->>DB: SELECT ... FROM accounts WHERE id IN (A,B)<br/>ORDER BY id FOR UPDATE
-        A->>DB: kiểm tra số dư → INSERT ledger_transactions,<br/>INSERT 2 entries, UPDATE balances
-        A->>DB: INSERT outbox_events(TransferCompleted)
-        A->>DB: UPDATE idempotency_keys SET COMPLETED, response
+    end
+    Note over C,A: Các nhánh trả response ở trên dừng tại đó.<br/>Tx2 chỉ chạy khi đang giữ key: key mới, hoặc vừa giành lại.
+
+    rect rgb(235, 255, 235)
+    Note over A,DB: Tx2: nghiệp vụ (atomic), t là token đang giữ
+    A->>DB: SELECT ... FROM accounts WHERE id IN (A,B)<br/>ORDER BY id FOR UPDATE
+    A->>DB: kiểm tra số dư → INSERT ledger_transactions,<br/>INSERT 2 entries, UPDATE balances
+    A->>DB: INSERT outbox_events(TransferCompleted)
+    A->>DB: UPDATE idempotency_keys SET status = 'COMPLETED', response<br/>WHERE idem_key = k1 AND lease_token = t AND status = 'IN_PROGRESS'
+    alt 1 dòng
         A->>DB: COMMIT
-        end
         A-->>C: 201 Created
+    else 0 dòng (lease đã bị request khác giành)
+        A->>DB: ROLLBACK
+        A-->>C: 409 + Retry-After: 1
+    end
     end
 ```
 
 Lỗi nghiệp vụ có tính xác định (ví dụ thiếu số dư, trả 422) cũng được lưu thành `COMPLETED`. Retry với cùng key sẽ nhận lại đúng lỗi đó. Lỗi validate (400) xảy ra **trước** khi claim nên không được lưu.
+
+**Vì sao cần `lease_token` (fencing token).** `locked_until` chỉ là một lease có hạn. Nếu Tx2 của request A chạy lâu hơn 30 giây (chờ khóa hot account, GC pause, mạng tới DB chậm), request B sẽ giành lại key và hoàn tất Tx2 của nó. Nếu câu `UPDATE ... SET COMPLETED` của A không có điều kiện, A vẫn commit được, và một key sinh ra **hai** giao dịch (vi phạm I5). Khi `UPDATE` phải khớp đúng token đang giữ, A nhận về 0 dòng và rollback toàn bộ Tx2. Điều kiện `status = 'IN_PROGRESS'` trong câu giành lại cũng cần thiết: nếu A vừa commit `COMPLETED` giữa lúc B đọc và lúc B `UPDATE`, B không được giành một key đã xong.
+
+**Tx2 lỗi kỹ thuật** (exception, mất kết nối, timeout khóa): Tx2 rollback nên chưa có hiệu ứng nào. Sau đó thả key theo kiểu best-effort, bằng `UPDATE idempotency_keys SET locked_until = now() WHERE idem_key = k1 AND lease_token = t`, để client retry ngay mà không phải nhận 409 tới khi lease hết hạn. Nếu bước thả key cũng lỗi thì lease tự hết hạn là lớp dự phòng.
 
 ### 6.2 Outbox relay và consumer idempotent (tuần 6)
 
@@ -368,6 +383,8 @@ sequenceDiagram
     end
     N->>K: commit offset
 ```
+
+**Relay giữ DB transaction trong lúc chờ Kafka ack.** Điều này có vẻ trái với nguyên tắc "không giữ transaction khi chờ mạng" ở luồng 6.1, nhưng chấp nhận được vì ba lý do. Thứ nhất, chỉ một luồng nền giữ một connection, không phải mỗi request một connection. Thứ hai, khóa chỉ nằm trên các dòng outbox của lô, không đụng tới account. Thứ ba, mỗi lần gửi có timeout (5 giây, W06-04), nên khi Kafka sập transaction không bị treo. Có hai hệ quả cần biết. Producer có thể vẫn giao thành công một record **sau khi** relay đã hết timeout và rollback, và đó là một nguồn trùng nữa mà consumer phải chịu được. Ngoài ra, câu `SELECT` cần partial index `WHERE published_at IS NULL` (W06-02) để không phải quét các dòng đã phát.
 
 **Exactly-once về hiệu ứng** = at-least-once (relay retry) + at-most-once (consumer khử trùng). Kafka EOS không giải quyết được bài toán này, vì side effect nằm ở database ngoài Kafka.
 
@@ -445,7 +462,7 @@ flowchart LR
 - JSON dùng `camelCase`. Số tiền là **chuỗi số nguyên** theo đơn vị nhỏ nhất, ví dụ `"amount": "150000"`, để tránh mất chính xác ở client JavaScript.
 - Lỗi theo **RFC 9457 Problem Details** (`application/problem+json`), có `type`, `title`, `status`, `detail`, `instance` và `traceId`.
 - Phân trang lịch sử bằng keyset (`?after=<entryId>&limit=50`), không dùng offset.
-- Header `Idempotency-Key` (UUID, tối đa 64 ký tự) **bắt buộc** với mọi `POST` làm dịch chuyển tiền.
+- Header `Idempotency-Key` (chuỗi 1–64 ký tự, khuyến nghị dùng UUID) **bắt buộc** với mọi `POST` làm dịch chuyển tiền.
 
 ### 8.2 Danh sách endpoint
 
