@@ -7,7 +7,7 @@
 ![PostgreSQL 18](https://img.shields.io/badge/PostgreSQL-18-336791)
 ![Kafka 4](https://img.shields.io/badge/Kafka-4.x_KRaft-231F20)
 
-> 🚧 **Trạng thái:** tuần 0, mới có khung dự án. Xem [lộ trình 12 tuần](docs/03-lo-trinh.md).
+> 🚧 **Trạng thái:** tuần 1, đã chốt thiết kế ([ADR](docs/adr/README.md)) và có backlog. Chưa có code nghiệp vụ. Xem [lộ trình 12 tuần](docs/03-lo-trinh.md).
 
 Ledgerly là backend ví điện tử (mở ví, chuyển tiền, nạp/rút qua ngân hàng giả lập), xây dựng quanh bốn đảm bảo:
 

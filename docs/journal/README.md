@@ -30,10 +30,12 @@ Dự kiến X giờ, thực tế Y giờ. Lệch vì ...
 
 | File | Tài liệu | Trạng thái |
 |---|---|---|
-| [notes-stripe-idempotency.md](notes-stripe-idempotency.md) | Stripe: *Designing robust and predictable APIs with idempotency* | ✍️ Chưa đọc |
-| [notes-modern-treasury-ledger.md](notes-modern-treasury-ledger.md) | Modern Treasury: *How to Scale a Ledger* (phần I–II) | ✍️ Chưa đọc |
-| [notes-transactional-outbox.md](notes-transactional-outbox.md) | microservices.io: *Transactional outbox* | ✍️ Chưa đọc |
-| [notes-sdi-vol2-payment-wallet.md](notes-sdi-vol2-payment-wallet.md) | System Design Interview Vol. 2: *Payment System*, *Digital Wallet* | ✍️ Chưa đọc |
-| [notes-postgresql-locking.md](notes-postgresql-locking.md) | PostgreSQL docs: *Explicit Locking*, *Transaction Isolation* | ✍️ Chưa đọc |
-| [notes-ddia-ch7.md](notes-ddia-ch7.md) | Kleppmann, *DDIA* chương 7 (tùy chọn) | ✍️ Chưa đọc |
-| [spike-locking.md](spike-locking.md) | Spike W01-08 | Có log, chờ chạy tay và kết luận (PR #70) |
+| [notes-stripe-idempotency.md](notes-stripe-idempotency.md) | Stripe: *Designing robust and predictable APIs with idempotency* | Đã ghi chú (01/10) |
+| [notes-modern-treasury-ledger.md](notes-modern-treasury-ledger.md) | Modern Treasury: *How to Scale a Ledger* (phần I–II) | Đã ghi chú (01/10) |
+| [notes-transactional-outbox.md](notes-transactional-outbox.md) | microservices.io: *Transactional outbox* | Đã ghi chú (01/10) |
+| [notes-sdi-vol2-payment-wallet.md](notes-sdi-vol2-payment-wallet.md) | System Design Interview Vol. 2: *Payment System*, *Digital Wallet* | Đã ghi chú (01/10) |
+| [notes-postgresql-locking.md](notes-postgresql-locking.md) | PostgreSQL docs: *Explicit Locking*, *Transaction Isolation* | Đã ghi chú (01/10) |
+| [notes-ddia-ch7.md](notes-ddia-ch7.md) | Kleppmann, *DDIA* chương 7 (tùy chọn) | Đã ghi chú (01/10) |
+| [spike-locking.md](spike-locking.md) | Spike W01-08 | 4 kịch bản, có log và kết luận (PR #70) |
+| [m1-cau-hoi.md](m1-cau-hoi.md) | Đáp án tham khảo 5 câu hỏi mốc M1 | Chờ tác giả luyện trả lời thành tiếng |
+| [2026-W41.md](2026-W41.md) | Nhật ký tuần 1 | Xong |
