@@ -1,8 +1,8 @@
 /**
- * Hợp đồng sự kiện (event contracts) giữa {@code ledger-app} và các consumer.
+ * Event contracts between {@code ledger-app} and its consumers.
  *
- * <p>Chỉ chứa record thuần Java: envelope, payload sự kiện và tên topic. Không phụ thuộc Spring hay Jackson
- * để mọi consumer đều dùng được. Quy tắc tiến hóa schema: xem {@code docs/01-kien-truc.md} mục 9.
+ * <p>Holds only plain Java records: the envelope, event payloads and topic names. No dependency on Spring or Jackson,
+ * so any consumer can use them. Schema evolution rules: see {@code docs/01-kien-truc.md} section 9.
  */
 @NullMarked
 package dev.ledgerly.contracts;

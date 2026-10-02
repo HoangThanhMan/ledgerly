@@ -1,4 +1,4 @@
-# Cập nhật dependency hằng tuần (W02-09). Bản minor/patch gộp thành một PR để đỡ ồn.
+# Weekly dependency updates. Minor and patch bumps are grouped into one PR to reduce noise.
 version: 2
 updates:
   - package-ecosystem: gradle

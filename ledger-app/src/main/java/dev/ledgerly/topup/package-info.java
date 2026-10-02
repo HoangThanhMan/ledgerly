@@ -1,8 +1,7 @@
 /**
- * Saga nạp tiền và rút tiền qua ngân hàng: máy trạng thái, worker, webhook, bút toán bù trừ.
+ * Top-up and withdrawal sagas through the bank: state machine, workers, webhooks, compensating entries.
  *
- * <p>Tuần triển khai: 9. API công khai nằm ở gốc package này. Mọi thứ trong {@code internal} là riêng tư
- * của module và được ArchUnit kiểm tra.
+ * <p>The public API lives at the package root. Everything under {@code internal} is private to the module.
  */
 @NullMarked
 package dev.ledgerly.topup;

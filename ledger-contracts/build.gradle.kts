@@ -2,4 +2,4 @@ plugins {
     id("ledgerly.java-library")
 }
 
-description = "Hợp đồng sự kiện dùng chung giữa ledger-app và notification-consumer"
+description = "Event contracts shared by ledger-app and notification-consumer"

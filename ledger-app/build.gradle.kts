@@ -2,7 +2,7 @@ plugins {
     id("ledgerly.spring-boot-app")
 }
 
-description = "Ứng dụng chính: ví điện tử sổ cái kép (modular monolith)"
+description = "Main application: e-wallet on a double-entry ledger (modular monolith)"
 
 dependencies {
     implementation(project(":ledger-contracts"))

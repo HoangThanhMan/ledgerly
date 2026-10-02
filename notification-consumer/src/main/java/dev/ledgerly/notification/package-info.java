@@ -1,4 +1,4 @@
-/** Kafka consumer idempotent: khử trùng theo {@code eventId}. Tuần triển khai: 6. */
+/** Idempotent Kafka consumer: deduplicates events by {@code eventId}. */
 @NullMarked
 package dev.ledgerly.notification;
 

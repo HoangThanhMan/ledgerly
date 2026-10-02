@@ -2,7 +2,7 @@ plugins {
     id("ledgerly.spring-boot-app")
 }
 
-description = "Ngân hàng giả lập: thu hộ, chi hộ, webhook, sao kê, hành vi lỗi cấu hình được"
+description = "Simulated bank: collections, payouts, webhooks, statements, configurable failure behavior"
 
 dependencies {
     implementation(libs.spring.boot.starter.actuator)

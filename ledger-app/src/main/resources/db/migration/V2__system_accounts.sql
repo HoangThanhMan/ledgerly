@@ -1,9 +1,9 @@
--- Account hệ thống (W02-06): đối ứng của mọi dòng tiền vào và ra khỏi hệ thống,
--- nhờ vậy I4 (tổng số dư của mọi account bằng 0) luôn đúng.
+-- System accounts: the counterpart of every money flow into and out of the system,
+-- so the balances of all accounts always sum to zero.
 INSERT INTO accounts (type, code, currency, allow_negative) VALUES
-    -- Nguồn của nạp tiền nội bộ (POST /v1/admin/deposits): âm dần khi nạp cho ví.
+    -- Source of internal deposits (POST /v1/admin/deposits): goes further negative with each deposit.
     ('SYSTEM', 'system:funding',             'VND', TRUE),
-    -- Tiền của người dùng đang nằm ở ngân hàng: nạp qua ngân hàng làm account này âm.
+    -- User money held at the bank: top-ups through the bank make this account negative.
     ('SYSTEM', 'system:bank-settlement',     'VND', TRUE),
-    -- Tiền rút đang giữ chờ ngân hàng chi hộ: chỉ nhận rồi trả ra, không bao giờ âm.
+    -- Withdrawals held until the bank pays out: money only passes through, so it is never negative.
     ('SYSTEM', 'system:withdrawal-suspense', 'VND', FALSE);

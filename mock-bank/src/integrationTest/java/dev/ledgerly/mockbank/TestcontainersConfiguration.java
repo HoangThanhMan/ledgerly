@@ -7,11 +7,11 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 /**
- * Container dùng chung cho mọi integration test và cho {@code bootTestRun}.
+ * Containers shared by every integration test and by {@code bootTestRun}.
  *
- * <p>Container là hằng số static, và bean khai báo {@code destroyMethod = ""}. Vì vậy mỗi JVM test chỉ khởi động
- * một lần, kể cả khi các test tạo ra nhiều Spring context khác nhau: Spring gọi {@code start()} lần nữa thì không có
- * tác dụng, và không dừng container khi đóng context. Testcontainers (Ryuk) dọn container khi JVM kết thúc.
+ * <p>The containers are static constants and the beans declare {@code destroyMethod = ""}, so each test JVM starts
+ * them only once, even when tests create several Spring contexts: Spring calling {@code start()} again has no
+ * effect, and closing a context does not stop the containers. Testcontainers (Ryuk) removes them when the JVM exits.
  */
 @TestConfiguration(proxyBeanMethods = false)
 class TestcontainersConfiguration {

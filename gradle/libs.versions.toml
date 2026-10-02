@@ -1,11 +1,11 @@
-# Nguồn phiên bản duy nhất của dự án.
-# Thư viện không ghi version được quản lý bởi Spring Boot BOM.
+# Single source of dependency versions for the project.
+# Libraries without a version are managed by the Spring Boot BOM.
 
 [versions]
 java = "25"
 spring-boot = "4.1.1"
 spring-dependency-management = "1.1.7"
-# Chất lượng build (W02-01). Đã kiểm tra chạy được với JDK 25 và Gradle 9.7.1 ngày 2026-10-01.
+# Build quality tooling. Verified with JDK 25 and Gradle 9.7.1.
 spotless = "8.10.3"
 palantir-java-format = "2.100.0"
 errorprone-gradle-plugin = "5.1.1"
@@ -15,13 +15,13 @@ jacoco = "0.8.15"
 jspecify = "1.0.1"
 
 [libraries]
-# Plugin Gradle, dùng trong build-logic
+# Gradle plugins, used by build-logic
 spring-boot-gradle-plugin = { module = "org.springframework.boot:spring-boot-gradle-plugin", version.ref = "spring-boot" }
 spring-dependency-management-plugin = { module = "io.spring.gradle:dependency-management-plugin", version.ref = "spring-dependency-management" }
 spotless-gradle-plugin = { module = "com.diffplug.spotless:spotless-plugin-gradle", version.ref = "spotless" }
 errorprone-gradle-plugin = { module = "net.ltgt.gradle:gradle-errorprone-plugin", version.ref = "errorprone-gradle-plugin" }
 
-# Công cụ chất lượng, dùng trong build-logic
+# Quality tools, used by build-logic
 errorprone-core = { module = "com.google.errorprone:error_prone_core", version.ref = "errorprone" }
 nullaway = { module = "com.uber.nullaway:nullaway", version.ref = "nullaway" }
 jspecify = { module = "org.jspecify:jspecify", version.ref = "jspecify" }

@@ -1,8 +1,7 @@
 /**
- * API ví điện tử: mở ví, xem số dư và lịch sử, chuyển tiền nội bộ, nạp tiền nội bộ cho dev/test.
+ * Wallet API: open a wallet, view balance and history, internal transfers, internal deposits for dev and test.
  *
- * <p>Tuần triển khai: 3. API công khai nằm ở gốc package này. Mọi thứ trong {@code internal} là riêng tư
- * của module và được ArchUnit kiểm tra.
+ * <p>The public API lives at the package root. Everything under {@code internal} is private to the module.
  */
 @NullMarked
 package dev.ledgerly.wallet;

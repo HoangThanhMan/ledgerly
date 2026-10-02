@@ -1,4 +1,4 @@
-/** Ngân hàng giả lập: thu hộ, chi hộ, webhook, sao kê. Tuần triển khai: 9. */
+/** Simulated bank: collections, payouts, webhooks, statements. */
 @NullMarked
 package dev.ledgerly.mockbank;
 

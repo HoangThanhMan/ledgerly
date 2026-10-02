@@ -3,7 +3,7 @@ pluginManagement {
 }
 
 plugins {
-    // Tự tải JDK 25 nếu máy chưa có (Gradle toolchains)
+    // Downloads JDK 25 automatically if it is missing (Gradle toolchains)
     id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
 }
 
