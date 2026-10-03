@@ -14,6 +14,16 @@ Mỗi mục ghi: hỏi AI gì, AI gợi ý gì, mình quyết định gì (chấ
 
 ---
 
+### 2026-10-03: Tuần 3, `Money`, `PostingRules`, repository và `LedgerService` (W03-01 … W03-04)
+- Hỏi AI: làm phần domain và persistence của tuần 3, rồi commit và merge vào `main`.
+- AI gợi ý:
+  - `Money` giữ `long` đơn vị nhỏ nhất (ADR-0003), tràn số ném `ArithmeticException`, khác currency ném `IllegalArgumentException`. `parsePositive` chỉ nhận chữ số ASCII vì `Long.parseLong` nhận cả chữ số Unicode khác.
+  - `PostingRules` là Java thuần. Posting sai dạng (ít hơn hai, số 0, trùng account, tổng khác 0) là lỗi lập trình nên ném exception. Account không tồn tại, sai currency, thiếu tiền là kết quả nghiệp vụ, trả về dạng sealed `PostingResult` để caller phải `switch` đủ nhánh.
+  - Repository dùng `JdbcClient` (ADR-0002). `findForPosting` đọc account theo thứ tự `id`, nên sau này thêm khóa chỉ cần `FOR UPDATE` mà không deadlock. Lịch sử dùng keyset trên index `(account_id, id)`.
+  - `LedgerApi` là cổng duy nhất của module, `LedgerService` package-private và mỗi method có ranh giới `@Transactional` riêng.
+- Quyết định: chấp nhận. Chưa có khóa dòng và idempotency, đúng phạm vi tuần 3.
+- Kiểm chứng: `./gradlew build` xanh. `MoneyTest` 24, `PostingRulesTest` 12, `LedgerServiceIT` 7 (posting cập nhật số dư và entry, bị từ chối thì không đổi gì, keyset không trùng không sót).
+
 ### 2026-10-03: Chuyển comment trong code sang tiếng Anh
 - Hỏi AI: kiểm tra toàn dự án, mọi comment phải viết bằng tiếng Anh, chỉ mô tả code, không tham chiếu kế hoạch tuần (W0x-yy, "tuần N").
 - AI gợi ý: dịch comment trong Java (Javadoc, `package-info`), Gradle Kotlin DSL, SQL migration, YAML, TOML, Python và shell. Bỏ mọi mã task và "Tuần triển khai". Thay mã bất biến (I1, I2, P2) bằng mô tả. Giữ tham chiếu tới ADR và tài liệu kiến trúc vì đó là lý do thiết kế, không phải kế hoạch. Dịch luôn `description` của các module Gradle và output của `coverage-summary.py` (dòng "Tuần 2 chỉ báo cáo…" bị bỏ). Không đổi output của `scripts/spikes/locking.sh` (log trong `docs/journal/spike-locking.md` trích nguyên văn) và issue form (người dùng đọc, cùng ngôn ngữ với tài liệu).
