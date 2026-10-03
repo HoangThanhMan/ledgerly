@@ -14,6 +14,12 @@ Mỗi mục ghi: hỏi AI gì, AI gợi ý gì, mình quyết định gì (chấ
 
 ---
 
+### 2026-10-03: Chuyển comment trong code sang tiếng Anh
+- Hỏi AI: kiểm tra toàn dự án, mọi comment phải viết bằng tiếng Anh, chỉ mô tả code, không tham chiếu kế hoạch tuần (W0x-yy, "tuần N").
+- AI gợi ý: dịch comment trong Java (Javadoc, `package-info`), Gradle Kotlin DSL, SQL migration, YAML, TOML, Python và shell. Bỏ mọi mã task và "Tuần triển khai". Thay mã bất biến (I1, I2, P2) bằng mô tả. Giữ tham chiếu tới ADR và tài liệu kiến trúc vì đó là lý do thiết kế, không phải kế hoạch. Dịch luôn `description` của các module Gradle và output của `coverage-summary.py` (dòng "Tuần 2 chỉ báo cáo…" bị bỏ). Không đổi output của `scripts/spikes/locking.sh` (log trong `docs/journal/spike-locking.md` trích nguyên văn) và issue form (người dùng đọc, cùng ngôn ngữ với tài liệu).
+- Quyết định: chấp nhận. Sửa comment trong V1, V2 làm đổi checksum Flyway: chấp nhận vì chưa có môi trường nào ngoài máy dev. Database compose cũ cần `docker compose down -v`.
+- Kiểm chứng: `./gradlew build` xanh (14 integration test). Gặp một lỗi lạ của Kotlin DSL: khi `ledgerly.spring-boot-app.gradle.kts` dài đúng 1071 byte thì `build-logic:compileKotlin` không sinh accessor. Lỗi tái hiện ổn định, đổi độ dài 1 ký tự là hết, nên đã viết lại câu comment.
+
 ### 2026-10-01: Tuần 2, chất lượng build và schema lõi (W02-01 … W02-09)
 - Hỏi AI: "Thực hiện luôn tuần 2".
 - AI gợi ý: 4 PR code xếp chồng (#72–#75) và 1 PR tài liệu (#76). Phiên bản plugin lấy bản mới nhất trên Maven Central và Gradle Plugin Portal ngày 01/10/2026, rồi kiểm chứng bằng build thật trên JDK 25.

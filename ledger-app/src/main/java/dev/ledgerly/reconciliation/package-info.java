@@ -1,8 +1,7 @@
 /**
- * Đối soát sổ cái với sao kê ngân hàng: phát hiện chênh lệch và tự xử lý giao dịch ở trạng thái UNKNOWN.
+ * Reconciles the ledger against bank statements: detects mismatches and resolves transactions stuck in UNKNOWN.
  *
- * <p>Tuần triển khai: 11. API công khai nằm ở gốc package này. Mọi thứ trong {@code internal} là riêng tư
- * của module và được ArchUnit kiểm tra.
+ * <p>The public API lives at the package root. Everything under {@code internal} is private to the module.
  */
 @NullMarked
 package dev.ledgerly.reconciliation;

@@ -4,11 +4,11 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 
 /**
- * Lớp cha của integration test trong {@code ledger-app}: Spring context đầy đủ, PostgreSQL và Kafka thật.
+ * Base class for {@code ledger-app} integration tests: full Spring context with real PostgreSQL and Kafka.
  *
- * <p>Spring cache context theo cấu hình, nên các lớp con không thêm cấu hình riêng sẽ dùng chung một context. Lớp
- * con có cấu hình riêng (ví dụ {@code @MockitoBean}) tạo context mới, nhưng vẫn dùng chung container nhờ
- * {@link TestcontainersConfiguration}.
+ * <p>Spring caches contexts by configuration, so subclasses that add no configuration of their own share one context.
+ * A subclass with its own configuration (e.g. {@code @MockitoBean}) gets a new context, but still shares the
+ * containers through {@link TestcontainersConfiguration}.
  */
 @SpringBootTest
 @Import(TestcontainersConfiguration.class)

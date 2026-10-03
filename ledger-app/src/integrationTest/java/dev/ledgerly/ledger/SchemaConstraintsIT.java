@@ -17,10 +17,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /**
- * Ràng buộc ở tầng database của sổ cái (01-kien-truc §5.3): lớp chặn cuối cùng nếu code Java có bug.
+ * Database-level constraints of the ledger: the last line of defense if the Java code has a bug.
  *
- * <p>Dùng JDBC thuần để điều khiển chính xác lúc commit. Bảng {@code entries} không cho xóa, nên mỗi test tự tạo
- * account mới và không dọn dữ liệu.
+ * <p>Uses plain JDBC to control exactly when each commit happens. Rows in {@code entries} cannot be deleted, so each
+ * test creates its own accounts and never cleans up.
  */
 class SchemaConstraintsIT extends AbstractIntegrationTest {
 
@@ -33,7 +33,7 @@ class SchemaConstraintsIT extends AbstractIntegrationTest {
         this.dataSource = dataSource;
     }
 
-    // --- I1: giao dịch cân bằng, kiểm tra lúc commit ---
+    // --- Transactions must balance, checked at commit ---
 
     @Test
     void balancedTransactionIsCommitted() throws SQLException {
@@ -52,7 +52,7 @@ class SchemaConstraintsIT extends AbstractIntegrationTest {
         try (Connection connection = dataSource.getConnection()) {
             connection.setAutoCommit(false);
             UUID transaction = insertTransaction(connection);
-            // Câu INSERT chạy được: ràng buộc là DEFERRABLE INITIALLY DEFERRED, chỉ kiểm tra lúc COMMIT.
+            // The INSERT succeeds: the constraint is DEFERRABLE INITIALLY DEFERRED and only checked at COMMIT.
             insertEntry(connection, transaction, wallet, 100);
 
             assertThatThrownBy(connection::commit)
@@ -87,7 +87,7 @@ class SchemaConstraintsIT extends AbstractIntegrationTest {
         }
     }
 
-    // --- P2: sổ cái chỉ được thêm ---
+    // --- The ledger is append-only ---
 
     @Test
     void updatingEntryIsRejected() throws SQLException {
@@ -107,7 +107,7 @@ class SchemaConstraintsIT extends AbstractIntegrationTest {
     void truncatingEntriesIsRejected() throws SQLException {
         commitTransfer(createWallet(1_000), createWallet(0), 100);
         try (Connection connection = dataSource.getConnection()) {
-            // Trong transaction và luôn rollback: nếu ràng buộc hỏng thì cũng không mất dữ liệu của test khác.
+            // Runs in a transaction that is always rolled back, so a broken constraint cannot wipe other tests' data.
             connection.setAutoCommit(false);
             try (PreparedStatement statement = connection.prepareStatement("TRUNCATE entries")) {
                 assertAppendOnly(statement::execute);
@@ -121,10 +121,11 @@ class SchemaConstraintsIT extends AbstractIntegrationTest {
     void updatingLedgerTransactionIsRejected() throws SQLException {
         UUID transaction = commitTransfer(createWallet(1_000), createWallet(0), 100);
 
-        assertAppendOnly(() -> execute("UPDATE ledger_transactions SET reference = 'sửa' WHERE id = ?", transaction));
+        assertAppendOnly(
+                () -> execute("UPDATE ledger_transactions SET reference = 'edited' WHERE id = ?", transaction));
     }
 
-    // --- I2: số dư không âm ---
+    // --- Balances cannot go negative ---
 
     @Test
     void negativeBalanceIsRejected() {
@@ -145,14 +146,14 @@ class SchemaConstraintsIT extends AbstractIntegrationTest {
                 () -> insertAccount("USER_WALLET", null, "VND", 0, true), "allow_negative_only_for_system");
     }
 
-    // --- ADR-0003: tiền tệ theo mã ISO 4217 ---
+    // --- Currency must be an ISO 4217 code ---
 
     @Test
     void lowercaseCurrencyIsRejected() {
         assertCheckViolation(() -> insertAccount("USER_WALLET", null, "vnd", 0, false), "currency_iso_4217");
     }
 
-    // --- V2: account hệ thống ---
+    // --- Seeded system accounts ---
 
     @Test
     void systemAccountsAreSeeded() throws SQLException {

@@ -25,7 +25,7 @@ jobs:
           distribution: temurin
           java-version: "25"
 
-      # Cache Gradle (dependency, wrapper, build cache). Chỉ nhánh main ghi cache, các nhánh khác chỉ đọc.
+      # Caches Gradle dependencies, the wrapper and the build cache. Only main writes the cache, other branches read it.
       - uses: gradle/actions/setup-gradle@v6
 
       - name: Build (Spotless, Error Prone, NullAway, unit test, integration test, JaCoCo)

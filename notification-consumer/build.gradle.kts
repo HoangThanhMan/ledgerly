@@ -2,7 +2,7 @@ plugins {
     id("ledgerly.spring-boot-app")
 }
 
-description = "Kafka consumer idempotent: nhận sự kiện từ ledger-app, khử trùng theo eventId"
+description = "Idempotent Kafka consumer: receives events from ledger-app, deduplicates by eventId"
 
 dependencies {
     implementation(project(":ledger-contracts"))

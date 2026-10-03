@@ -1,7 +1,7 @@
-// Chất lượng code, chặn ngay lúc build:
-//   - Spotless + Palantir Java Format: format thống nhất. Sửa tự động bằng ./gradlew spotlessApply
-//   - Error Prone + NullAway (chế độ JSpecify): lỗi phổ biến và lỗi null là lỗi biên dịch
-//   - JaCoCo: báo cáo coverage. Tuần 2 chỉ báo cáo, từ tuần 4 mới đặt ngưỡng
+// Code quality checks that run as part of the build:
+//   - Spotless + Palantir Java Format: consistent formatting. Fix automatically with ./gradlew spotlessApply
+//   - Error Prone + NullAway (JSpecify mode): common bug patterns and null errors are compile errors
+//   - JaCoCo: coverage reports, without a minimum threshold
 import net.ltgt.gradle.errorprone.errorprone
 
 plugins {
@@ -30,7 +30,7 @@ spotless {
 tasks.withType<JavaCompile>().configureEach {
     options.errorprone {
         disableWarningsInGeneratedCode = true
-        // Chỉ kiểm tra package có @NullMarked, theo ngữ nghĩa JSpecify.
+        // Only check packages annotated with @NullMarked, following JSpecify semantics.
         error("NullAway")
         option("NullAway:OnlyNullMarked", "true")
         option("NullAway:JSpecifyMode", "true")

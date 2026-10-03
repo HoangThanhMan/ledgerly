@@ -1,8 +1,7 @@
 /**
- * Lõi sổ cái kép: account, ledger transaction, entry bất biến. Ghi bút toán với khóa account theo thứ tự id.
+ * Double-entry ledger core: accounts, ledger transactions, immutable entries. Postings lock accounts in id order.
  *
- * <p>Tuần triển khai: 3–4. API công khai nằm ở gốc package này. Mọi thứ trong {@code internal} là riêng tư
- * của module và được ArchUnit kiểm tra.
+ * <p>The public API lives at the package root. Everything under {@code internal} is private to the module.
  */
 @NullMarked
 package dev.ledgerly.ledger;

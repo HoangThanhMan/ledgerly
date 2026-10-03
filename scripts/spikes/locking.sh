@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
-# Spike W01-08: thấy khóa dòng chờ nhau, và deadlock khi hai phiên khóa ngược thứ tự.
+# Spike: shows row locks waiting on each other, and a deadlock when two sessions lock in opposite order.
 #
-# Cần PostgreSQL của compose đang chạy:  docker compose up -d postgres
-# Chạy:                                  scripts/spikes/locking.sh [1|2|3|4]   (bỏ trống = cả bốn)
+# Needs the compose PostgreSQL running:  docker compose up -d postgres
+# Run:                                   scripts/spikes/locking.sh [1|2|3|4]   (no argument = all four)
 #
-# Script tạo database tạm `spike`, chạy hai phiên psql song song theo một kịch bản thời gian
-# cố định, rồi xóa database. Dòng ">>" là lúc script gửi câu lệnh, các dòng còn lại là output
-# của psql. `Time:` là thời gian câu lệnh chạy, gồm cả thời gian chờ khóa.
+# The script creates a temporary `spike` database, runs two psql sessions in parallel on a fixed
+# timeline, then drops the database. Lines with ">>" mark when the script sends a statement, the other
+# lines are psql output. `Time:` is how long the statement ran, including time spent waiting for locks.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
 psql_in() { local db=$1; shift; docker compose exec -T postgres psql -X -U ledgerly -d "$db" "$@"; }
-# Giờ:phút:giây.mili-giây. Dùng EPOCHREALTIME của bash vì `date +%3N` không chạy giống nhau trên mọi bản coreutils.
+# HH:MM:SS.mmm. Uses bash EPOCHREALTIME because `date +%3N` does not behave the same across coreutils versions.
 now() { local t=${EPOCHREALTIME/,/.}; printf '%(%T)T.%s' "${t%.*}" "${t#*.}" | cut -c1-12; }
 
-# session TÊN BƯỚC...: mỗi bước là một câu SQL, hoặc "sleep N" để chờ trước khi gửi bước tiếp theo.
+# session NAME STEP...: each step is an SQL statement, or "sleep N" to wait before sending the next step.
 session() {
     local name=$1; shift
     {
@@ -80,7 +80,7 @@ scenario_3() {
     wait
 }
 
-# move ID SỐ_TIỀN: cộng (số dương) hoặc trừ (số âm) vào số dư của account ID.
+# move ID AMOUNT: adds AMOUNT (positive) or subtracts it (negative) from the balance of account ID.
 move() { if (( $2 < 0 )); then echo "UPDATE accounts SET balance = balance - ${2#-} WHERE id = $1;"; else echo "UPDATE accounts SET balance = balance + $2 WHERE id = $1;"; fi; }
 
 scenario_4() {

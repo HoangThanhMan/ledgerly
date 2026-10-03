@@ -1,5 +1,5 @@
-// Suite integrationTest: test cần hạ tầng thật (Testcontainers), nằm ở src/integrationTest/java.
-// Tách khỏi suite test để ./gradlew test chỉ chạy unit test nhanh. ./gradlew check chạy cả hai.
+// integrationTest suite: tests that need real infrastructure (Testcontainers), in src/integrationTest/java.
+// Kept apart from the test suite so ./gradlew test runs only fast unit tests. ./gradlew check runs both.
 plugins {
     java
     jacoco
@@ -16,7 +16,7 @@ val integrationTest = testing.suites.register<JvmTestSuite>("integrationTest") {
     }
 }
 
-// Integration test dùng chung các dependency test (starter test, AssertJ...) với unit test.
+// Integration tests reuse the unit test dependencies (starter test, AssertJ...).
 configurations.named("integrationTestImplementation") { extendsFrom(configurations.testImplementation.get()) }
 configurations.named("integrationTestRuntimeOnly") { extendsFrom(configurations.testRuntimeOnly.get()) }
 
@@ -24,7 +24,7 @@ tasks.named("check") {
     dependsOn(integrationTest)
 }
 
-// Báo cáo coverage gộp cả unit test và integration test.
+// The coverage report merges unit and integration test results.
 tasks.named<JacocoReport>("jacocoTestReport") {
     executionData.setFrom(fileTree(layout.buildDirectory.dir("jacoco")) { include("*.exec") })
     mustRunAfter(tasks.named("integrationTest"))

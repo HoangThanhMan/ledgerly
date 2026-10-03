@@ -1,8 +1,8 @@
 /**
- * Transactional outbox: ghi sự kiện trong cùng transaction nghiệp vụ, relay lên Kafka bằng {@code FOR UPDATE SKIP LOCKED}.
+ * Transactional outbox: events are written in the same transaction as the business change, then relayed to
+ * Kafka with {@code FOR UPDATE SKIP LOCKED}.
  *
- * <p>Tuần triển khai: 6. API công khai nằm ở gốc package này. Mọi thứ trong {@code internal} là riêng tư
- * của module và được ArchUnit kiểm tra.
+ * <p>The public API lives at the package root. Everything under {@code internal} is private to the module.
  */
 @NullMarked
 package dev.ledgerly.outbox;

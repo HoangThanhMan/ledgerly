@@ -3,7 +3,7 @@ package dev.ledgerly.notification;
 import org.springframework.boot.SpringApplication;
 
 /**
- * Chạy app với PostgreSQL và Kafka từ Testcontainers, không cần compose:
+ * Runs the app against PostgreSQL and Kafka from Testcontainers, no compose needed:
  * {@code ./gradlew :notification-consumer:bootTestRun}.
  */
 public class TestNotificationConsumerApplication {

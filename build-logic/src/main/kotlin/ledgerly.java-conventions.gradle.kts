@@ -1,4 +1,4 @@
-// Cấu hình Java dùng chung cho mọi module.
+// Java settings shared by every module.
 plugins {
     java
     id("ledgerly.quality")

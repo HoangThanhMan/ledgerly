@@ -1,4 +1,4 @@
-/** Gốc của {@code ledger-app}: chỉ chứa lớp khởi động. Mỗi module nghiệp vụ là một package con. */
+/** Root of {@code ledger-app}: holds only the bootstrap class. Each business module is a subpackage. */
 @NullMarked
 package dev.ledgerly;
 

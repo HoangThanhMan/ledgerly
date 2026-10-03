@@ -1,8 +1,8 @@
 /**
- * HTTP client tới mock-bank ({@code @HttpExchange}): timeout, retry có backoff và jitter, ánh xạ kết quả sang sealed type.
+ * HTTP client for mock-bank ({@code @HttpExchange}): timeouts, retries with backoff and jitter, results mapped to
+ * a sealed type.
  *
- * <p>Tuần triển khai: 9. API công khai nằm ở gốc package này. Mọi thứ trong {@code internal} là riêng tư
- * của module và được ArchUnit kiểm tra.
+ * <p>The public API lives at the package root. Everything under {@code internal} is private to the module.
  */
 @NullMarked
 package dev.ledgerly.bankgateway;
