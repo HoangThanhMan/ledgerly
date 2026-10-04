@@ -28,3 +28,8 @@ dependencies {
     integrationTestImplementation(libs.testcontainers.postgresql)
     integrationTestImplementation(libs.testcontainers.kafka)
 }
+
+// InvariantChecker reads the statements of scripts/invariants.sql, so the tests must rerun when that file changes.
+tasks.named<Test>("integrationTest") {
+    inputs.file(rootProject.file("scripts/invariants.sql")).withPathSensitivity(PathSensitivity.RELATIVE)
+}
