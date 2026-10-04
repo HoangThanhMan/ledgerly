@@ -448,8 +448,8 @@ flowchart LR
 
 | Vấn đề | Giải pháp | Ghi chú phỏng vấn |
 |---|---|---|
-| Hai giao dịch cùng trừ một ví | `SELECT ... FOR UPDATE` trên dòng account, ở isolation READ COMMITTED | Khóa dòng tuần tự hóa các thao tác ghi trên cùng account. SERIALIZABLE gây nhiều lỗi retry hơn mà không thêm đảm bảo cần thiết |
-| Deadlock khi A→B và B→A chạy cùng lúc | Luôn khóa theo **id tăng dần** | Thứ tự khóa toàn cục loại bỏ chờ vòng |
+| Hai giao dịch cùng trừ một ví | `SELECT ... FOR NO KEY UPDATE` trên dòng account, ở isolation READ COMMITTED, chờ khóa tối đa `lock_timeout` 2 giây ([ADR-0004](adr/0004-khoa-bi-quan-co-thu-tu.md)) | Khóa dòng tuần tự hóa các thao tác ghi trên cùng account. SERIALIZABLE gây nhiều lỗi retry hơn mà không thêm đảm bảo cần thiết |
+| Deadlock khi A→B và B→A chạy cùng lúc | Luôn khóa theo **id tăng dần**, bằng một câu `ORDER BY id` | Thứ tự khóa toàn cục loại bỏ chờ vòng |
 | Hot account (ví hệ thống nhận rất nhiều giao dịch) | Tuần 11 đo 3 chiến lược: khóa bi quan, khóa lạc quan + retry, ghi qua account trung gian rồi gộp (batching) | Kết quả ghi vào ADR-0010 |
 | Virtual threads làm cạn connection pool | `@ConcurrencyLimit` ở tầng application. Pool HikariCP cỡ nhỏ, `connectionTimeout` ngắn, quá tải trả 503 | Từ JDK 24 (JEP 491), `synchronized` không còn gây pinning. Nút cổ chai thật là DB |
 | Request context (correlation id) | `ScopedValue` (JEP 506, final ở Java 25) thay cho `ThreadLocal` | Không rò rỉ giữa các virtual thread, bất biến trong phạm vi |
