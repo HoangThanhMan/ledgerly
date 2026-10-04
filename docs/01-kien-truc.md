@@ -458,11 +458,11 @@ flowchart LR
 
 ### 8.1 Quy ước chung
 
-- Phiên bản hóa bằng path `/v1/...`, dùng API versioning có sẵn trong Spring Framework 7.
+- Phiên bản hóa bằng path `/v1/...`. Hiện tiền tố được viết thẳng trong `@RequestMapping`. API versioning có sẵn trong Spring Framework 7 sẽ dùng khi có phiên bản thứ hai.
 - JSON dùng `camelCase`. Số tiền là **chuỗi số nguyên** theo đơn vị nhỏ nhất, ví dụ `"amount": "150000"`, để tránh mất chính xác ở client JavaScript.
-- Lỗi theo **RFC 9457 Problem Details** (`application/problem+json`), có `type`, `title`, `status`, `detail`, `instance` và `traceId`.
-- Phân trang lịch sử bằng keyset (`?after=<entryId>&limit=50`), không dùng offset.
-- Header `Idempotency-Key` (chuỗi 1–64 ký tự, khuyến nghị dùng UUID) **bắt buộc** với mọi `POST` làm dịch chuyển tiền.
+- Lỗi theo **RFC 9457 Problem Details** (`application/problem+json`), có `type`, `title`, `status`, `detail`, `instance`. Lỗi validate có thêm `errors` (danh sách `field`, `message`). `traceId` được thêm khi có tracing (tuần 7).
+- Phân trang lịch sử bằng keyset (`?after=<entryId>&limit=50`, `limit` từ 1 đến 100), không dùng offset. Response có `items` và `nextCursor`. `nextCursor` là giá trị `after` của trang kế, hoặc `null` ở trang cuối.
+- Header `Idempotency-Key` (chuỗi 1–64 ký tự ASCII nhìn thấy được, khuyến nghị dùng UUID) **bắt buộc** với mọi `POST` làm dịch chuyển tiền.
 
 ### 8.2 Danh sách endpoint
 
@@ -485,12 +485,16 @@ flowchart LR
 
 | HTTP | `type` (Problem Details) | Khi nào |
 |---|---|---|
-| 400 | `/problems/validation-error` | Body không hợp lệ, thiếu `Idempotency-Key` |
-| 404 | `/problems/wallet-not-found` | Ví không tồn tại |
+| 400 | `/problems/validation-error` | Body, tham số hoặc header không hợp lệ, thiếu `Idempotency-Key` |
+| 404 | `/problems/wallet-not-found` | Ví không tồn tại (account `SYSTEM` không phải là ví) |
+| 404 | `/problems/transfer-not-found` | Giao dịch chuyển tiền không tồn tại |
 | 409 | `/problems/idempotency-in-progress` | Key đang xử lý, kèm header `Retry-After` |
 | 422 | `/problems/idempotency-key-reused` | Cùng key nhưng body khác |
 | 422 | `/problems/insufficient-funds` | Không đủ số dư |
 | 422 | `/problems/same-account-transfer` | Chuyển cho chính mình |
+| 422 | `/problems/currency-mismatch` | Tiền tệ của request khác tiền tệ của ví |
+| 422 | `/problems/unsupported-currency` | Mở ví bằng tiền tệ chưa có account hệ thống (hiện chỉ có VND) |
+| 500 | `/problems/internal-error` | Lỗi không lường trước. Không lộ nguyên nhân, chi tiết nằm trong log |
 | 503 | `/problems/overloaded` | Vượt `@ConcurrencyLimit` hoặc hết connection, kèm `Retry-After` |
 
 ### 8.4 Ví dụ
@@ -500,14 +504,15 @@ POST /v1/transfers HTTP/1.1
 Content-Type: application/json
 Idempotency-Key: 0199a7c2-5d1e-7b3a-9f00-6f1c2d3e4a5b
 
-{ "sourceWalletId": "0199a7...", "targetWalletId": "0199a8...", "amount": "150000", "currency": "VND", "note": "Tiền cơm" }
+{ "sourceWalletId": "0199a7...", "targetWalletId": "0199a8...", "amount": "150000", "currency": "VND" }
 ```
 
 ```http
 HTTP/1.1 201 Created
 Location: /v1/transfers/0199a7d0-...
 
-{ "id": "0199a7d0-...", "status": "COMPLETED", "amount": "150000", "currency": "VND", "createdAt": "2026-10-20T09:15:02Z" }
+{ "id": "0199a7d0-...", "status": "COMPLETED", "sourceWalletId": "0199a7...", "targetWalletId": "0199a8...",
+  "amount": "150000", "currency": "VND", "createdAt": "2026-10-20T09:15:02Z" }
 ```
 
 ## 9. Sự kiện và Kafka
