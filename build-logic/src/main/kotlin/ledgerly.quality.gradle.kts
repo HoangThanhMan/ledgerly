@@ -1,7 +1,7 @@
 // Code quality checks that run as part of the build:
 //   - Spotless + Palantir Java Format: consistent formatting. Fix automatically with ./gradlew spotlessApply
 //   - Error Prone + NullAway (JSpecify mode): common bug patterns and null errors are compile errors
-//   - JaCoCo: coverage reports, without a minimum threshold
+//   - JaCoCo: coverage reports, and a minimum line coverage of 80% for the domain packages
 import net.ltgt.gradle.errorprone.errorprone
 
 plugins {
@@ -48,6 +48,21 @@ tasks.named<JacocoReport>("jacocoTestReport") {
     }
 }
 
+// The domain packages hold the money rules, so their line coverage is a gate and not just a number in a report.
+tasks.named<JacocoCoverageVerification>("jacocoTestCoverageVerification") {
+    violationRules {
+        rule {
+            element = "PACKAGE"
+            includes = listOf("dev.ledgerly.*.internal.domain")
+            limit {
+                counter = "LINE"
+                value = "COVEREDRATIO"
+                minimum = "0.80".toBigDecimal()
+            }
+        }
+    }
+}
+
 tasks.named("check") {
-    dependsOn(tasks.named("jacocoTestReport"))
+    dependsOn(tasks.named("jacocoTestReport"), tasks.named("jacocoTestCoverageVerification"))
 }
