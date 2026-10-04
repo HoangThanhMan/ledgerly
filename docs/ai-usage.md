@@ -14,6 +14,17 @@ Mỗi mục ghi: hỏi AI gì, AI gợi ý gì, mình quyết định gì (chấ
 
 ---
 
+### 2026-10-04: Tuần 4, khóa có thứ tự, test đồng thời, jqwik và ADR-0004 (W04-01 … W04-08)
+- Hỏi AI: thực hiện tuần 4.
+- AI gợi ý:
+  - Làm `InvariantChecker` trước (PR #85): đọc chính `scripts/invariants.sql`, nên test và script chạy tay dùng một bộ truy vấn.
+  - Viết ba test đồng thời trước khi có khóa và để chúng đỏ: 500/500 lần rút từ ví có 100 đồng đều thành công, deadlock khi chuyển ngược chiều. Sau đó mới thêm `lockAll` với `ORDER BY id FOR NO KEY UPDATE` (PR #86).
+  - `lock_timeout` 2 giây cho từng transaction, đổi `55P03` thành `CannotAcquireLockException` ở repository, trả 503 kèm `Retry-After` (PR #86).
+  - Property test bằng jqwik, nối Spring bằng `TestContextManager` (PR #87). Cổng coverage 80% cho domain (PR #88).
+  - ADR-0004 với thí nghiệm bốn cách khóa, mỗi cách 3 lượt (PR #89).
+- Quyết định: AI tự quyết và ghi vào ADR-0004: dùng `FOR NO KEY UPDATE` thay cho `FOR UPDATE`, nạn nhân deadlock cũng trả 503, `InvariantChecker` kiểm tra toàn bộ database (kéo theo việc sửa fixture của `SchemaConstraintsIT`). AI đã đoán sai một điểm và sửa theo số đo: tưởng một câu khóa không có `ORDER BY` thì không deadlock. Phần so sánh với SERIALIZABLE và khóa lạc quan trong ADR là lập luận, chưa đo. Mình cần đọc lại ADR-0004 trước khi coi nó là quyết định của mình.
+- Kiểm chứng: PR #85–#89. `./gradlew check` 122/122 xanh, `ConcurrentTransferIT` xanh 10 lần liên tiếp, `LedgerModelProperties` 1.000 lượt thử. Mỗi test đều đã thấy đỏ trước: không khóa, không timeout, `InvariantChecker` rỗng, lỗi cài thử cho jqwik, coverage 0,74. `scripts/invariants.sql` chạy trên database compose trả 0 dòng.
+
 ### 2026-10-04: Tuần 3, API ví, Problem Details và ArchUnit (W03-05 … W03-09)
 - Hỏi AI: thực hiện cho xong tuần 3.
 - AI gợi ý:
