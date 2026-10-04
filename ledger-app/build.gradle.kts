@@ -27,6 +27,7 @@ dependencies {
     integrationTestImplementation(libs.testcontainers.junit.jupiter)
     integrationTestImplementation(libs.testcontainers.postgresql)
     integrationTestImplementation(libs.testcontainers.kafka)
+    integrationTestImplementation(libs.jqwik)
 }
 
 // InvariantChecker reads the statements of scripts/invariants.sql, so the tests must rerun when that file changes.
