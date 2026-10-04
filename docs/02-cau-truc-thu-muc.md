@@ -49,7 +49,7 @@ ledgerly/
 │       ├── main/resources/
 │       │   ├── application.yaml                                                     [T0]
 │       │   └── db/migration/              # V1__ledger_core.sql, ...                  [T2+]
-│       ├── test/java/                     # chỉ unit test: thuần Java, không cần Docker
+│       ├── test/java/                     # unit test và ArchitectureTest: không cần Docker
 │       └── integrationTest/java/          # Testcontainers, concurrency, chaos        [T2]
 │                                          # kèm TestcontainersConfiguration, Test<App>Application
 │

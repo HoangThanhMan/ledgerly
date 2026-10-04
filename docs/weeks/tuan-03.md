@@ -2,7 +2,7 @@
 
 | Thời gian | Giai đoạn | Mốc | Ngân sách | Trạng thái |
 |---|---|---|---|---|
-| 19/10 – 25/10/2026 | 2: Lõi đúng đắn | | 14 giờ | ⬜ Chưa bắt đầu |
+| 19/10 – 25/10/2026 | 2: Lõi đúng đắn | | 14 giờ | 🟡 Code xong (04/10/2026), chờ merge PR #82, #83, #81 |
 
 ## Mục tiêu
 
@@ -12,17 +12,17 @@
 
 ## Công việc
 
-| ID | Việc | Giờ | Đầu ra |
-|---|---|:-:|---|
-| W03-01 | `shared`: record `Money` (long + `Currency`), `Math.addExact`, factory method kiểm tra hợp lệ | 1.5 | `MoneyTest` |
-| W03-02 | `ledger.internal.domain`: `PostingRules`, nhận số dư hiện tại và các posting, trả về `PostingResult` (sealed) | 3 | `PostingRulesTest` |
-| W03-03 | `ledger.internal.persistence`: repository bằng `JdbcClient` (insert transaction, entries, cập nhật balance) | 2 | |
-| W03-04 | `LedgerApi` + `LedgerService` (`@Transactional`) | 1 | |
-| W03-05 | `wallet`: `POST /v1/wallets`, `GET /v1/wallets/{id}`, `GET /v1/wallets/{id}/entries` (keyset) | 2 | |
-| W03-06 | `wallet`: `POST /v1/transfers`, `GET /v1/transfers/{id}`, `POST /v1/admin/deposits` | 1.5 | |
-| W03-07 | `shared.problem`: `@RestControllerAdvice` trả Problem Details (RFC 9457) | 1 | |
-| W03-08 | `ArchitectureTest` (ArchUnit) với các quy tắc ở [01-kien-truc §4](../01-kien-truc.md#4-c4-mức-3-component-trong-ledger-app) | 1.5 | |
-| W03-09 | `TransferApiIT` dùng `RestTestClient` (Spring Framework 7) + Testcontainers | 1.5 | |
+| ID | Việc | Giờ | Đầu ra | Trạng thái |
+|---|---|:-:|---|---|
+| W03-01 | `shared`: record `Money` (long + `Currency`), `Math.addExact`, factory method kiểm tra hợp lệ | 1.5 | `MoneyTest` | ✅ #79 |
+| W03-02 | `ledger.internal.domain`: `PostingRules`, nhận số dư hiện tại và các posting, trả về `PostingResult` (sealed) | 3 | `PostingRulesTest` | ✅ #79 |
+| W03-03 | `ledger.internal.persistence`: repository bằng `JdbcClient` (insert transaction, entries, cập nhật balance) | 2 | | ✅ #80 |
+| W03-04 | `LedgerApi` + `LedgerService` (`@Transactional`) | 1 | | ✅ #80 |
+| W03-05 | `wallet`: `POST /v1/wallets`, `GET /v1/wallets/{id}`, `GET /v1/wallets/{id}/entries` (keyset) | 2 | | 🟡 PR #83 |
+| W03-06 | `wallet`: `POST /v1/transfers`, `GET /v1/transfers/{id}`, `POST /v1/admin/deposits` | 1.5 | | 🟡 PR #83 |
+| W03-07 | `shared.problem`: `@RestControllerAdvice` trả Problem Details (RFC 9457) | 1 | | 🟡 PR #83 |
+| W03-08 | `ArchitectureTest` (ArchUnit) với các quy tắc ở [01-kien-truc §4](../01-kien-truc.md#4-c4-mức-3-component-trong-ledger-app) | 1.5 | | 🟡 PR #82 |
+| W03-09 | `TransferApiIT` dùng `RestTestClient` (Spring Framework 7) + Testcontainers | 1.5 | | 🟡 PR #83 |
 
 ## Ghi chú kỹ thuật
 
@@ -96,10 +96,17 @@ class ArchitectureTest {
 
 ## Definition of Done
 
-- [ ] Gọi được toàn bộ endpoint tuần 3 bằng `curl`, có ví dụ trong `docs/journal`
-- [ ] `TransferResult` là sealed interface và controller dùng `switch` đầy đủ
-- [ ] Domain không import Spring (ArchUnit chứng minh)
-- [ ] Coverage `internal.domain` ≥ 80%
+- [x] Gọi được toàn bộ endpoint tuần 3 bằng `curl`, có ví dụ trong `docs/journal` ([2026-W43](../journal/2026-W43.md#gọi-thử-bằng-curl))
+- [x] `TransferResult` là sealed interface và controller dùng `switch` đầy đủ (`TransferController.create`)
+- [x] Domain không import Spring (ArchUnit chứng minh: `ArchitectureTest.domainIsFrameworkFree`)
+- [x] Coverage `internal.domain` ≥ 80% (100%, 38/38 dòng)
+
+## Ghi chú khi thực hiện (03–04/10/2026)
+
+- **Thứ tự làm khác bảng:** `ArchitectureTest` (W03-08) làm trước API, để các quy tắc kiểm tra code `wallet` ngay từ commit đầu.
+- **`PostingRules` trả `PostingDecision`**, không trả thẳng `PostingResult`: quy tắc trả về các entry cần ghi, còn `PostingResult.Posted` cần id giao dịch mà chỉ tầng persistence mới có.
+- **Ngoài kế hoạch:** kết quả sealed cho mở ví và nạp tiền (`OpenWalletResult`, `DepositResult`), bốn mã lỗi mới, chặn account `SYSTEM` làm nguồn chuyển tiền, `WalletApiIT` (16 test) và `ProblemDetailsAdviceTest` (3 test).
+- **Chưa làm so với thiết kế:** trường `note` của chuyển tiền, API versioning của Spring Framework 7, `traceId` trong Problem Details. Xem [nhật ký](../journal/2026-W43.md#khác-với-tài-liệu-thiết-kế).
 
 ## Rủi ro và phương án
 

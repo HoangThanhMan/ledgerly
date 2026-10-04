@@ -14,6 +14,22 @@ Mỗi mục ghi: hỏi AI gì, AI gợi ý gì, mình quyết định gì (chấ
 
 ---
 
+### 2026-10-04: Tuần 3, API ví, Problem Details và ArchUnit (W03-05 … W03-09)
+- Hỏi AI: thực hiện cho xong tuần 3.
+- AI gợi ý:
+  - `ArchitectureTest` làm trước (PR #82) với 7 quy tắc: không vòng, ma trận phụ thuộc, `internal` riêng tư, domain không dính framework, `@Transactional` chỉ ở tầng application, không field `double`/`float`. Ma trận viết thành một `Map` và một `ArchCondition` tổng quát thay vì lặp quy tắc cho từng module.
+  - Module `wallet` (PR #83) chia `internal.application` (`WalletService`, `TransferService`, kết quả sealed) và `internal.web` (controller, DTO). Ví là account `USER_WALLET`. Account `SYSTEM` không được làm nguồn chuyển tiền.
+  - `shared.problem`: `ProblemType` là bảng mã lỗi, `ProblemDetailsAdvice` kế thừa `ResponseEntityExceptionHandler`. Lỗi 400 của Spring MVC đổi thành `validation-error` kèm `errors`. Exception không lường trước thành 500 không lộ nguyên nhân.
+  - `AbstractIntegrationTest` chạy server thật ở cổng ngẫu nhiên, test gọi qua `RestTestClient`.
+- Quyết định: AI tự quyết các điểm khác thiết kế và đã sửa `01-kien-truc.md` §8 cho khớp: thêm bốn mã lỗi, bỏ trường `note` (schema chưa có cột), viết thẳng `/v1` thay vì dùng API versioning của Spring Framework 7, để `traceId` tới tuần 7, chỉ cho mở ví VND. Mình cần xem lại các điểm này, nhất là `note`.
+- Kiểm chứng: PR #82, #83. Test viết trước: 43 test API đỏ vì `404` rồi mới xanh, 7 quy tắc ArchUnit đỏ với vi phạm cài thử. `./gradlew check` 112/112 xanh. Chạy `bootTestRun` và gọi mọi endpoint bằng `curl`, output thật ở [nhật ký tuần 3](journal/2026-W43.md#gọi-thử-bằng-curl).
+
+### 2026-10-04: VS Code build liên tục và đầy RAM
+- Hỏi AI: vì sao mở VS Code thì tự build và máy đầy RAM.
+- AI gợi ý: đọc log của Gradle daemon và của Java language server. Extension Java build `build-logic` bằng Gradle 8.9 (thư mục không có wrapper), lỗi vì plugin Spring Boot cần Gradle 8.14 trở lên, và mỗi lần lỗi lại kích hoạt lần build kế: 1.553 lần `BUILD FAILED` trong ngày 03/10. Sửa bằng `java.import.gradle.version` trong `.vscode/settings.json`.
+- Quyết định: chấp nhận. Thêm ba cấu hình cấp máy: heap language server 1 GB, heap Gradle daemon 1 GB (`~/.gradle/gradle.properties`), VS Code dùng cùng JDK với terminal để chung một daemon.
+- Kiểm chứng: build lại toàn bộ với heap 1 GB chạy được (33 giây). Phần VS Code **chưa** kiểm chứng: cần mở lại VS Code và xem `~/.gradle/daemon/8.9/` còn sinh log mới không.
+
 ### 2026-10-04: GitHub Projects board (W01-06)
 - Hỏi AI: xem tiến độ dự án. Sau đó mình tự cấp scope `project` cho `gh` (xác nhận mã thiết bị trên trình duyệt) để AI làm nốt W01-06.
 - AI gợi ý: tạo board [Ledgerly](https://github.com/users/HoangThanhMan/projects/3) liên kết với repo, đổi field `Status` thành năm cột `Backlog`, `Todo`, `In progress`, `Review`, `Done` theo [lộ trình §7](03-lo-trinh.md#7-theo-dõi-tiến-độ-trên-github). Đưa cả 67 issue vào: issue đã đóng vào `Done`, việc còn lại của tuần 3 và #5 vào `Todo`, tuần 4–8 vào `Backlog`. PR dependabot #77 vào `Review`. Thêm một view dạng board bên cạnh view dạng bảng.
