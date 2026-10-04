@@ -2,7 +2,7 @@
 
 | Thời gian | Giai đoạn | Mốc | Ngân sách | Trạng thái |
 |---|---|---|---|---|
-| 19/10 – 25/10/2026 | 2: Lõi đúng đắn | | 14 giờ | 🟡 Code xong (04/10/2026), chờ merge PR #82, #83, #81 |
+| 19/10 – 25/10/2026 | 2: Lõi đúng đắn | | 14 giờ | ✅ Xong (merge PR #79–#83 ngày 03–04/10/2026) |
 
 ## Mục tiêu
 
@@ -18,11 +18,11 @@
 | W03-02 | `ledger.internal.domain`: `PostingRules`, nhận số dư hiện tại và các posting, trả về `PostingResult` (sealed) | 3 | `PostingRulesTest` | ✅ #79 |
 | W03-03 | `ledger.internal.persistence`: repository bằng `JdbcClient` (insert transaction, entries, cập nhật balance) | 2 | | ✅ #80 |
 | W03-04 | `LedgerApi` + `LedgerService` (`@Transactional`) | 1 | | ✅ #80 |
-| W03-05 | `wallet`: `POST /v1/wallets`, `GET /v1/wallets/{id}`, `GET /v1/wallets/{id}/entries` (keyset) | 2 | | 🟡 PR #83 |
-| W03-06 | `wallet`: `POST /v1/transfers`, `GET /v1/transfers/{id}`, `POST /v1/admin/deposits` | 1.5 | | 🟡 PR #83 |
-| W03-07 | `shared.problem`: `@RestControllerAdvice` trả Problem Details (RFC 9457) | 1 | | 🟡 PR #83 |
-| W03-08 | `ArchitectureTest` (ArchUnit) với các quy tắc ở [01-kien-truc §4](../01-kien-truc.md#4-c4-mức-3-component-trong-ledger-app) | 1.5 | | 🟡 PR #82 |
-| W03-09 | `TransferApiIT` dùng `RestTestClient` (Spring Framework 7) + Testcontainers | 1.5 | | 🟡 PR #83 |
+| W03-05 | `wallet`: `POST /v1/wallets`, `GET /v1/wallets/{id}`, `GET /v1/wallets/{id}/entries` (keyset) | 2 | | ✅ #83 |
+| W03-06 | `wallet`: `POST /v1/transfers`, `GET /v1/transfers/{id}`, `POST /v1/admin/deposits` | 1.5 | | ✅ #83 |
+| W03-07 | `shared.problem`: `@RestControllerAdvice` trả Problem Details (RFC 9457) | 1 | | ✅ #83 |
+| W03-08 | `ArchitectureTest` (ArchUnit) với các quy tắc ở [01-kien-truc §4](../01-kien-truc.md#4-c4-mức-3-component-trong-ledger-app) | 1.5 | | ✅ #82 |
+| W03-09 | `TransferApiIT` dùng `RestTestClient` (Spring Framework 7) + Testcontainers | 1.5 | | ✅ #83 |
 
 ## Ghi chú kỹ thuật
 
