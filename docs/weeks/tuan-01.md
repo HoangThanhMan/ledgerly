@@ -24,7 +24,7 @@
 | W01-03 | Viết **ADR-0003**: biểu diễn tiền (BIGINT đơn vị nhỏ nhất + currency) và quy ước dấu của entry | 1 | `docs/adr/0003-bieu-dien-tien-te.md` | ✅ PR #69 |
 | W01-04 | Review ADR-0001, ADR-0002. Đồng ý thì giữ *Accepted*, không thì sửa | 0.5 | | ✅ PR #68 |
 | W01-05 | Tạo repo GitHub `ledgerly`, push code, bảo vệ nhánh `main` (bắt buộc CI xanh, cấm force-push) | 1 | Link repo | 🟡 Repo đã có, chưa bảo vệ `main` (#5) |
-| W01-06 | Tạo GitHub Projects board, milestone M1–M5, label, issue cho task tuần 2–8 | 2 | Board có backlog | 🟡 Có label, milestone, 67 issue. Chưa có board (#6) |
+| W01-06 | Tạo GitHub Projects board, milestone M1–M5, label, issue cho task tuần 2–8 | 2 | Board có backlog | ✅ Label, milestone, 67 issue và [board](https://github.com/users/HoangThanhMan/projects/3) (#6) |
 | W01-07 | Thêm mẫu issue (`task`, `bug`), tạo `docs/ai-usage.md` và thư mục `docs/journal/` | 1 | | ✅ PR #71 |
 | W01-08 | **Spike SQL**: mở 2 phiên `psql`, chạy tay `BEGIN; SELECT ... FOR UPDATE; ...` để thấy khóa chờ nhau và deadlock khi khóa sai thứ tự | 2 | `docs/journal/spike-locking.md` | ✅ PR #70 |
 | W01-09 | Viết nhật ký tuần | 0.5 | `docs/journal/2026-W41.md` | ✅ PR #71 |

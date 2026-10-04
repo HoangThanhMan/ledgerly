@@ -8,7 +8,7 @@
 ![PostgreSQL 18](https://img.shields.io/badge/PostgreSQL-18-336791)
 ![Kafka 4](https://img.shields.io/badge/Kafka-4.x_KRaft-231F20)
 
-> 🚧 **Trạng thái:** tuần 2, đã có quality gate (format, Error Prone, NullAway) và schema sổ cái với bất biến được database chặn. Chưa có API nghiệp vụ. Xem [lộ trình 12 tuần](docs/03-lo-trinh.md).
+> 🚧 **Trạng thái:** tuần 3, đã có API mở ví, nạp tiền nội bộ và chuyển tiền (đúng khi chạy một luồng), lỗi trả theo Problem Details, ranh giới module được ArchUnit kiểm tra. Chưa có khóa cho truy cập đồng thời, idempotency và sự kiện. Ví dụ `curl` ở [nhật ký tuần 3](docs/journal/2026-W43.md#gọi-thử-bằng-curl). Xem [lộ trình 12 tuần](docs/03-lo-trinh.md).
 
 Ledgerly là backend ví điện tử (mở ví, chuyển tiền, nạp/rút qua ngân hàng giả lập), xây dựng quanh bốn đảm bảo:
 

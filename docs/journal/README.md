@@ -46,3 +46,10 @@ Dự kiến X giờ, thực tế Y giờ. Lệch vì ...
 |---|---|---|
 | [2026-W42.md](2026-W42.md) | Nhật ký tuần 2 | Xong |
 | [tuan-02-cau-hoi.md](tuan-02-cau-hoi.md) | Đáp án tham khảo 4 câu hỏi tuần 2 | Chờ tác giả luyện |
+
+## Tuần 3
+
+| File | Nội dung | Trạng thái |
+|---|---|---|
+| [2026-W43.md](2026-W43.md) | Nhật ký tuần 3, có ví dụ `curl` cho toàn bộ endpoint | Xong |
+| [tuan-03-cau-hoi.md](tuan-03-cau-hoi.md) | Đáp án tham khảo 4 câu hỏi tuần 3 | Chờ tác giả luyện |

@@ -2,7 +2,7 @@
 
 | Thời gian | Giai đoạn | Mốc | Ngân sách | Trạng thái |
 |---|---|---|---|---|
-| 12/10 – 18/10/2026 | 1: Nền móng | | 13 giờ | 🟡 Code xong (01/10/2026), chờ merge PR #72–#76 |
+| 12/10 – 18/10/2026 | 1: Nền móng | | 13 giờ | ✅ Xong (merge PR #72–#76 ngày 01/10/2026) |
 
 ## Mục tiêu
 
@@ -104,7 +104,7 @@ CREATE CONSTRAINT TRIGGER entries_balanced AFTER INSERT ON entries
 - [x] Cố ý thêm một lỗi null hoặc format thì build đỏ (thử rồi revert, log trong PR #72)
 - [x] `./gradlew test` (chỉ unit) chạy dưới 10 giây (0,43 giây, chưa có unit test nào)
 - [x] Bốn test schema xanh (`SchemaConstraintsIT` có 13 test, cả 13 xanh)
-- [ ] CI xanh, README có badge (CI xanh trên các PR, badge đã thêm; chờ merge vào `main`)
+- [x] CI xanh, README có badge (CI xanh trên `main` sau khi merge #72–#76)
 
 ## Ghi chú khi thực hiện (01/10/2026)
 
