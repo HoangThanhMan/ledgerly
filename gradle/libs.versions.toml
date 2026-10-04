@@ -14,6 +14,7 @@ nullaway = "0.14.2"
 jacoco = "0.8.15"
 jspecify = "1.0.1"
 archunit = "1.5.1"
+jqwik = "1.10.1"
 
 [libraries]
 # Gradle plugins, used by build-logic
@@ -54,3 +55,4 @@ testcontainers-postgresql = { module = "org.testcontainers:testcontainers-postgr
 testcontainers-kafka = { module = "org.testcontainers:testcontainers-kafka" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
 archunit-junit5 = { module = "com.tngtech.archunit:archunit-junit5", version.ref = "archunit" }
+jqwik = { module = "net.jqwik:jqwik", version.ref = "jqwik" }
