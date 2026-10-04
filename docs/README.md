@@ -20,7 +20,7 @@
 | [0](weeks/tuan-00.md) | Khởi tạo khung ✅ | M0 |
 | [1](weeks/tuan-01.md) | Thiết kế & nghiên cứu 🟡 | M1 |
 | [2](weeks/tuan-02.md) | Chất lượng build & schema lõi ✅ | |
-| [3](weeks/tuan-03.md) | Domain & chuyển tiền đơn luồng 🟡 | |
+| [3](weeks/tuan-03.md) | Domain & chuyển tiền đơn luồng ✅ | |
 | [4](weeks/tuan-04.md) | Concurrency & bất biến | M2 |
 | [5](weeks/tuan-05.md) | Idempotency | |
 | [6](weeks/tuan-06.md) | Outbox + Kafka + consumer | M3 |
