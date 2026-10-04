@@ -6,12 +6,15 @@ import dev.ledgerly.ledger.internal.domain.Account;
 import dev.ledgerly.shared.Money;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.Currency;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.dao.CannotAcquireLockException;
+import org.springframework.jdbc.UncategorizedSQLException;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
@@ -19,6 +22,9 @@ import org.springframework.stereotype.Repository;
 public class AccountRepository {
 
     private static final String VIEW_COLUMNS = "id, type, currency, balance, created_at";
+
+    /** SQLSTATE that PostgreSQL raises when {@code lock_timeout} runs out. */
+    private static final String LOCK_NOT_AVAILABLE = "55P03";
 
     private final JdbcClient jdbc;
 
@@ -55,14 +61,32 @@ public class AccountRepository {
      * the same order and cannot deadlock (ADR-0004). {@code FOR NO KEY UPDATE} is the lock an {@code UPDATE} of the
      * balance takes anyway: it excludes other postings but, unlike {@code FOR UPDATE}, does not block inserts of
      * rows that reference the account.
+     *
+     * <p>Waiting for a lock is bounded by {@code lockTimeout}, set for the current transaction only.
+     *
+     * @throws CannotAcquireLockException if a lock is still held by another transaction when the timeout runs out
      */
-    public List<Account> lockAll(Collection<UUID> ids) {
-        return jdbc.sql("SELECT id, currency, balance, allow_negative FROM accounts WHERE id = ANY (:ids)"
-                        + " ORDER BY id FOR NO KEY UPDATE")
-                .param("ids", ids.toArray(UUID[]::new))
-                .query((rs, row) -> new Account(
-                        rs.getObject("id", UUID.class), money(rs, "balance"), rs.getBoolean("allow_negative")))
-                .list();
+    public List<Account> lockAll(Collection<UUID> ids, Duration lockTimeout) {
+        jdbc.sql("SELECT set_config('lock_timeout', :timeout, true)")
+                .param("timeout", lockTimeout.toMillis() + "ms")
+                .query(String.class)
+                .single();
+        try {
+            return jdbc.sql("SELECT id, currency, balance, allow_negative FROM accounts WHERE id = ANY (:ids)"
+                            + " ORDER BY id FOR NO KEY UPDATE")
+                    .param("ids", ids.toArray(UUID[]::new))
+                    .query((rs, row) -> new Account(
+                            rs.getObject("id", UUID.class), money(rs, "balance"), rs.getBoolean("allow_negative")))
+                    .list();
+        } catch (UncategorizedSQLException e) {
+            // Spring does not translate this PostgreSQL state into its lock exceptions.
+            SQLException cause = e.getSQLException();
+            if (cause != null && LOCK_NOT_AVAILABLE.equals(cause.getSQLState())) {
+                throw new CannotAcquireLockException(
+                        "accounts " + ids + " stayed locked for longer than " + lockTimeout, e);
+            }
+            throw e;
+        }
     }
 
     public void updateBalance(UUID id, long balance) {

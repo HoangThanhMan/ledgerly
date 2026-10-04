@@ -13,7 +13,8 @@ public enum ProblemType {
             HttpStatus.UNPROCESSABLE_CONTENT, "same-account-transfer", "Source and target wallet are the same"),
     CURRENCY_MISMATCH(HttpStatus.UNPROCESSABLE_CONTENT, "currency-mismatch", "Currency does not match the wallet"),
     UNSUPPORTED_CURRENCY(HttpStatus.UNPROCESSABLE_CONTENT, "unsupported-currency", "Currency is not supported"),
-    INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "internal-error", "Internal error");
+    INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "internal-error", "Internal error"),
+    OVERLOADED(HttpStatus.SERVICE_UNAVAILABLE, "overloaded", "Service is overloaded");
 
     private final HttpStatus status;
     private final URI uri;

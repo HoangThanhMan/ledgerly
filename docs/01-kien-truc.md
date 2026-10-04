@@ -495,7 +495,7 @@ flowchart LR
 | 422 | `/problems/currency-mismatch` | Tiền tệ của request khác tiền tệ của ví |
 | 422 | `/problems/unsupported-currency` | Mở ví bằng tiền tệ chưa có account hệ thống (hiện chỉ có VND) |
 | 500 | `/problems/internal-error` | Lỗi không lường trước. Không lộ nguyên nhân, chi tiết nằm trong log |
-| 503 | `/problems/overloaded` | Vượt `@ConcurrencyLimit` hoặc hết connection, kèm `Retry-After` |
+| 503 | `/problems/overloaded` | Không lấy được khóa account trong `lock_timeout` (2 giây), vượt `@ConcurrencyLimit` hoặc hết connection. Kèm `Retry-After` |
 
 ### 8.4 Ví dụ
 

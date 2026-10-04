@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.MessageSourceResolvable;
 import org.springframework.core.MethodParameter;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
@@ -28,8 +29,8 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
  *
  * <p>Business rejections arrive as {@link ProblemException}. Spring MVC's own exceptions are handled by the base
  * class. Those that mean the request is malformed (status 400) get the {@code validation-error} type, with the
- * offending fields listed under {@code errors} when they are known. Anything unexpected becomes a 500 that reveals
- * nothing about the cause.
+ * offending fields listed under {@code errors} when they are known. A lock that could not be acquired becomes a 503
+ * the client may retry. Anything unexpected becomes a 500 that reveals nothing about the cause.
  */
 @RestControllerAdvice
 class ProblemDetailsAdvice extends ResponseEntityExceptionHandler {
@@ -42,6 +43,20 @@ class ProblemDetailsAdvice extends ResponseEntityExceptionHandler {
     @ExceptionHandler(ProblemException.class)
     ProblemDetail handleProblem(ProblemException exception) {
         return problem(exception.type(), exception.getMessage());
+    }
+
+    /**
+     * The database gave up waiting for a row lock, or picked the request as the victim of a deadlock. Its transaction
+     * was rolled back, so nothing happened and the client may simply retry.
+     */
+    @ExceptionHandler(PessimisticLockingFailureException.class)
+    ResponseEntity<ProblemDetail> handleLockFailure(PessimisticLockingFailureException exception) {
+        log.warn("Lock not acquired: {}", exception.getMessage());
+        ProblemDetail problem =
+                problem(ProblemType.OVERLOADED, "The request could not get the locks it needs in time. Retry it.");
+        return ResponseEntity.status(problem.getStatus())
+                .header(HttpHeaders.RETRY_AFTER, "1")
+                .body(problem);
     }
 
     @ExceptionHandler(Exception.class)

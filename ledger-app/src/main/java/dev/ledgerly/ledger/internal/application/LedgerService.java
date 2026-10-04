@@ -8,6 +8,7 @@ import dev.ledgerly.ledger.PostingRequest;
 import dev.ledgerly.ledger.PostingResult;
 import dev.ledgerly.ledger.SystemAccount;
 import dev.ledgerly.ledger.TransactionView;
+import dev.ledgerly.ledger.internal.domain.Account;
 import dev.ledgerly.ledger.internal.domain.EntryDraft;
 import dev.ledgerly.ledger.internal.domain.PostingDecision;
 import dev.ledgerly.ledger.internal.domain.PostingRules;
@@ -15,11 +16,15 @@ import dev.ledgerly.ledger.internal.persistence.AccountRepository;
 import dev.ledgerly.ledger.internal.persistence.EntryRepository;
 import dev.ledgerly.ledger.internal.persistence.TransactionRepository;
 import dev.ledgerly.ledger.internal.persistence.TransactionRepository.TransactionRow;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
+import java.time.Duration;
 import java.util.Currency;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,10 +35,24 @@ class LedgerService implements LedgerApi {
     private final TransactionRepository transactions;
     private final EntryRepository entries;
 
-    LedgerService(AccountRepository accounts, TransactionRepository transactions, EntryRepository entries) {
+    private final Duration lockTimeout;
+    private final MeterRegistry meters;
+    private final Timer lockWait;
+
+    LedgerService(
+            AccountRepository accounts,
+            TransactionRepository transactions,
+            EntryRepository entries,
+            @Value("${ledgerly.ledger.lock-timeout:2s}") Duration lockTimeout,
+            MeterRegistry meters) {
         this.accounts = accounts;
         this.transactions = transactions;
         this.entries = entries;
+        this.lockTimeout = lockTimeout;
+        this.meters = meters;
+        this.lockWait = Timer.builder("ledgerly.posting.lock.wait")
+                .description("Time a posting waits for the row locks on its accounts")
+                .register(meters);
     }
 
     @Override
@@ -59,10 +78,19 @@ class LedgerService implements LedgerApi {
     @Transactional
     public PostingResult post(PostingRequest request) {
         List<UUID> ids = request.postings().stream().map(Posting::accountId).toList();
-        return switch (PostingRules.apply(accounts.lockAll(ids), request.postings())) {
+        return switch (PostingRules.apply(lock(ids), request.postings())) {
             case PostingDecision.Rejected rejected -> rejected.reason();
             case PostingDecision.Accepted accepted -> write(request, accepted.entries());
         };
+    }
+
+    private List<Account> lock(List<UUID> accountIds) {
+        Timer.Sample wait = Timer.start(meters);
+        try {
+            return accounts.lockAll(accountIds, lockTimeout);
+        } finally {
+            wait.stop(lockWait);
+        }
     }
 
     private PostingResult.Posted write(PostingRequest request, List<EntryDraft> drafts) {

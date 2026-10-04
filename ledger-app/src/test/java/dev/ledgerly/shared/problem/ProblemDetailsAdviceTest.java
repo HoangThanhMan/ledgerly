@@ -1,6 +1,7 @@
 package dev.ledgerly.shared.problem;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -55,6 +56,29 @@ class ProblemDetailsAdviceTest {
     }
 
     @Test
+    void lockThatCouldNotBeAcquiredBecomesOverloadedWithARetryHint() {
+        client.get()
+                .uri("/contended")
+                .exchange()
+                .expectStatus()
+                .isEqualTo(503)
+                .expectHeader()
+                .valueEquals("Retry-After", "1")
+                .expectHeader()
+                .contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+                .expectBody()
+                .json("""
+                        {
+                          "type": "/problems/overloaded",
+                          "title": "Service is overloaded",
+                          "status": 503,
+                          "detail": "The request could not get the locks it needs in time. Retry it.",
+                          "instance": "/contended"
+                        }
+                        """);
+    }
+
+    @Test
     void errorsRaisedBySpringMvcKeepTheirOwnStatusAndTitle() {
         client.post()
                 .uri("/rejected")
@@ -76,6 +100,11 @@ class ProblemDetailsAdviceTest {
         @GetMapping("/rejected")
         String rejected() {
             throw new ProblemException(ProblemType.INSUFFICIENT_FUNDS, "Wallet has 1 VND, the transfer needs 2 VND");
+        }
+
+        @GetMapping("/contended")
+        String contended() {
+            throw new CannotAcquireLockException("canceling statement due to lock timeout on accounts");
         }
 
         @GetMapping("/broken")
