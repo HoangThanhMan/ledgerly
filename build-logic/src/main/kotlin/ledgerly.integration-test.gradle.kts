@@ -24,8 +24,13 @@ tasks.named("check") {
     dependsOn(integrationTest)
 }
 
-// The coverage report merges unit and integration test results.
+// The coverage report and the coverage gate merge unit and integration test results.
+val coverageData = fileTree(layout.buildDirectory.dir("jacoco")) { include("*.exec") }
 tasks.named<JacocoReport>("jacocoTestReport") {
-    executionData.setFrom(fileTree(layout.buildDirectory.dir("jacoco")) { include("*.exec") })
+    executionData.setFrom(coverageData)
+    mustRunAfter(tasks.named("integrationTest"))
+}
+tasks.named<JacocoCoverageVerification>("jacocoTestCoverageVerification") {
+    executionData.setFrom(coverageData)
     mustRunAfter(tasks.named("integrationTest"))
 }
