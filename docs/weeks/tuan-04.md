@@ -2,7 +2,7 @@
 
 | Thời gian | Giai đoạn | Mốc | Ngân sách | Trạng thái |
 |---|---|---|---|---|
-| 26/10 – 01/11/2026 | 2: Lõi đúng đắn | **M2**: Lõi sổ cái đúng | 14 giờ | 🟡 Code xong (04/10/2026), chờ merge PR #85–#89 |
+| 26/10 – 01/11/2026 | 2: Lõi đúng đắn | **M2**: Lõi sổ cái đúng | 14 giờ | ✅ Xong (merge PR #85–#89 ngày 04/10/2026) |
 
 ## Mục tiêu
 
@@ -12,14 +12,14 @@
 
 | ID | Việc | Giờ | Đầu ra | Trạng thái |
 |---|---|:-:|---|---|
-| W04-01 | Khóa account theo thứ tự: `SELECT ... WHERE id = ANY(?) ORDER BY id FOR UPDATE` | 2 | `AccountRepository.lockAll()` | 🟡 PR #86 |
-| W04-02 | `SET LOCAL lock_timeout = '2s'`, map lỗi `55P03` sang 503, metric `ledgerly.posting.lock.wait` | 1 | | 🟡 PR #86 |
-| W04-03 | `ConcurrentTransferIT`: 200 virtual threads, 10 ví, 10.000 lần chuyển ngẫu nhiên | 3 | | 🟡 PR #86 |
-| W04-04 | `DeadlockFreedomIT`: 1.000 cặp A→B và B→A chạy đồng thời, không có lỗi `40P01` | 1.5 | | 🟡 PR #86 |
-| W04-05 | **Thí nghiệm**: bỏ `ORDER BY`, chạy lại W04-04 để thấy deadlock. Ghi số liệu vào ADR rồi revert | 1 | | 🟡 PR #89 |
-| W04-06 | Property-based test bằng jqwik: model-based testing, so sánh DB với model trong bộ nhớ | 3 | `LedgerModelProperties` | 🟡 PR #87 |
-| W04-07 | `scripts/invariants.sql` và helper `InvariantChecker` dùng trong test | 1 | | 🟡 PR #85 |
-| W04-08 | **ADR-0004**: khóa bi quan có thứ tự, READ COMMITTED (so sánh với SERIALIZABLE và khóa lạc quan) | 1.5 | | 🟡 PR #89 |
+| W04-01 | Khóa account theo thứ tự: `SELECT ... WHERE id = ANY(?) ORDER BY id FOR UPDATE` | 2 | `AccountRepository.lockAll()` | ✅ #86 |
+| W04-02 | `SET LOCAL lock_timeout = '2s'`, map lỗi `55P03` sang 503, metric `ledgerly.posting.lock.wait` | 1 | | ✅ #86 |
+| W04-03 | `ConcurrentTransferIT`: 200 virtual threads, 10 ví, 10.000 lần chuyển ngẫu nhiên | 3 | | ✅ #86 |
+| W04-04 | `DeadlockFreedomIT`: 1.000 cặp A→B và B→A chạy đồng thời, không có lỗi `40P01` | 1.5 | | ✅ #86 |
+| W04-05 | **Thí nghiệm**: bỏ `ORDER BY`, chạy lại W04-04 để thấy deadlock. Ghi số liệu vào ADR rồi revert | 1 | | ✅ #89 |
+| W04-06 | Property-based test bằng jqwik: model-based testing, so sánh DB với model trong bộ nhớ | 3 | `LedgerModelProperties` | ✅ #87 |
+| W04-07 | `scripts/invariants.sql` và helper `InvariantChecker` dùng trong test | 1 | | ✅ #85 |
+| W04-08 | **ADR-0004**: khóa bi quan có thứ tự, READ COMMITTED (so sánh với SERIALIZABLE và khóa lạc quan) | 1.5 | | ✅ #89 |
 
 ## Ghi chú kỹ thuật
 
@@ -88,7 +88,7 @@ Kỳ vọng: hai truy vấn đầu trả **0 dòng**, truy vấn thứ ba trả 
 - [x] ADR-0004 có số liệu thí nghiệm W04-05 (có và không có `ORDER BY`): [bốn cách khóa, mỗi cách 3 lượt](../adr/0004-khoa-bi-quan-co-thu-tu.md#câu-hỏi-2-lấy-khóa-theo-cách-nào)
 - [x] `scripts/invariants.sql` chạy được trên DB compose (bốn câu đều trả 0 dòng)
 - [x] Đặt ngưỡng JaCoCo ≥ 80% cho `internal.domain`, build fail nếu thấp hơn (PR #88, đã thử với tỉ lệ 0,74)
-- [ ] **Mốc M2 đạt** (đủ bốn điều kiện, chờ merge PR #85–#89)
+- [x] **Mốc M2 đạt** (đủ bốn điều kiện, PR #85–#89 đã merge ngày 04/10/2026)
 
 ## Ghi chú khi thực hiện (04/10/2026)
 
