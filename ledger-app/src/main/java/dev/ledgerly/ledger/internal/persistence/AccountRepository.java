@@ -49,11 +49,16 @@ public class AccountRepository {
     }
 
     /**
-     * Reads the accounts a posting touches, in id order. Locking them only needs {@code FOR UPDATE} here:
-     * the id order already avoids deadlocks between concurrent postings.
+     * Locks the accounts a posting touches until the transaction ends, and returns their current state.
+     *
+     * <p>The rows are locked in id order. Two postings that share accounts therefore always wait for each other in
+     * the same order and cannot deadlock (ADR-0004). {@code FOR NO KEY UPDATE} is the lock an {@code UPDATE} of the
+     * balance takes anyway: it excludes other postings but, unlike {@code FOR UPDATE}, does not block inserts of
+     * rows that reference the account.
      */
-    public List<Account> findForPosting(Collection<UUID> ids) {
-        return jdbc.sql("SELECT id, currency, balance, allow_negative FROM accounts WHERE id = ANY (:ids) ORDER BY id")
+    public List<Account> lockAll(Collection<UUID> ids) {
+        return jdbc.sql("SELECT id, currency, balance, allow_negative FROM accounts WHERE id = ANY (:ids)"
+                        + " ORDER BY id FOR NO KEY UPDATE")
                 .param("ids", ids.toArray(UUID[]::new))
                 .query((rs, row) -> new Account(
                         rs.getObject("id", UUID.class), money(rs, "balance"), rs.getBoolean("allow_negative")))

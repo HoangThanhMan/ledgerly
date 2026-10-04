@@ -59,7 +59,7 @@ class LedgerService implements LedgerApi {
     @Transactional
     public PostingResult post(PostingRequest request) {
         List<UUID> ids = request.postings().stream().map(Posting::accountId).toList();
-        return switch (PostingRules.apply(accounts.findForPosting(ids), request.postings())) {
+        return switch (PostingRules.apply(accounts.lockAll(ids), request.postings())) {
             case PostingDecision.Rejected rejected -> rejected.reason();
             case PostingDecision.Accepted accepted -> write(request, accepted.entries());
         };
