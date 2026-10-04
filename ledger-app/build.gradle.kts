@@ -22,6 +22,7 @@ dependencies {
     testImplementation(libs.spring.boot.starter.kafka.test)
     testImplementation(libs.spring.boot.starter.validation.test)
     testImplementation(libs.spring.boot.starter.webmvc.test)
+    testImplementation(libs.archunit.junit5)
     integrationTestImplementation(libs.spring.boot.testcontainers)
     integrationTestImplementation(libs.testcontainers.junit.jupiter)
     integrationTestImplementation(libs.testcontainers.postgresql)
