@@ -117,7 +117,7 @@ Thứ tự **cắt trước** (từ trên xuống):
 
 ## 7. Theo dõi tiến độ trên GitHub
 
-- **GitHub Projects** (dạng board): cột `Backlog → Todo (tuần này) → In progress → Review → Done`.
+- **GitHub Projects** (dạng board): [Ledgerly](https://github.com/users/HoangThanhMan/projects/3), cột `Backlog → Todo (tuần này) → In progress → Review → Done`.
 - **Milestone GitHub** khớp với M1–M5. Mỗi issue gắn vào một milestone.
 - **Label**: `type:feat`, `type:test`, `type:docs`, `type:chore`, `area:ledger`, `area:idempotency`, `area:outbox`, `area:saga`, `area:recon`, `area:infra`, `priority:must`, `priority:should`, `priority:could`.
 - Mỗi task trong file tuần có mã `Wxx-yy`. Dùng mã đó làm tiêu đề issue, ví dụ `W04-03 Test 200 virtual threads`.

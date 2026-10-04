@@ -14,6 +14,12 @@ Mỗi mục ghi: hỏi AI gì, AI gợi ý gì, mình quyết định gì (chấ
 
 ---
 
+### 2026-10-04: GitHub Projects board (W01-06)
+- Hỏi AI: xem tiến độ dự án. Sau đó mình tự cấp scope `project` cho `gh` (xác nhận mã thiết bị trên trình duyệt) để AI làm nốt W01-06.
+- AI gợi ý: tạo board [Ledgerly](https://github.com/users/HoangThanhMan/projects/3) liên kết với repo, đổi field `Status` thành năm cột `Backlog`, `Todo`, `In progress`, `Review`, `Done` theo [lộ trình §7](03-lo-trinh.md#7-theo-dõi-tiến-độ-trên-github). Đưa cả 67 issue vào: issue đã đóng vào `Done`, việc còn lại của tuần 3 và #5 vào `Todo`, tuần 4–8 vào `Backlog`. PR dependabot #77 vào `Review`. Thêm một view dạng board bên cạnh view dạng bảng.
+- Quyết định: board để **private** như repo. Các workflow tự chuyển cột (`Item closed`, `Pull request merged`) đang tắt và chỉ bật được trên giao diện, nên việc đó còn lại cho mình.
+- Kiểm chứng: `gh project item-list 3` cho 68 mục: 40 `Backlog`, 6 `Todo`, 2 `Review` (#6 và PR #77), 20 `Done`.
+
 ### 2026-10-03: Tuần 3, `Money`, `PostingRules`, repository và `LedgerService` (W03-01 … W03-04)
 - Hỏi AI: làm phần domain và persistence của tuần 3, rồi commit và merge vào `main`.
 - AI gợi ý:
