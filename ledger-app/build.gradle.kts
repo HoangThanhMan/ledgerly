@@ -4,6 +4,13 @@ plugins {
 
 description = "Main application: e-wallet on a double-entry ledger (modular monolith)"
 
+// -Pledgerly.test.seed=<n> replays the transfers of a failed concurrency run. The other two resize the runs.
+tasks.named<Test>("integrationTest") {
+    listOf("ledgerly.test.seed", "ledgerly.test.concurrentTransfers", "ledgerly.test.deadlockPairs").forEach { name ->
+        providers.gradleProperty(name).orNull?.let { systemProperty(name, it) }
+    }
+}
+
 dependencies {
     implementation(project(":ledger-contracts"))
 
@@ -33,9 +40,4 @@ dependencies {
 // InvariantChecker reads the statements of scripts/invariants.sql, so the tests must rerun when that file changes.
 tasks.named<Test>("integrationTest") {
     inputs.file(rootProject.file("scripts/invariants.sql")).withPathSensitivity(PathSensitivity.RELATIVE)
-
-    // -Pledgerly.test.seed=<n> replays the transfers of a failed concurrency run. The other two resize the runs.
-    listOf("ledgerly.test.seed", "ledgerly.test.concurrentTransfers", "ledgerly.test.deadlockPairs").forEach { name ->
-        providers.gradleProperty(name).orNull?.let { systemProperty(name, it) }
-    }
 }
