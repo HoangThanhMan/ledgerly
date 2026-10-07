@@ -17,7 +17,7 @@ ADR ghi lại **một quyết định kiến trúc quan trọng**: bối cảnh,
 | [0002](0002-postgresql-va-sql-tuong-minh.md) | PostgreSQL, SQL tường minh cho đường nóng | Accepted | 0 |
 | [0003](0003-bieu-dien-tien-te.md) | Biểu diễn tiền tệ và quy ước dấu của bút toán | Accepted | 1 |
 | [0004](0004-khoa-bi-quan-co-thu-tu.md) | Khóa bi quan có thứ tự ở READ COMMITTED | Accepted | 4 |
-| 0005 | Idempotency key trong PostgreSQL, thiết kế hai pha | *Dự kiến* | 5 |
+| [0005](0005-idempotency-key-hai-pha-trong-postgresql.md) | Idempotency key trong PostgreSQL, thiết kế hai pha | Accepted | 5 |
 | 0006 | Transactional outbox với polling relay (không dùng dual-write hay Debezium) | *Dự kiến* | 6 |
 | 0007 | Observability: OpenTelemetry qua Boot starter + Grafana LGTM | *Dự kiến* | 7 |
 | 0008 | Saga orchestration cho nạp/rút tiền | *Dự kiến* | 9 |
