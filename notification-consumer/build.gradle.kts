@@ -20,6 +20,8 @@ dependencies {
     testImplementation(libs.spring.boot.starter.jdbc.test)
     testImplementation(libs.spring.boot.starter.kafka.test)
     testImplementation(libs.spring.boot.starter.webmvc.test)
+    // Sample events of the contract. integrationTest inherits the test dependencies.
+    testImplementation(testFixtures(project(":ledger-contracts")))
     integrationTestImplementation(libs.spring.boot.testcontainers)
     integrationTestImplementation(libs.testcontainers.junit.jupiter)
     integrationTestImplementation(libs.testcontainers.postgresql)
