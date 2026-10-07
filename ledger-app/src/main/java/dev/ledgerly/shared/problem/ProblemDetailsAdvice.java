@@ -1,5 +1,6 @@
 package dev.ledgerly.shared.problem;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
@@ -31,6 +32,9 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
  * class. Those that mean the request is malformed (status 400) get the {@code validation-error} type, with the
  * offending fields listed under {@code errors} when they are known. A lock that could not be acquired becomes a 503
  * the client may retry. Anything unexpected becomes a 500 that reveals nothing about the cause.
+ *
+ * <p>The answers of the endpoints that run under an {@code Idempotency-Key} do not pass through here when they are
+ * stored with the key: those are rendered where the key is completed.
  */
 @RestControllerAdvice
 class ProblemDetailsAdvice extends ResponseEntityExceptionHandler {
@@ -41,8 +45,14 @@ class ProblemDetailsAdvice extends ResponseEntityExceptionHandler {
     record InvalidInput(String field, String message) {}
 
     @ExceptionHandler(ProblemException.class)
-    ProblemDetail handleProblem(ProblemException exception) {
-        return problem(exception.type(), exception.getMessage());
+    ResponseEntity<ProblemDetail> handleProblem(ProblemException exception) {
+        ProblemDetail problem = exception.type().toProblemDetail(exception.getMessage());
+        ResponseEntity.BodyBuilder response = ResponseEntity.status(problem.getStatus());
+        Duration retryAfter = exception.retryAfter();
+        if (retryAfter != null) {
+            response.header(HttpHeaders.RETRY_AFTER, Long.toString(retryAfter.toSeconds()));
+        }
+        return response.body(problem);
     }
 
     /**
@@ -52,8 +62,8 @@ class ProblemDetailsAdvice extends ResponseEntityExceptionHandler {
     @ExceptionHandler(PessimisticLockingFailureException.class)
     ResponseEntity<ProblemDetail> handleLockFailure(PessimisticLockingFailureException exception) {
         log.warn("Lock not acquired: {}", exception.getMessage());
-        ProblemDetail problem =
-                problem(ProblemType.OVERLOADED, "The request could not get the locks it needs in time. Retry it.");
+        ProblemDetail problem = ProblemType.OVERLOADED.toProblemDetail(
+                "The request could not get the locks it needs in time. Retry it.");
         return ResponseEntity.status(problem.getStatus())
                 .header(HttpHeaders.RETRY_AFTER, "1")
                 .body(problem);
@@ -62,7 +72,7 @@ class ProblemDetailsAdvice extends ResponseEntityExceptionHandler {
     @ExceptionHandler(Exception.class)
     ProblemDetail handleUnexpected(Exception exception) {
         log.error("Unhandled exception", exception);
-        return problem(ProblemType.INTERNAL_ERROR, "An unexpected error occurred");
+        return ProblemType.INTERNAL_ERROR.toProblemDetail("An unexpected error occurred");
     }
 
     @Override
@@ -108,14 +118,6 @@ class ProblemDetailsAdvice extends ResponseEntityExceptionHandler {
             problem.setTitle(ProblemType.VALIDATION_ERROR.title());
         }
         return response;
-    }
-
-    private static ProblemDetail problem(ProblemType type, @Nullable String detail) {
-        ProblemDetail problem = ProblemDetail.forStatus(type.status());
-        problem.setType(type.uri());
-        problem.setTitle(type.title());
-        problem.setDetail(detail);
-        return problem;
     }
 
     private static List<InvalidInput> fieldErrors(Errors errors) {

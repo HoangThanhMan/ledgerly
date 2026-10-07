@@ -7,7 +7,7 @@ final class ApiFormats {
 
     static final String IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
 
-    /** 1 to 64 visible ASCII characters. The key is only checked for shape here, it is not stored yet. */
+    /** 1 to 64 visible ASCII characters. A UUID is what clients are expected to send. */
     static final String IDEMPOTENCY_KEY_PATTERN = "[\\x21-\\x7E]{1,64}";
 
     static final String IDEMPOTENCY_KEY_MESSAGE = "must be 1 to 64 visible ASCII characters";
