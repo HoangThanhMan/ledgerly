@@ -82,6 +82,29 @@ class OutboxEventRepositoryIT extends AbstractIntegrationTest {
         assertThat(idsOf(inTransaction(() -> events.lockNextBatch(10)))).containsExactly(older, newer);
     }
 
+    /**
+     * Two changes to one aggregate take turns on its row lock. The one that got the lock second may sit in a
+     * transaction that began first, and its event must still come second.
+     */
+    @Test
+    void eventsAreOrderedByWhenTheyWereWrittenNotByWhenTheirTransactionBegan() {
+        UUID[] ids = new UUID[2];
+
+        transaction.executeWithoutResult(status -> {
+            // This transaction has begun: from here on now() is fixed for it.
+            jdbc.sql("SELECT now()").query(Object.class).single();
+
+            // Meanwhile another transaction writes its event and commits.
+            ids[0] = CompletableFuture.supplyAsync(this::insert)
+                    .orTimeout(10, TimeUnit.SECONDS)
+                    .join();
+
+            ids[1] = insert();
+        });
+
+        assertThat(idsOf(inTransaction(() -> events.lockNextBatch(10)))).containsExactly(ids[0], ids[1]);
+    }
+
     @Test
     void publishedEventsAreNotPickedUpAgain() {
         UUID published = insert();

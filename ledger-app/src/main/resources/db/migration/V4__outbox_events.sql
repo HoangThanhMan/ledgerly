@@ -10,7 +10,9 @@ CREATE TABLE outbox_events (
     event_version  INT         NOT NULL,
     payload        JSONB       NOT NULL,
     headers        JSONB       NOT NULL DEFAULT '{}',         -- Kafka record headers. Nothing writes them yet.
-    created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    -- The moment the row is written, not now(): now() is when the transaction began, and a transaction that began
+    -- first can write its event last. The relay publishes in this order.
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
     published_at   TIMESTAMPTZ,                               -- NULL until Kafka has acknowledged the event
     attempts       INT         NOT NULL DEFAULT 0,            -- relay attempts that failed
     -- A change is reported once. Writing the same event twice is a bug in the caller, caught here.
