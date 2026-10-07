@@ -67,3 +67,10 @@ Dự kiến X giờ, thực tế Y giờ. Lệch vì ...
 |---|---|---|
 | [2026-W45.md](2026-W45.md) | Nhật ký tuần 5, có số liệu test 50 request đồng thời | Xong |
 | [tuan-05-cau-hoi.md](tuan-05-cau-hoi.md) | Đáp án tham khảo 5 câu hỏi tuần 5 | Chờ tác giả luyện |
+
+## Tuần 6
+
+| File | Nội dung | Trạng thái |
+|---|---|---|
+| [2026-W46.md](2026-W46.md) | Nhật ký tuần 6, có lần chạy tay dừng Kafka và `kill -9` relay | Xong |
+| [tuan-06-cau-hoi.md](tuan-06-cau-hoi.md) | Đáp án tham khảo 5 câu hỏi tuần 6 | Chờ tác giả luyện |

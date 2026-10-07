@@ -149,6 +149,8 @@ flowchart TB
 | `ledger` | ✅ | | ❌ | ❌ | ❌ | ❌ |
 | `idempotency`, `outbox`, `bankgateway` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 
+Ngoài bảng trên, thư viện `ledger-contracts` (package `dev.ledgerly.contracts`) được dùng bởi `wallet`, nơi tạo payload của sự kiện, và `outbox`, nơi đóng gói envelope khi gửi. Các module khác chưa được dùng. `topup` sẽ được thêm khi nó có sự kiện (tuần 9).
+
 `reconciliation` cần đọc các lệnh nạp/rút trong ngày và chuyển những lệnh `UNKNOWN` sang trạng thái cuối (luồng [6.5](#65-đối-soát-tuần-11)). Nó làm việc này qua `TopUpApi` chứ không đọc hay ghi thẳng bảng `topups`/`withdrawals`. Khi auto-heal, bút toán và sự kiện outbox vẫn do `topup` ghi trong transaction của nó, nên `reconciliation` không cần quyền gọi `outbox`.
 
 Thêm ba quy tắc nữa:
@@ -215,15 +217,16 @@ erDiagram
     }
     outbox_events {
         uuid id PK "= eventId"
+        text topic "topic Kafka sẽ gửi tới"
         text aggregate_type
         uuid aggregate_id "= Kafka key"
         text event_type
         int event_version
         jsonb payload
-        jsonb headers "traceparent"
+        jsonb headers "traceparent, chưa có gì ghi vào (tuần 7)"
         timestamptz created_at
         timestamptz published_at "NULL = chưa phát"
-        int attempts
+        int attempts "số vòng relay đã lỗi"
     }
     topups {
         uuid id PK "= merchantRef gửi bank"
@@ -270,7 +273,7 @@ erDiagram
 | Entry bất biến | Trigger `BEFORE UPDATE OR DELETE ON entries`, gọi `RAISE EXCEPTION` | P2, I1 |
 | Tổng entries của transaction bằng 0 | Constraint trigger `DEFERRABLE INITIALLY DEFERRED`, kiểm tra lúc commit | I1 |
 | Không nạp/rút trùng | `UNIQUE` trên `topups.id`, `withdrawals.id` (chính là `merchantRef`) | P4 |
-| Mỗi transaction một sự kiện | `UNIQUE (aggregate_id, event_type)` trên `outbox_events` | I6 |
+| Mỗi thay đổi một sự kiện | `UNIQUE (aggregate_id, event_type)` trên `outbox_events` | I6 |
 
 ### 5.4 Database `notification` và `mockbank`
 
@@ -389,6 +392,15 @@ sequenceDiagram
 ```
 
 **Relay giữ DB transaction trong lúc chờ Kafka ack.** Điều này có vẻ trái với nguyên tắc "không giữ transaction khi chờ mạng" ở luồng 6.1, nhưng chấp nhận được vì ba lý do. Thứ nhất, chỉ một luồng nền giữ một connection, không phải mỗi request một connection. Thứ hai, khóa chỉ nằm trên các dòng outbox của lô, không đụng tới account. Thứ ba, mỗi lần gửi có timeout (5 giây, W06-04), nên khi Kafka sập transaction không bị treo. Có hai hệ quả cần biết. Producer có thể vẫn giao thành công một record **sau khi** relay đã hết timeout và rollback, và đó là một nguồn trùng nữa mà consumer phải chịu được. Ngoài ra, câu `SELECT` cần partial index `WHERE published_at IS NULL` (W06-02) để không phải quét các dòng đã phát.
+
+**Các chi tiết của cài đặt** (lý do ở [ADR-0006](adr/0006-transactional-outbox-voi-polling-relay.md)):
+
+- Lô được lấy theo `ORDER BY created_at, id` và gửi **lần lượt**: sự kiện nào lỗi thì chưa sự kiện nào sau nó được gửi. Vòng lỗi thì rollback, cột `attempts` tăng bằng một câu lệnh riêng, và relay nghỉ 200 ms, gấp đôi sau mỗi lần lỗi liên tiếp, tối đa 30 giây.
+- `created_at` là lúc sự kiện được ghi (`clock_timestamp()`), không phải lúc transaction bắt đầu (`now()`) hay commit. Relay tìm việc bằng `published_at IS NULL`, không nhớ "đã đọc tới đâu", nên một transaction commit muộn vẫn được thấy.
+- Producer đặt `linger.ms=0`. Relay chờ ack từng record, nên 5 ms gom lô mặc định chỉ cộng thêm độ trễ cho mỗi sự kiện.
+- `ledgerly.outbox.relay.enabled=false` tắt relay của một instance. Nhiều relay chạy cùng lúc không phát trùng nhau nhờ `SKIP LOCKED`, nhưng hai sự kiện đang cùng tồn đọng của **một** aggregate có thể bị phát sai thứ tự.
+- Chỉ **chuyển tiền** phát sự kiện. Nạp tiền nội bộ (`POST /v1/admin/deposits`) thì không.
+- Consumer bỏ qua ngay message không đọc được (nó sẽ chặn cả partition), và thử lại không giới hạn với lỗi khác (database mất kết nối).
 
 **Exactly-once về hiệu ứng** = at-least-once (relay retry) + at-most-once (consumer khử trùng). Kafka EOS không giải quyết được bài toán này, vì side effect nằm ở database ngoài Kafka.
 
