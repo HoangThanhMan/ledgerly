@@ -28,3 +28,10 @@ ledgerly:
   ledger:
     # How long a posting waits for the row locks on its accounts before it gives up with 503.
     lock-timeout: 2s
+  idempotency:
+    # How long the request that claimed a key may hold it. After that a retry with the same key takes it over.
+    lease: 30s
+    # How long a key and its stored response are kept at least. The same key replays the response until then.
+    ttl: 24h
+    # Retry-After of the 409 a request gets while another request with the same key is still running.
+    retry-after: 1s
