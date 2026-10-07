@@ -32,16 +32,17 @@ class ArchitectureTest {
 
     /**
      * The modules each module may depend on, besides itself. {@code contracts} is the {@code ledger-contracts}
-     * library: it shares the root package, so it is listed here and must stay free of application code.
+     * library: it shares the root package, so it is listed here and must stay free of application code. The modules
+     * that build events ({@code wallet}) and the one that puts them on the wire ({@code outbox}) may use it.
      */
     private static final Map<String, Set<String>> ALLOWED_DEPENDENCIES = Map.of(
             "contracts", Set.of(),
             "shared", Set.of(),
             "ledger", Set.of("shared"),
             "idempotency", Set.of("shared"),
-            "outbox", Set.of("shared"),
+            "outbox", Set.of("shared", "contracts"),
             "bankgateway", Set.of("shared"),
-            "wallet", Set.of("shared", "ledger", "idempotency", "outbox"),
+            "wallet", Set.of("shared", "contracts", "ledger", "idempotency", "outbox"),
             "topup", Set.of("shared", "ledger", "idempotency", "outbox", "bankgateway"),
             "reconciliation", Set.of("shared", "ledger", "bankgateway", "topup"));
 

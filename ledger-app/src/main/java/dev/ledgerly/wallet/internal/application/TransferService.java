@@ -1,5 +1,7 @@
 package dev.ledgerly.wallet.internal.application;
 
+import dev.ledgerly.contracts.Topics;
+import dev.ledgerly.contracts.TransferCompleted;
 import dev.ledgerly.ledger.AccountView;
 import dev.ledgerly.ledger.EntryView;
 import dev.ledgerly.ledger.LedgerApi;
@@ -9,12 +11,15 @@ import dev.ledgerly.ledger.PostingResult;
 import dev.ledgerly.ledger.SystemAccount;
 import dev.ledgerly.ledger.TransactionType;
 import dev.ledgerly.ledger.TransactionView;
+import dev.ledgerly.outbox.OutboxEvent;
+import dev.ledgerly.outbox.OutboxWriter;
 import dev.ledgerly.shared.Money;
 import java.util.Currency;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Moves money between wallets, and into a wallet from the funding account.
@@ -22,18 +27,25 @@ import org.springframework.stereotype.Service;
  * <p>Both parties are checked to be user wallets before posting: the ledger itself would let a system account that
  * may go negative pay out without limit. Whether the source can afford the amount is left to the ledger, which
  * decides and writes in one database transaction.
+ *
+ * <p>A completed transfer is announced with a {@code TransferCompleted} event, written to the outbox in the same
+ * transaction as the ledger entries. Deposits are internal seeding and announce nothing.
  */
 @Service
 public class TransferService {
 
     private final LedgerApi ledger;
     private final WalletService wallets;
+    private final OutboxWriter outbox;
 
-    TransferService(LedgerApi ledger, WalletService wallets) {
+    TransferService(LedgerApi ledger, WalletService wallets, OutboxWriter outbox) {
         this.ledger = ledger;
         this.wallets = wallets;
+        this.outbox = outbox;
     }
 
+    /** Transactional so that the ledger entries and the event commit together, whoever the caller is. */
+    @Transactional
     public TransferResult transfer(UUID sourceWalletId, UUID targetWalletId, Money amount) {
         if (sourceWalletId.equals(targetWalletId)) {
             return new TransferResult.SameWallet(sourceWalletId);
@@ -54,9 +66,21 @@ public class TransferService {
                 null,
                 List.of(new Posting(sourceWalletId, amount.negate()), new Posting(targetWalletId, amount)));
         return switch (ledger.post(request)) {
-            case PostingResult.Posted posted ->
-                new TransferResult.Completed(new TransferView(
+            case PostingResult.Posted posted -> {
+                outbox.append(new OutboxEvent(
+                        Topics.TRANSFERS,
+                        TransferCompleted.AGGREGATE_TYPE,
+                        posted.transactionId(),
+                        TransferCompleted.EVENT_TYPE,
+                        TransferCompleted.VERSION,
+                        new TransferCompleted(
+                                sourceWalletId,
+                                targetWalletId,
+                                Long.toString(amount.amount()),
+                                amount.currency().getCurrencyCode())));
+                yield new TransferResult.Completed(new TransferView(
                         posted.transactionId(), sourceWalletId, targetWalletId, amount, posted.createdAt()));
+            }
             case PostingResult.InsufficientFunds funds ->
                 new TransferResult.InsufficientFunds(funds.accountId(), funds.available(), funds.requested());
             case PostingResult.AccountNotFound notFound -> new TransferResult.WalletNotFound(notFound.accountId());
