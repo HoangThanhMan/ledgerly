@@ -1,5 +1,6 @@
 package dev.ledgerly.shared.problem;
 
+import java.time.Duration;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.http.MediaType;
@@ -79,6 +80,34 @@ class ProblemDetailsAdviceTest {
     }
 
     @Test
+    void problemWithARetryHintCarriesRetryAfter() {
+        client.get()
+                .uri("/busy")
+                .exchange()
+                .expectStatus()
+                .isEqualTo(409)
+                .expectHeader()
+                .valueEquals("Retry-After", "3")
+                .expectHeader()
+                .contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+                .expectBody()
+                .json("""
+                        {
+                          "type": "/problems/idempotency-in-progress",
+                          "title": "Request with this Idempotency-Key is still in progress",
+                          "status": 409,
+                          "detail": "Retry later",
+                          "instance": "/busy"
+                        }
+                        """);
+    }
+
+    @Test
+    void problemWithoutARetryHintHasNoRetryAfter() {
+        client.get().uri("/rejected").exchange().expectHeader().doesNotExist("Retry-After");
+    }
+
+    @Test
     void errorsRaisedBySpringMvcKeepTheirOwnStatusAndTitle() {
         client.post()
                 .uri("/rejected")
@@ -100,6 +129,11 @@ class ProblemDetailsAdviceTest {
         @GetMapping("/rejected")
         String rejected() {
             throw new ProblemException(ProblemType.INSUFFICIENT_FUNDS, "Wallet has 1 VND, the transfer needs 2 VND");
+        }
+
+        @GetMapping("/busy")
+        String busy() {
+            throw new ProblemException(ProblemType.IDEMPOTENCY_IN_PROGRESS, "Retry later", Duration.ofSeconds(3));
         }
 
         @GetMapping("/contended")

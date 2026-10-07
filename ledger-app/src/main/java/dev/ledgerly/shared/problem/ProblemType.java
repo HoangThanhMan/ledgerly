@@ -1,13 +1,21 @@
 package dev.ledgerly.shared.problem;
 
 import java.net.URI;
+import org.jspecify.annotations.Nullable;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ProblemDetail;
 
 /** The problem types of the API, as listed in docs/01-kien-truc.md §8.3. */
 public enum ProblemType {
     VALIDATION_ERROR(HttpStatus.BAD_REQUEST, "validation-error", "Request is not valid"),
     WALLET_NOT_FOUND(HttpStatus.NOT_FOUND, "wallet-not-found", "Wallet not found"),
     TRANSFER_NOT_FOUND(HttpStatus.NOT_FOUND, "transfer-not-found", "Transfer not found"),
+    IDEMPOTENCY_IN_PROGRESS(
+            HttpStatus.CONFLICT, "idempotency-in-progress", "Request with this Idempotency-Key is still in progress"),
+    IDEMPOTENCY_KEY_REUSED(
+            HttpStatus.UNPROCESSABLE_CONTENT,
+            "idempotency-key-reused",
+            "Idempotency-Key was already used with a different request"),
     INSUFFICIENT_FUNDS(HttpStatus.UNPROCESSABLE_CONTENT, "insufficient-funds", "Insufficient funds"),
     SAME_ACCOUNT_TRANSFER(
             HttpStatus.UNPROCESSABLE_CONTENT, "same-account-transfer", "Source and target wallet are the same"),
@@ -37,5 +45,14 @@ public enum ProblemType {
 
     public String title() {
         return title;
+    }
+
+    /** A problem of this type. Its {@code instance} is left for whoever knows the request path. */
+    public ProblemDetail toProblemDetail(@Nullable String detail) {
+        ProblemDetail problem = ProblemDetail.forStatus(status);
+        problem.setType(uri);
+        problem.setTitle(title);
+        problem.setDetail(detail);
+        return problem;
     }
 }

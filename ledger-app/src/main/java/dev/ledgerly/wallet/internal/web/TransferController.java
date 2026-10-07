@@ -8,6 +8,8 @@ import dev.ledgerly.wallet.internal.application.TransferResult.InsufficientFunds
 import dev.ledgerly.wallet.internal.application.TransferResult.SameWallet;
 import dev.ledgerly.wallet.internal.application.TransferResult.WalletNotFound;
 import dev.ledgerly.wallet.internal.application.TransferService;
+import dev.ledgerly.wallet.internal.web.IdempotentRequests.Reply;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Pattern;
 import java.net.URI;
@@ -26,33 +28,39 @@ import org.springframework.web.bind.annotation.RestController;
 class TransferController {
 
     private final TransferService transfers;
+    private final IdempotentRequests idempotent;
 
-    TransferController(TransferService transfers) {
+    TransferController(TransferService transfers, IdempotentRequests idempotent) {
         this.transfers = transfers;
+        this.idempotent = idempotent;
     }
 
     @PostMapping
-    ResponseEntity<TransferResponse> create(
+    ResponseEntity<String> create(
             @RequestHeader(ApiFormats.IDEMPOTENCY_KEY_HEADER)
                     @Pattern(regexp = ApiFormats.IDEMPOTENCY_KEY_PATTERN, message = ApiFormats.IDEMPOTENCY_KEY_MESSAGE) String idempotencyKey,
-            @Valid @RequestBody TransferRequest request) {
+            @Valid @RequestBody TransferRequest request,
+            HttpServletRequest http) {
+        return idempotent.execute(
+                idempotencyKey, http, request, id -> URI.create("/v1/transfers/" + id), () -> transfer(request));
+    }
+
+    private Reply transfer(TransferRequest request) {
         return switch (transfers.transfer(request.sourceWalletId(), request.targetWalletId(), request.money())) {
             case Completed completed ->
-                ResponseEntity.created(URI.create(
-                                "/v1/transfers/" + completed.transfer().id()))
-                        .body(TransferResponse.from(completed.transfer()));
+                new Reply.Created(completed.transfer().id(), TransferResponse.from(completed.transfer()));
             case InsufficientFunds funds ->
-                throw new ProblemException(
+                new Reply.Rejected(new ProblemException(
                         ProblemType.INSUFFICIENT_FUNDS,
                         "Wallet " + funds.walletId() + " has " + funds.available() + ", the transfer needs "
-                                + funds.requested());
-            case WalletNotFound notFound -> throw WalletProblems.walletNotFound(notFound.walletId());
+                                + funds.requested()));
+            case WalletNotFound notFound -> new Reply.Rejected(WalletProblems.walletNotFound(notFound.walletId()));
             case SameWallet same ->
-                throw new ProblemException(
-                        ProblemType.SAME_ACCOUNT_TRANSFER, "Source and target are both wallet " + same.walletId());
+                new Reply.Rejected(new ProblemException(
+                        ProblemType.SAME_ACCOUNT_TRANSFER, "Source and target are both wallet " + same.walletId()));
             case CurrencyMismatch mismatch ->
-                throw WalletProblems.currencyMismatch(
-                        mismatch.walletId(), mismatch.walletCurrency(), mismatch.requestedCurrency());
+                new Reply.Rejected(WalletProblems.currencyMismatch(
+                        mismatch.walletId(), mismatch.walletCurrency(), mismatch.requestedCurrency()));
         };
     }
 
