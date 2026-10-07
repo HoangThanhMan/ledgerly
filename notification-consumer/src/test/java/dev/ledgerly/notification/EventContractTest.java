@@ -73,6 +73,34 @@ class EventContractTest {
         assertThatThrownBy(() -> parser.parse(message)).isInstanceOf(MalformedEventException.class);
     }
 
+    /**
+     * JSON may leave out any field, and for most of them the parser simply produces null. These events are complete
+     * in every other respect, so only the check for the missing field can reject them.
+     */
+    @ParameterizedTest
+    @ValueSource(
+            strings = {
+                "\"eventId\": \"0199a7d0-1111-7aaa-8bbb-000000000001\",",
+                "\"sourceWalletId\": \"0199a7c2-3333-7aaa-8bbb-000000000003\",",
+                "\"targetWalletId\": \"0199a7c2-4444-7aaa-8bbb-000000000004\",",
+                "\"amount\": \"150000\",",
+                ",\n    \"currency\": \"VND\""
+            })
+    void eventThatLacksAFieldTheConsumerNeedsIsRejectedAsMalformed(String field) throws IOException {
+        String incomplete = sample().replace(field, "");
+
+        assertThat(incomplete).isNotEqualTo(sample());
+        assertThatThrownBy(() -> parser.parse(incomplete)).isInstanceOf(MalformedEventException.class);
+    }
+
+    @Test
+    void eventWhosePayloadIsNullIsRejectedAsMalformed() throws IOException {
+        String sample = sample();
+        String withoutPayload = sample.substring(0, sample.indexOf("\"payload\"")) + "\"payload\": null\n}";
+
+        assertThatThrownBy(() -> parser.parse(withoutPayload)).isInstanceOf(MalformedEventException.class);
+    }
+
     private static String sample() throws IOException {
         try (InputStream in =
                 requireNonNull(EventContractTest.class.getResourceAsStream("/contracts/transfer-completed.v1.json"))) {
