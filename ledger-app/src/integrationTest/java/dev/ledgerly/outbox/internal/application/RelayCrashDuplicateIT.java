@@ -23,6 +23,7 @@ import java.util.stream.Collectors;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
@@ -33,6 +34,8 @@ import org.springframework.kafka.core.ConsumerFactory;
  * The relay dies after Kafka has taken a batch and before the database knows about it. The next round publishes
  * the batch again: nothing is lost, and the price is duplicates, which consumers have to drop.
  */
+// A relay that never gets through its backlog would run forever. Fail instead.
+@Timeout(120)
 class RelayCrashDuplicateIT extends AbstractIntegrationTest {
 
     private static final Currency VND = Currency.getInstance("VND");

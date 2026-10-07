@@ -34,6 +34,7 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
@@ -51,6 +52,8 @@ import tools.jackson.databind.json.JsonMapper;
  * Invariant I6, second half: every event in the outbox reaches Kafka. The scheduler is off in tests, so each test
  * runs the relay itself and knows exactly how many rounds happened.
  */
+// A relay that never gets through its backlog would run forever. Fail instead.
+@Timeout(120)
 class OutboxRelayIT extends AbstractIntegrationTest {
 
     private static final Logger log = LoggerFactory.getLogger(OutboxRelayIT.class);
