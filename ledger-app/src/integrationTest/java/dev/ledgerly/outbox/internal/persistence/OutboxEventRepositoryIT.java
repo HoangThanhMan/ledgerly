@@ -8,6 +8,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -102,9 +103,11 @@ class OutboxEventRepositoryIT extends AbstractIntegrationTest {
         transaction.executeWithoutResult(status -> {
             assertThat(idsOf(events.lockNextBatch(2))).containsExactly(first, second);
 
-            // Another relay, on its own connection, while this transaction still holds the two rows.
+            // Another relay, on its own connection, while this transaction still holds the two rows. With a
+            // deadline: a relay that waited for the locked rows would wait for this very transaction, forever.
             List<UUID> seenByOther = CompletableFuture.supplyAsync(
                             () -> idsOf(inTransaction(() -> events.lockNextBatch(10))))
+                    .orTimeout(10, TimeUnit.SECONDS)
                     .join();
 
             assertThat(seenByOther).containsExactly(third);
