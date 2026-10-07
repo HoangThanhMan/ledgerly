@@ -87,9 +87,20 @@ Mỗi PR dùng mẫu `.github/pull_request_template.md` và phải:
 | Log | SLF4J, có cấu trúc, không log dữ liệu nhạy cảm. Mức `INFO` cho sự kiện nghiệp vụ quan trọng |
 | Tính năng JDK | Chỉ dùng tính năng final. Không `--enable-preview` |
 
+### Quy ước cho service Python (`assistant/`, từ tuần A1)
+
+| Chủ đề | Quy ước |
+|---|---|
+| Công cụ | `uv` quản lý môi trường và khóa phiên bản, `ruff` format và lint, `pyright` ở chế độ strict, `pytest` |
+| Kiểu | Mọi hàm công khai có type hint. Dữ liệu qua ranh giới (HTTP, tool) là model có schema, không phải `dict` trần |
+| Tiền | Số nguyên theo đơn vị nhỏ nhất, hoặc chuỗi khi đi qua JSON. **Cấm** `float`, giống phía Java |
+| Bí mật | API key và token chỉ đọc từ biến môi trường. Không ghi vào log, transcript hay kết quả eval |
+| Prompt | System prompt và mô tả tool là file có phiên bản trong repo. Đổi prompt là một commit, và phải chạy lại bộ hồi quy |
+| Gọi model | Chỉ qua một module. Model, effort và giới hạn token là cấu hình, không viết cứng trong code |
+
 ## 6. Phiên bản và phát hành
 
-- **SemVer**: `v1.0.0` là MVP, `v1.1.0` là bản có các mục *Should*.
+- **SemVer**: `v1.0.0` là MVP, `v1.1.0` là bản có trợ lý AI, `v1.2.0` là bản có các mục *Should* của tuần 9–11.
 - Phiên bản trong `gradle.properties` có hậu tố `-SNAPSHOT` giữa các lần phát hành.
 - `CHANGELOG.md` sinh từ Conventional Commits.
 
@@ -101,6 +112,8 @@ AI được dùng như **một đồng nghiệp để hỏi và review**, không
 2. Ghi lại trong `docs/ai-usage.md`: AI gợi ý gì, mình **bác bỏ** gì và vì sao, mình kiểm chứng bằng test nào.
 3. AI chỉ soạn nháp ADR khi được yêu cầu rõ ràng. Tác giả phải review, hiểu và chịu trách nhiệm từng dòng như khi tự viết, và ghi việc này vào `docs/ai-usage.md`. ADR vẫn là bằng chứng tư duy của tác giả: không bảo vệ được lập luận nào thì sửa hoặc bỏ lập luận đó.
 4. Trước khi merge, tự hỏi: *"Nếu người phỏng vấn yêu cầu giải thích dòng này, mình có trả lời được không?"*
+
+Chính sách trên nói về AI như **công cụ viết code**. Từ tuần A1 dự án còn có AI như **một tính năng** (trợ lý ví). Hai việc đó tách bạch: `docs/ai-usage.md` ghi việc thứ nhất, còn chất lượng của việc thứ hai được chứng minh bằng bộ eval ([04-chien-luoc-kiem-thu §7](04-chien-luoc-kiem-thu.md#7-eval-cho-lớp-ai-kế-hoạch-tuần-a2a3)), không bằng lời mô tả.
 
 Mẫu một mục trong `docs/ai-usage.md`:
 

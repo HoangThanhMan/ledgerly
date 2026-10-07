@@ -9,7 +9,7 @@
 | 00 | [Tổng quan dự án](00-tong-quan-du-an.md) | Mục tiêu, phạm vi (MoSCoW), mốc, rủi ro, thuật ngữ | Tất cả |
 | 01 | [Kiến trúc](01-kien-truc.md) | C4 (context, container, component), mô hình dữ liệu, luồng nghiệp vụ, API, sự kiện, tech stack | Tất cả |
 | 02 | [Cấu trúc thư mục](02-cau-truc-thu-muc.md) | Cây thư mục đích, module Gradle, tổ chức package, quy ước đặt tên, cổng | Khi code |
-| 03 | [Lộ trình 12 tuần](03-lo-trinh.md) | Gantt, mốc, phân bổ thời gian, quy tắc cắt giảm, nhịp làm việc | Mỗi tuần |
+| 03 | [Lộ trình](03-lo-trinh.md) | Gantt, mốc, phân bổ thời gian, quy tắc cắt giảm, nhịp làm việc. 12 tuần gốc và 3 tuần hướng AI | Mỗi tuần |
 | 04 | [Chiến lược kiểm thử](04-chien-luoc-kiem-thu.md) | Các tầng test, bất biến I1–I7, ma trận test, phương pháp benchmark | Khi viết test |
 | 05 | [Quy ước làm việc](05-quy-uoc-lam-viec.md) | Git, Conventional Commits, PR, quy ước code, chính sách dùng AI | Khi commit |
 
@@ -26,10 +26,13 @@
 | [6](weeks/tuan-06.md) | Outbox + Kafka + consumer 🟡 | M3 |
 | [7](weeks/tuan-07.md) | Observability & benchmark baseline | |
 | [8](weeks/tuan-08.md) | Hoàn thiện MVP, `v1.0.0` | M4 |
+| [A1](weeks/tuan-a1.md) | Nền cho agent: token theo scope, lệnh chờ xác nhận | |
+| [A2](weeks/tuan-a2.md) | MCP server, agent, bộ eval | |
+| [A3](weeks/tuan-a3.md) | RAG, an toàn, so sánh model, `v1.1.0` | M5 |
 | [9](weeks/tuan-09.md) | mock-bank & saga nạp/rút | |
 | [10](weeks/tuan-10.md) | Chaos engineering | |
 | [11](weeks/tuan-11.md) | Đối soát & benchmark so sánh | |
-| [12](weeks/tuan-12.md) | Ra mắt, CV, luyện phỏng vấn, `v1.1.0` | M5 |
+| [12](weeks/tuan-12.md) | Ra mắt, hai bản CV, luyện phỏng vấn, `v1.2.0` | M6 |
 
 ## Quyết định kiến trúc
 

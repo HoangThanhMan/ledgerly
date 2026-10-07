@@ -115,7 +115,8 @@ Key được giữ ít nhất 24 giờ. Thiết kế hai pha, lý do không dùn
 - [Tổng quan dự án](docs/00-tong-quan-du-an.md): mục tiêu, phạm vi, mốc, rủi ro
 - [Kiến trúc](docs/01-kien-truc.md): C4, mô hình dữ liệu, luồng nghiệp vụ, API
 - [Cấu trúc thư mục](docs/02-cau-truc-thu-muc.md)
-- [Lộ trình 12 tuần](docs/03-lo-trinh.md) và [kế hoạch từng tuần](docs/weeks/)
+- [Lộ trình](docs/03-lo-trinh.md) và [kế hoạch từng tuần](docs/weeks/)
+- [Hướng AI Engineer](docs/research/huong-ai-engineer.md): vì sao thêm một trợ lý ví, và kế hoạch ba tuần A1–A3 (chưa có code)
 - [Chiến lược kiểm thử](docs/04-chien-luoc-kiem-thu.md)
 - [Quy ước làm việc](docs/05-quy-uoc-lam-viec.md)
 - [Architecture Decision Records](docs/adr/README.md)
