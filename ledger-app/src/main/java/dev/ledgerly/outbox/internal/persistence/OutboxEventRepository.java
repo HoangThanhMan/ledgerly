@@ -55,7 +55,7 @@ public class OutboxEventRepository {
      * <p>Events another transaction has locked are skipped, not waited for. Several relays can therefore run side
      * by side: each takes a different batch, and none publishes what another is publishing right now.
      *
-     * <p>{@code created_at} is the time the writing transaction began, not the time it committed. An event can
+     * <p>{@code created_at} is the time the event was written, not the time its transaction committed. An event can
      * therefore become visible after younger ones were published. That is why the backlog is found by
      * {@code published_at IS NULL} and not by remembering how far a previous poll got.
      */
