@@ -63,6 +63,24 @@ ledgerly/
 │
 ├── ledger-benchmarks/                     # JMH micro-benchmark (module riêng)        [T11]
 │
+├── assistant/                             # trợ lý ví: service Python, ngoài Gradle   [A1]
+│   ├── pyproject.toml                     # uv, ruff, pyright, pytest
+│   ├── Dockerfile
+│   ├── src/assistant/
+│   │   ├── api/                           # chat API (SSE)                            [A2]
+│   │   ├── agent/                         # vòng lặp agent, system prompt             [A2]
+│   │   ├── mcp/                           # MCP server và các tool                    [A2]
+│   │   ├── retrieval/                     # nạp dữ liệu, tìm kiếm lai                 [A3]
+│   │   └── telemetry/                     # span và metric gen_ai.*                   [A2]
+│   ├── knowledge/                         # kho tri thức về chính sách (Markdown)     [A3]
+│   └── tests/
+│
+├── evals/                                 # bộ eval của trợ lý                        [A2]
+│   ├── tasks/                             # task theo nhóm, có cả safety/             [A2–A3]
+│   ├── graders/                           # grader bằng mã, giám khảo bằng model
+│   ├── transcripts/                       # transcript đã ghi, cho eval khô trên CI
+│   └── results/                           # kết quả thô của từng lượt chạy
+│
 ├── perf/
 │   ├── k6/
 │   │   ├── lib/                           # hàm dùng chung: tạo ví, seed tiền
@@ -78,6 +96,8 @@ ledgerly/
 │
 ├── scripts/
 │   ├── invariants.sql                     # truy vấn kiểm tra bất biến I1–I4          [T4]
+│   ├── invariants-events.sql              # bất biến I6, chạy tay                     [T6]
+│   ├── invariants-agent.sql               # bất biến I8, I9                           [A1]
 │   ├── seed.sh                            # tạo ví & nạp tiền cho demo                [T7]
 │   ├── chaos/                             # script chạy từng kịch bản chaos           [T10]
 │   ├── ci/coverage-summary.py             # bảng coverage cho job summary của CI      [T2]
@@ -90,8 +110,9 @@ ledgerly/
 │   ├── weeks/                             # kế hoạch chi tiết từng tuần
 │   ├── journal/                           # nhật ký tuần (tự viết mỗi Chủ nhật)       [T1]
 │   ├── benchmarks.md                      # phương pháp + bảng kết quả                [T7]
+│   ├── evals.md                           # phương pháp eval + bảng so sánh model     [A3]
 │   ├── ai-usage.md                        # "Cách tôi dùng AI"                         [T1]
-│   └── research/                          # báo cáo nghiên cứu chọn đề tài
+│   └── research/                          # báo cáo chọn đề tài, báo cáo hướng AI Engineer
 │
 ├── compose.yaml                           # hạ tầng dev (profiles)                    [T0]
 ├── settings.gradle.kts                                                              [T0]

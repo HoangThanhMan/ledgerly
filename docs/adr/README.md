@@ -23,3 +23,6 @@ ADR ghi lại **một quyết định kiến trúc quan trọng**: bối cảnh,
 | 0008 | Saga orchestration cho nạp/rút tiền | *Dự kiến* | 9 |
 | 0009 | Chống quá tải: `@ConcurrencyLimit` và kích thước connection pool | *Dự kiến* | 10 |
 | 0010 | Chiến lược cho hot account (theo kết quả benchmark) | *Dự kiến* | 11 |
+| 0011 | Agent chỉ được đề xuất: token theo scope và lệnh chuyển tiền chờ xác nhận | *Dự kiến* | A1 |
+| 0012 | Lớp AI là service Python: MCP và SDK trực tiếp (không Spring AI, không framework agent) | *Dự kiến* | A2 |
+| 0013 | Eval là bất biến của lớp AI: grader, `pass^k`, ngưỡng hồi quy, tiêu chí đổi model | *Dự kiến* | A3 |

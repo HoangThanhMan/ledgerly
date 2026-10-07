@@ -12,7 +12,7 @@ Một người lạ mở repo phải **hiểu dự án trong 30 giây** và **ch
 
 | ID | Việc | Giờ | Đầu ra |
 |---|---|:-:|---|
-| W08-01 | OpenAPI bằng springdoc (bản hỗ trợ Boot 4), có mô tả, ví dụ và mã lỗi. Xuất `docs/openapi.yaml` | 2 | Swagger UI |
+| W08-01 | OpenAPI bằng springdoc (bản hỗ trợ Boot 4), có mô tả, ví dụ và mã lỗi. Xuất `docs/openapi.yaml`. Mô tả từng endpoint và từng tham số phải viết kỹ: định nghĩa tool của agent ở tuần A2 được đối chiếu với file này | 2 | Swagger UI |
 | W08-02 | Dockerfile multi-stage cho 3 app: layered jar (`-Djarmode=tools extract --layers`), AOT cache Java 25, user non-root | 3 | `*/Dockerfile` |
 | W08-03 | Compose profile `full` và `application-compose.yaml`: một lệnh chạy cả hệ thống | 1.5 | |
 | W08-04 | README đầy đủ theo cấu trúc bên dưới | 3 | `README.md` |

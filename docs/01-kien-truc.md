@@ -1,6 +1,6 @@
 # 01. Kiến trúc hệ thống
 
-> Tài liệu này mô tả **trạng thái đích** khi kết thúc tuần 12. Mỗi mục ghi rõ tuần triển khai để đối chiếu với [lộ trình](03-lo-trinh.md). Các sơ đồ dùng Mermaid, GitHub hiển thị trực tiếp.
+> Tài liệu này mô tả **trạng thái đích** khi kết thúc tuần 12. Lớp AI (tuần A1–A3) nằm riêng ở [mục 14](#14-lớp-ai-kế-hoạch-tuần-a1a3), vì nó mới ở mức kế hoạch. Mỗi mục ghi rõ tuần triển khai để đối chiếu với [lộ trình](03-lo-trinh.md). Các sơ đồ dùng Mermaid, GitHub hiển thị trực tiếp.
 
 ## Mục lục
 
@@ -17,6 +17,7 @@
 11. [Triển khai](#11-triển-khai)
 12. [Tech stack](#12-tech-stack)
 13. [Yêu cầu phi chức năng](#13-yêu-cầu-phi-chức-năng)
+14. [Lớp AI (kế hoạch, tuần A1–A3)](#14-lớp-ai-kế-hoạch-tuần-a1a3)
 
 ---
 
@@ -625,3 +626,93 @@ Compose dùng **profiles** để không phải bật mọi thứ khi phát tri�
 | NFR-4 | Quá tải | Trả 503 trong dưới 1 giây, không treo request |
 | NFR-5 | Khởi động | `docker compose --profile full up` sẵn sàng trong dưới 90 giây |
 | NFR-6 | Build | `./gradlew build` dưới 5 phút trên CI |
+
+## 14. Lớp AI (kế hoạch, tuần A1–A3)
+
+> Mục này là **thiết kế dự kiến**, chưa có code. Mọi quyết định ở đây sẽ được ghi lại, kèm bằng chứng, trong ADR-0011 đến 0013 khi làm. Lý do chọn hướng này và các phương án đã loại: [research/huong-ai-engineer.md](research/huong-ai-engineer.md).
+
+### 14.1 Nguyên tắc
+
+1. **Lõi tiền không biết gì về LLM.** `ledger-app` không gọi model và không phụ thuộc thư viện AI nào. Lớp AI là một service khác, nói chuyện với lõi qua cùng API HTTP mà mọi client dùng.
+2. **Quyền nằm ở server.** Agent giữ một token chỉ đọc được ví và *đề xuất* được lệnh chuyển. Việc thực thi cần token của người dùng. Model bị lừa hoàn toàn thì tiền vẫn không đi.
+3. **Mọi thứ agent đọc được đều là dữ liệu, không phải lệnh.** Tài liệu của kho tri thức, kết quả tool, tên ví: không thứ nào được coi là chỉ dẫn.
+4. **Chất lượng là số đo.** Bộ eval chấm trên trạng thái sổ cái, chạy lại được, có kết quả thô trong repo, giống benchmark của tuần 7.
+
+### 14.2 Container
+
+```mermaid
+flowchart LR
+    user["Người dùng<br/>(token: read, propose, execute)"]
+    subgraph ai["assistant (Python)"]
+        chat["Chat API<br/>POST /v1/assistant/turns (SSE)"]
+        agent["Vòng lặp agent<br/>SDK của Claude, tool calling"]
+        mcp["MCP server<br/>Streamable HTTP, không trạng thái"]
+        rag["Truy xuất lai<br/>vector + full-text"]
+    end
+    llm[["Claude API"]]
+    subgraph core["ledger-app (Java)"]
+        api["API v1<br/>token theo scope"]
+        intent["intent<br/>lệnh chờ xác nhận"]
+        ledger["ledger · idempotency · outbox"]
+    end
+    kb[("PostgreSQL + pgvector<br/>kho tri thức, hội thoại")]
+    db[("PostgreSQL: ledger")]
+
+    user -->|câu hỏi| chat --> agent
+    agent <-->|messages, tool_use| llm
+    agent --> mcp
+    agent --> rag --> kb
+    mcp -->|token agent: read, propose| api
+    user -->|xác nhận lệnh, token người dùng| api
+    api --> intent --> ledger --> db
+```
+
+Đường xác nhận đi **thẳng** từ người dùng tới `ledger-app`, không qua `assistant`.
+
+### 14.3 Thêm vào `ledger-app` (tuần A1)
+
+| Module | Trách nhiệm |
+|---|---|
+| `identity` | Principal, token theo scope (lưu dạng băm), bộ lọc xác thực, người gọi trong `RequestContext` |
+| `intent` | Lệnh chuyển tiền chờ xác nhận: tạo, xác nhận, từ chối, hết hạn, hạn mức. Khi xác nhận thì gọi `wallet` trong cùng transaction với idempotency key |
+| `wallet` (sửa) | Mọi endpoint kiểm tra quyền sở hữu ví. Ví của người khác trả 404 |
+| `idempotency` (sửa) | Key tính theo từng principal, không còn toàn cục |
+
+Ma trận phụ thuộc của ArchUnit sẽ thêm: `intent` được gọi `wallet`, `idempotency`, `outbox`, `identity`, `shared`. `identity` chỉ được gọi `shared`. Các module khác đọc người gọi qua `shared.RequestContext`, không phụ thuộc `identity`.
+
+### 14.4 Tool của agent
+
+| Tool | Gọi tới | Loại | Scope cần |
+|---|---|---|---|
+| `get_wallet` | `GET /v1/wallets/{id}` | Chỉ đọc | `wallets:read` |
+| `list_entries` | `GET /v1/wallets/{id}/entries` | Chỉ đọc | `wallets:read` |
+| `get_transfer` | `GET /v1/transfers/{id}` | Chỉ đọc | `wallets:read` |
+| `get_transfer_intent` | `GET /v1/transfer-intents/{id}` | Chỉ đọc | `wallets:read` |
+| `propose_transfer` | `POST /v1/transfer-intents` | Có ghi, cần người xác nhận | `transfers:propose` |
+| `search_knowledge` | Kho tri thức (tuần A3) | Chỉ đọc | Không gọi `ledger-app` |
+
+Không có tool nào xác nhận lệnh, và không có tool nào gọi thẳng `POST /v1/transfers`.
+
+`propose_transfer` gửi `Idempotency-Key` sinh từ `(conversation_id, tool_use_id)`. Model, SDK hay tầng mạng gọi lại bao nhiêu lần thì vẫn là một lệnh. Đây là chỗ lớp idempotency của tuần 5 được dùng lại nguyên vẹn.
+
+### 14.5 Bất biến của lớp AI
+
+| ID | Phát biểu | Kiểm bằng |
+|---|---|---|
+| **I8** | Mọi giao dịch sinh ra từ một lệnh đều có đúng một lệnh `CONFIRMED`, do một token có scope `transfers:execute` xác nhận | `scripts/invariants-agent.sql`, chạy sau mỗi lượt của bộ thử an toàn |
+| **I9** | Không response 2xx nào trả dữ liệu của ví mà người gọi không sở hữu | `WalletOwnershipIT`, bộ thử an toàn |
+
+### 14.6 Quan sát và chi phí
+
+Mỗi lượt gọi model và mỗi lần gọi tool là một span, với thuộc tính theo quy ước `gen_ai.*` của OpenTelemetry. Quy ước này còn ở trạng thái Development, nên tên thuộc tính được gói trong một module để đổi một chỗ. `traceparent` đi tiếp sang `ledger-app`, nên một câu hỏi của người dùng là **một trace** xuyên cả hai service. Metric: token vào, token ra, chi phí và độ trễ của mỗi lượt.
+
+### 14.7 Rủi ro theo OWASP Top 10 for Agentic Applications 2026
+
+| Rủi ro | Biện pháp trong thiết kế |
+|---|---|
+| ASI01 Agent Goal Hijack | Nội dung truy xuất và kết quả tool được đánh dấu là dữ liệu. Bộ thử an toàn cài lệnh vào cả hai đường |
+| ASI02 Tool Misuse | Tập tool nhỏ, schema chặt, không có tool thực thi tiền |
+| ASI03 Identity & Privilege Abuse | Token của agent hẹp hơn token của người dùng, có hạn, thu hồi được. Service từ chối khởi động nếu được cấp scope thực thi |
+| ASI09 Human-Agent Trust Exploitation | Người dùng xác nhận trên chính lệnh do server lưu (nguồn, đích, số tiền), không phải trên lời tóm tắt của agent |
+| Còn lại | Không áp dụng ở quy mô này (không có nhiều agent, không chạy code do model sinh, không có bộ nhớ dài hạn). Ghi rõ trong ADR-0011 |
+

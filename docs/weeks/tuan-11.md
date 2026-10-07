@@ -2,7 +2,7 @@
 
 | Thời gian | Giai đoạn | Mốc | Ngân sách | Trạng thái |
 |---|---|---|---|---|
-| 14/12 – 20/12/2026 | 4: Mở rộng | | 13.5 giờ | ⬜ Chưa bắt đầu |
+| 04/01 – 10/01/2027 | 5: Mở rộng | | 13.5 giờ | ⬜ Chưa bắt đầu |
 
 ## Mục tiêu
 
@@ -21,6 +21,7 @@
 | W11-06 | Benchmark virtual threads và platform threads (Tomcat 200), cùng profile tải, cùng máy | 1.5 | |
 | W11-07 | *(Could)* Module `ledger-benchmarks` (JMH) cho `PostingRules` và serialize sự kiện | 1.5 | |
 | W11-08 | **ADR-0010**: chiến lược hot account. Nếu kết quả đảo ngược một phần ADR-0004 thì đánh dấu *superseded* | 1 | |
+| W11-09 | *(Could)* Dùng LLM phân loại và giải thích các dòng đối soát còn `OPEN`, chấm bằng bộ eval của tuần A2 | 2 | |
 
 ## Ghi chú kỹ thuật
 

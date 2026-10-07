@@ -2,7 +2,7 @@
 
 | Thời gian | Giai đoạn | Mốc | Ngân sách | Trạng thái |
 |---|---|---|---|---|
-| 30/11 – 06/12/2026 | 4: Mở rộng | | 15 giờ | ⬜ Chưa bắt đầu |
+| 21/12 – 27/12/2026 | 5: Mở rộng | | 15 giờ | ⬜ Chưa bắt đầu |
 
 ## Mục tiêu
 

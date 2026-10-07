@@ -14,6 +14,12 @@ Mỗi mục ghi: hỏi AI gì, AI gợi ý gì, mình quyết định gì (chấ
 
 ---
 
+### 2026-10-07: Nghiên cứu và lập kế hoạch hướng AI Engineer
+- Hỏi AI: dự án cần điều chỉnh gì để hợp cả vị trí AI Engineer, rồi "hãy nghiên cứu cho kĩ và đưa hướng đó vào dự án".
+- AI gợi ý: sau khi tra tin tuyển dụng, spec MCP `2026-07-28`, hướng dẫn eval của Anthropic và OWASP Top 10 for Agentic Applications, đề xuất **một** tính năng: trợ lý ví gọi tool trên API thật. Ba tuần A1–A3 chen sau tuần 8: nền cho agent bằng Java (token theo scope, lệnh chờ xác nhận), service Python (MCP, agent, eval), rồi RAG, an toàn và so sánh model. Báo cáo có nguồn ở [research/huong-ai-engineer.md](research/huong-ai-engineer.md).
+- Quyết định: **chưa có quyết định nào của mình.** AI đã viết kế hoạch vào lộ trình, charter, kiến trúc và chiến lược test, tất cả ở mức "dự kiến". Ba điểm mình phải chốt: ngân sách gọi model (ước 60–100 USD, chưa đo), thứ tự (sau tuần 8 hay sau tuần 11), và việc thêm xác thực tối thiểu (đang là non-goal). AI cũng đổi ý so với lời khuyên trước đó của chính nó: lúc đầu bảo không làm RAG, sau khi xem tin tuyển thì đưa RAG vào tuần A3 với một kho tri thức về chính sách.
+- Kiểm chứng: chưa chạy thử thứ gì. Số liệu tuyển dụng là 20 tin trên ITviec trong một ngày và các bài tổng hợp của bên thứ ba. Giới hạn ghi ở cuối báo cáo.
+
 ### 2026-10-07: Tuần 6, transactional outbox, relay, consumer và ADR-0006 (W06-01 … W06-09)
 - Hỏi AI: "hãy thực hiện kế hoạch tiếp theo".
 - AI gợi ý:

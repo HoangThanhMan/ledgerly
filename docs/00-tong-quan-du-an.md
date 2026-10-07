@@ -5,17 +5,20 @@
 | Tên dự án | **Ledgerly**: ví điện tử theo mô hình sổ cái kép, có bất biến được kiểm chứng |
 | Repo | `ledgerly` (GitHub) |
 | Trạng thái | Tuần 0: đã khởi tạo khung dự án (01/10/2026) |
-| Thời gian | 12 tuần part-time, từ 05/10/2026 đến 27/12/2026 |
-| Ngân sách | 12–15 giờ/tuần, tổng khoảng 160 giờ |
+| Thời gian | 15 tuần part-time, từ 05/10/2026 đến 17/01/2027 (12 tuần gốc và 3 tuần hướng AI, thêm ngày 07/10/2026) |
+| Ngân sách | 12–15 giờ/tuần, tổng khoảng 205 giờ |
 | Mốc MVP | Tuần 8 (29/11/2026), tag `v1.0.0` |
-| Phát hành cuối | Tuần 12 (27/12/2026), tag `v1.1.0` |
-| Tài liệu gốc | [research/](research/): hai báo cáo phân tích để chọn đề tài |
+| Trợ lý AI | Tuần A3 (20/12/2026), tag `v1.1.0` |
+| Phát hành cuối | Tuần 12 (17/01/2027), tag `v1.2.0` |
+| Tài liệu gốc | [research/](research/): hai báo cáo phân tích để chọn đề tài, và [báo cáo về hướng AI Engineer](research/huong-ai-engineer.md) |
 
 ---
 
 ## 1. Tóm tắt
 
 Ledgerly là backend ví điện tử viết bằng **Java 25 LTS và Spring Boot 4.1**. Nó dùng mô hình **sổ cái kép (double-entry ledger)**: mọi dịch chuyển tiền đều được ghi thành các bút toán bất biến có tổng bằng 0.
+
+Từ tuần A1, dự án có thêm một **trợ lý ví** viết bằng Python: một agent gọi tool trên chính API của Ledgerly, để dự án dùng được cho cả vị trí backend lẫn AI Engineer. Hai phần được nối bằng một ý: agent bị ràng buộc bởi chính các bất biến của sổ cái, và sự ràng buộc đó do server ép chứ không do prompt.
 
 Dự án không cạnh tranh bằng số lượng tính năng. Nó cạnh tranh bằng **bằng chứng đúng đắn**: mỗi đảm bảo kỹ thuật đi kèm một bài test, một bảng kết quả hoặc một ADR mà người khác có thể chạy lại để kiểm tra.
 
@@ -25,6 +28,7 @@ Dự án không cạnh tranh bằng số lượng tính năng. Nó cạnh tranh 
 - Tác giả đã có kinh nghiệm microservice bằng TypeScript và Python. Làm thêm một bộ CRUD microservice bằng Java chỉ lặp lại điều đã chứng minh.
 - Nhóm tuyển Java lớn ở Việt Nam là thanh toán và ngân hàng (VNPAY, các ngân hàng số, fintech). Bài toán sổ cái khớp trực tiếp với nghiệp vụ của họ.
 - Phân tích chi tiết và so sánh với phương án "Settlement Engine 4 microservice" nằm trong [research/](research/).
+- Các ngân hàng mà dự án nhắm tới cho vị trí Java cũng đang tuyển AI Engineer, và tin tuyển AI hỏi nhiều nhất về Python, LLM, agent, RAG và eval. Phân tích và nguồn ở [research/huong-ai-engineer.md](research/huong-ai-engineer.md).
 
 ## 3. Mục tiêu (Goals)
 
@@ -36,6 +40,9 @@ Dự án không cạnh tranh bằng số lượng tính năng. Nó cạnh tranh 
 | G4 | Chịu lỗi khi phụ thuộc ngoài gặp sự cố | Ma trận 5 kịch bản chaos (Toxiproxy) đều cho kết quả đúng kỳ vọng |
 | G5 | Hiệu năng đo trung thực | Báo cáo p50/p95/p99 tại một mức RPS cố định, có công bố phương pháp, dùng k6 `constant-arrival-rate` |
 | G6 | Repo dùng được như sản phẩm | `docker compose up` chạy toàn hệ thống, CI xanh, README và ADR đầy đủ |
+| G7 | Agent không tự chuyển được tiền | Bất biến I8 đúng sau mọi lượt của bộ thử an toàn: giao dịch nào sinh từ agent cũng có một lệnh do người dùng xác nhận |
+| G8 | Chất lượng của agent đo được | Bộ eval chấm trên trạng thái sổ cái, báo `pass^3`, chi phí mỗi task và độ trễ, có kết quả thô trong repo |
+| G9 | Biết đổi model thì được gì, mất gì | Bảng so sánh ba model trên cùng bộ task, có công bố phương pháp |
 
 ## 4. Ngoài phạm vi (Non-goals)
 
@@ -44,8 +51,10 @@ Những thứ **chủ động không làm**, kèm lý do để trả lời khi p
 | Không làm | Lý do |
 |---|---|
 | Chia thành nhiều microservice | Đã chứng minh bằng TS/Python. Ở đây chọn modular monolith có ranh giới module được kiểm tra (xem [ADR-0001](adr/0001-modular-monolith.md)) |
-| Frontend | Đây là dự án backend. Swagger UI và k6 đủ để demo |
-| Xác thực đầy đủ (OAuth2/OIDC) | Không phải trọng tâm. Ghi vào "Giới hạn" trong README |
+| Frontend | Đây là dự án backend. Swagger UI và k6 đủ để demo. Trợ lý AI cũng chỉ có API |
+| Xác thực đầy đủ (OAuth2/OIDC), đăng ký, mật khẩu | Không phải trọng tâm. Từ tuần A1 có token tự quản theo scope, vừa đủ để phân biệt người dùng với agent (ADR-0011) |
+| Huấn luyện mô hình, ML cổ điển | Hướng AI của dự án là xây ứng dụng trên LLM (agent, RAG, eval). Năng lực huấn luyện mô hình cần bằng chứng khác |
+| Agent tự chuyển tiền không cần xác nhận | Đi ngược mục tiêu G7 |
 | Đa tiền tệ, quy đổi tỉ giá | Chỉ dùng VND. Mô hình `Money` vẫn có trường tiền tệ để mở rộng sau |
 | Kubernetes, service mesh | Không cần ở quy mô này. Docker Compose là đường demo chính |
 | Debezium CDC | Polling relay với `SKIP LOCKED` là đủ và dễ kiểm thử. Debezium được ghi là "đã cân nhắc" trong ADR-0006 |
@@ -78,6 +87,12 @@ flowchart LR
 5. Bộ test bất biến chạy sau mỗi lần load test.
 6. `docker compose up` một lệnh, CI xanh, README và OpenAPI đầy đủ.
 
+### Should (hướng AI): tuần A1–A3
+
+7a. Token theo scope, quyền sở hữu ví, và lệnh chuyển tiền chờ xác nhận.
+7b. Trợ lý ví: MCP server, agent gọi tool, RAG trên kho tri thức về chính sách.
+7c. Bộ eval chấm trên trạng thái sổ cái, bộ thử an toàn, bảng so sánh model.
+
 ### Should: tuần 9–11
 
 7. Saga nạp tiền qua `mock-bank` (`PENDING → SETTLED / FAILED`), có timeout, retry và bút toán bù trừ.
@@ -91,6 +106,9 @@ flowchart LR
 12. Circuit breaker cho HTTP client gọi `mock-bank`.
 13. Rate limit theo ví.
 14. Một ADR bị thay thế (trạng thái *superseded*).
+15. Viết lại vòng lặp agent bằng LangGraph và so bằng cùng bộ eval.
+16. Tinh chỉnh model embedding cho kho tri thức.
+17. Dùng LLM phân loại và giải thích các dòng lệch khi đối soát.
 
 ### Won't, ở phiên bản này
 
@@ -105,7 +123,8 @@ Xem mục 4.
 | **M2**: Lõi sổ cái đúng | 01/11/2026 | Chuyển tiền đồng thời qua test bất biến, ADR-0004 |
 | **M3**: Nhất quán | 15/11/2026 | Idempotency và outbox xong, test `kill -9` relay xanh |
 | **M4**: MVP `v1.0.0` | 29/11/2026 | Tất cả mục *Must*, có demo, benchmark baseline |
-| **M5**: Phát hành `v1.1.0` | 27/12/2026 | Các mục *Should*, blog, CV cập nhật số liệu thật |
+| **M5**: Trợ lý AI `v1.1.0` | 20/12/2026 | Agent chạy được, I8 đúng trên bộ thử an toàn, bảng so sánh model, ADR-0011 đến 0013 |
+| **M6**: Phát hành `v1.2.0` | 17/01/2027 | Các mục *Should* của tuần 9–11, blog, hai bản CV có số liệu thật |
 
 ## 8. Tiêu chí thành công
 
@@ -119,8 +138,9 @@ Dự án được coi là thành công khi đạt cả bốn điều sau:
 ## 9. Ràng buộc và giả định
 
 - **Thời gian**: 12–15 giờ/tuần, song song với luyện thuật toán (khoảng 5 giờ/tuần, tính riêng).
+- **Ngôn ngữ**: lõi là Java. Lớp AI là Python, trong một service riêng chỉ nói chuyện với lõi qua HTTP.
 - **Phần cứng**: một máy cá nhân. Mọi benchmark phải ghi rõ cấu hình máy.
-- **Chi phí**: 0 đồng. Deploy trên Oracle Always Free nếu có thẻ, nếu không thì Render free.
+- **Chi phí**: 0 đồng cho hạ tầng. Deploy trên Oracle Always Free nếu có thẻ, nếu không thì Render free. **Ngoại lệ từ tuần A2:** tiền gọi model cho agent và eval, ước 60–100 USD cho cả ba tuần, chưa đo. Khoản này cần tác giả duyệt trước khi chạy.
 - **Phiên bản**: Java 25 LTS, Spring Boot 4.1.x, PostgreSQL 18, Kafka 4.x (chế độ KRaft).
 
 ## 10. Đăng ký rủi ro (Risk register)
@@ -134,6 +154,11 @@ Dự án được coi là thành công khi đạt cả bốn điều sau:
 | R5 | Không giải thích được code do AI sinh | Trung bình | Rất cao | Ghi nhật ký dùng AI. Mọi đoạn code AI gợi ý phải có test và giải thích được từng dòng |
 | R6 | Số liệu benchmark bị lật lại khi phỏng vấn | Trung bình | Cao | Công bố phương pháp đo, dùng `constant-arrival-rate`, commit kết quả thô |
 | R7 | Dự án ăn hết thời gian luyện thuật toán | Cao | Cao | Khóa cứng 5 giờ/tuần cho LeetCode, không mượn sang |
+| R8 | Hai hướng làm dự án mất trọng tâm | Trung bình | Cao | Chỉ **một** tính năng AI, và nó dùng lại idempotency, sự kiện, bất biến của lõi. README kể thành một ý. Hai bản CV, cùng một repo |
+| R9 | Chi phí gọi model vượt dự tính | Trung bình | Trung bình | Đo chi phí một lượt chạy trước khi chạy đủ (A2-07). Phát triển bằng model rẻ. Eval thật không chạy tự động trên PR |
+| R10 | Eval chập chờn làm CI đỏ ngẫu nhiên | Cao | Trung bình | CI chỉ chạy eval khô (phát lại transcript). Eval thật báo `pass^3` qua nhiều lượt |
+| R11 | Agent bị dụ (prompt injection) | Cao | Rất cao | Quyền nằm ở server: token của agent không có scope thực thi. Bộ thử an toàn chấm bằng I8, I9 trên database |
+| R12 | Hướng AI lấn mất saga, chaos, đối soát | Trung bình | Cao | MVP `v1.0.0` khóa trước khi bắt đầu A1. Nếu trễ thì cắt theo [quy tắc](03-lo-trinh.md#5-quy-tắc-cắt-giảm-khi-trễ), không cắt test |
 
 ## 11. Thuật ngữ
 
@@ -149,4 +174,13 @@ Dự án được coi là thành công khi đạt cả bốn điều sau:
 | Saga | Chuỗi transaction cục bộ, khi lỗi thì chạy bước bù trừ |
 | Reconciliation (đối soát) | So sánh sổ cái với nguồn bên ngoài (sao kê ngân hàng) để phát hiện chênh lệch |
 | Hot account | Account bị nhiều giao dịch đồng thời tranh nhau khóa |
+| Principal | Người gọi API đã xác thực. Sở hữu ví và token |
+| Scope | Quyền gắn với một token, ví dụ `transfers:propose` |
+| Transfer intent (lệnh chờ xác nhận) | Đề nghị chuyển tiền do agent tạo. Chỉ thành giao dịch khi người dùng xác nhận |
+| Tool calling | Model trả về yêu cầu gọi một hàm có schema, ứng dụng thực thi rồi gửi kết quả lại |
+| MCP | Model Context Protocol: giao thức chuẩn để một agent dùng tool của một hệ thống khác |
+| RAG | Truy xuất các đoạn tài liệu liên quan rồi đưa vào ngữ cảnh để model trả lời có căn cứ |
+| Eval | Bộ task cố định và grader để đo một hệ thống AI, chạy lại được như test |
+| `pass^k` | Tỉ lệ task mà cả k lượt chạy đều đạt |
+| Prompt injection | Nội dung không tin được chứa lệnh, nhằm khiến agent làm việc người dùng không yêu cầu |
 | Coordinated omission | Lỗi đo khiến độ trễ trông tốt hơn thực tế, do bộ sinh tải chờ response rồi mới gửi tiếp |
