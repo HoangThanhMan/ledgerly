@@ -8,7 +8,7 @@
 ![PostgreSQL 18](https://img.shields.io/badge/PostgreSQL-18-336791)
 ![Kafka 4](https://img.shields.io/badge/Kafka-4.x_KRaft-231F20)
 
-> 🚧 **Trạng thái:** tuần 5, chuyển tiền và nạp tiền đã **retry an toàn**: gửi lại cùng `Idempotency-Key` thì nhận lại response của lần đầu và tiền không chuyển lần hai ([ADR-0005](docs/adr/0005-idempotency-key-hai-pha-trong-postgresql.md)). 50 request đồng thời cùng key tạo đúng 1 giao dịch. Trước đó (tuần 4): khóa account theo thứ tự `id` ([ADR-0004](docs/adr/0004-khoa-bi-quan-co-thu-tu.md)), 10.000 lần chuyển trên 200 virtual threads không vi phạm bất biến. Chưa có sự kiện Kafka. Ví dụ `curl` cho mọi endpoint ở [nhật ký tuần 3](docs/journal/2026-W43.md#gọi-thử-bằng-curl). Xem [lộ trình 12 tuần](docs/03-lo-trinh.md).
+> 🚧 **Trạng thái:** tuần 6, mỗi lần chuyển tiền đã commit sinh ra đúng một sự kiện `TransferCompleted` trên Kafka qua **transactional outbox** ([ADR-0006](docs/adr/0006-transactional-outbox-voi-polling-relay.md)): Kafka sập thì API vẫn chạy và sự kiện nằm chờ, relay bị `kill -9` giữa chừng thì không mất sự kiện nào, bản trùng bị consumer loại bỏ và đếm được. Trước đó: retry an toàn bằng `Idempotency-Key` ([ADR-0005](docs/adr/0005-idempotency-key-hai-pha-trong-postgresql.md), tuần 5), khóa account theo thứ tự `id` ([ADR-0004](docs/adr/0004-khoa-bi-quan-co-thu-tu.md), tuần 4). Chưa có observability và nạp/rút qua ngân hàng. Ví dụ `curl` cho mọi endpoint ở [nhật ký tuần 3](docs/journal/2026-W43.md#gọi-thử-bằng-curl). Xem [lộ trình 12 tuần](docs/03-lo-trinh.md).
 
 Ledgerly là backend ví điện tử (mở ví, chuyển tiền, nạp/rút qua ngân hàng giả lập), xây dựng quanh bốn đảm bảo:
 
@@ -16,7 +16,7 @@ Ledgerly là backend ví điện tử (mở ví, chuyển tiền, nạp/rút qua
 |---|---|---|
 | Không chi tiêu trùng khi có tải đồng thời | Khóa account theo thứ tự id, ràng buộc ở database | Test 200 virtual threads + kiểm tra bất biến |
 | API chuyển tiền idempotent | `Idempotency-Key` hai pha theo mô hình Stripe | `IdempotencyConcurrencyIT`: 50 request đồng thời cùng key → 1 giao dịch, 50 câu trả lời giống nhau |
-| DB và sự kiện nhất quán | Transactional outbox + consumer khử trùng | `kill -9` relay: 0 sự kiện mất |
+| DB và sự kiện nhất quán | Transactional outbox + consumer khử trùng | `kill -9` relay giữa lúc xả 3.000 sự kiện (chạy tay): 3.050 giao dịch, 3.050 thông báo, 22 bản trùng bị loại. `RelayCrashDuplicateIT`, `ConsumerDedupIT` |
 | Đối soát với ngân hàng | Job so khớp sao kê, tự xử lý giao dịch mơ hồ | Test "ghost charge" |
 
 ## Kiến trúc

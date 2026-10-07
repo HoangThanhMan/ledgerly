@@ -40,6 +40,8 @@ flowchart TB
 - **Không `Thread.sleep`** để đồng bộ trong test. Dùng `CountDownLatch` hoặc Awaitility với timeout rõ ràng.
 - Test ngẫu nhiên phải **in seed** ra log để tái hiện được.
 - Mỗi test tự tạo dữ liệu riêng (ví mới, UUID mới). Không phụ thuộc thứ tự chạy, không `TRUNCATE` (vì `entries` là append-only).
+- **Không đóng Spring context giữa lượt chạy** (không `@DirtiesContext`). Khi một context đóng, Spring Boot dừng các container Testcontainers mà nó giữ, tức các container dùng chung, và mọi context còn lại mất database.
+- Relay của outbox **không** được lên lịch trong integration test: test nào cần thì tự gọi `relay.relayBatch()`. Context được cache và sống suốt lượt chạy, nên một relay chạy nền sẽ phát sự kiện của test khác.
 
 ## 2. Bất biến hệ thống
 
@@ -50,10 +52,10 @@ flowchart TB
 | **I3** | Số dư khớp lịch sử | ∀ *a*: `balance(a)` = Σ `amount` của entries(*a*) | `InvariantChecker` |
 | **I4** | Bảo toàn | Σ `balance` của mọi account (kể cả `SYSTEM`) = 0 | `InvariantChecker` |
 | **I5** | Idempotency | ∀ key *k*: số transaction sinh ra từ *k* ≤ 1 | `IdempotencyConcurrencyIT` |
-| **I6** | Outbox đầy đủ | ∀ transaction đã commit: có đúng 1 outbox event. Mọi event cuối cùng đều có `published_at` | `OutboxAtomicityIT`, `ChaosKafkaOutageIT` |
+| **I6** | Outbox đầy đủ | ∀ giao dịch chuyển tiền đã commit: có đúng 1 outbox event. Mọi event cuối cùng đều có `published_at` | `OutboxAtomicityIT`, `OutboxRelayIT`, `ChaosKafkaOutageIT`, `scripts/invariants-events.sql` (chạy tay) |
 | **I7** | Xử lý một lần | ∀ `eventId`: consumer tạo tối đa 1 hiệu ứng | `ConsumerDedupIT`, `RelayCrashDuplicateIT` |
 
-`InvariantChecker` (helper dùng chung trong test) và `scripts/invariants.sql` (chạy tay sau load test hoặc chaos) dùng **cùng một bộ truy vấn**.
+`InvariantChecker` (helper dùng chung trong test) và `scripts/invariants.sql` (chạy tay sau load test hoặc chaos) dùng **cùng một bộ truy vấn** cho I1–I4. I6 có script riêng, `scripts/invariants-events.sql`, chỉ để chạy tay: trong database của test có những giao dịch do test ghi thẳng xuống sổ cái, không qua API ví nên không có sự kiện.
 
 ## 3. Ma trận test theo tính năng
 
@@ -66,7 +68,7 @@ flowchart TB
 | Concurrency | `ConcurrentTransferIT`, `DeadlockFreedomIT`, `HotWalletDrainIT` | I1–I4 | 4 |
 | Model-based | `LedgerModelProperties` | I1–I4 | 4 |
 | Idempotency | `IdempotencyConcurrencyIT`, `IdempotencyCrashRecoveryIT`, `IdempotencyIT`, `IdempotencyApiIT`, `IdempotencyKeyRepositoryIT`, `IdempotencyCleanupIT`, `RequestHasherTest` | I5 | 5 |
-| Outbox & consumer | `OutboxAtomicityIT`, `OutboxRelayIT`, `RelayCrashDuplicateIT`, `ConsumerDedupIT`, `EventContractTest` | I6, I7 | 6 |
+| Outbox & consumer | `OutboxAtomicityIT`, `OutboxEventRepositoryIT`, `OutboxRelayIT`, `OutboxRelaySchedulerIT`, `RelayCrashDuplicateIT`, `OutboxRelaySchedulerTest`, `BackoffTest`, `ConsumerDedupIT`, `EventContractTest` | I6, I7 | 6 |
 | Saga | `TopUpSagaIT`, `WithdrawalSagaIT`, `BankCallbackIT` | I1–I4 | 9 |
 | Chaos | `ChaosBankIT`, `ChaosKafkaOutageIT`, `ChaosDatabaseIT`, `scripts/chaos/kill-relay.sh` | I1–I7 | 10 |
 | Đối soát | `ReconciliationIT`, `GhostChargeReconciliationIT` | | 11 |

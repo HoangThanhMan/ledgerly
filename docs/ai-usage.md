@@ -14,6 +14,20 @@ Mỗi mục ghi: hỏi AI gì, AI gợi ý gì, mình quyết định gì (chấ
 
 ---
 
+### 2026-10-07: Tuần 6, transactional outbox, relay, consumer và ADR-0006 (W06-01 … W06-09)
+- Hỏi AI: "hãy thực hiện kế hoạch tiếp theo".
+- AI gợi ý:
+  - Hợp đồng sự kiện là record Java thuần, kèm một sự kiện mẫu làm test fixture dùng chung cho producer và consumer (PR #98).
+  - Bảng outbox và `OutboxWriter` với `Propagation.MANDATORY`. `TransferService.transfer` thành một transaction chứa bút toán và sự kiện (PR #99).
+  - Relay: một vòng là một transaction với `FOR UPDATE SKIP LOCKED`, gửi lần lượt và chờ ack. Scheduler có backoff. Hai gauge đo độ trễ (PR #100).
+  - Consumer khử trùng bằng `processed_events` trong cùng transaction với thông báo (PR #101). ADR-0006 và tài liệu (PR #102).
+- Quyết định: AI tự quyết và ghi vào ADR-0006, mình **chưa duyệt** điểm nào:
+  - Khác bản thiết kế: thêm cột `topic`, `created_at` dùng `clock_timestamp()`, nạp tiền nội bộ không phát sự kiện (I6 chỉ phát biểu cho chuyển tiền), thông báo chỉ cho ví nhận.
+  - ADR-0006 được AI đặt `Accepted`. So sánh với Debezium, Kafka transaction và cách gửi cả lô là lập luận, chưa đo.
+  - `RelayCrashDuplicateIT` chỉ khẳng định một trong ba điều kế hoạch nêu. Hai điều còn lại cần consumer, không chạy chung JVM test được, nên nằm ở `ConsumerDedupIT` và lần chạy tay.
+  - **AI đã sai ba chỗ và sửa theo test hoặc số đo:** (1) dùng `@DirtiesContext`, làm Spring Boot dừng container dùng chung và 19 test đỏ; (2) đặt `created_at DEFAULT now()`, làm sai thứ tự sự kiện của cùng một aggregate, chỉ nhận ra khi viết đáp án phỏng vấn; (3) để `linger.ms` mặc định, làm relay chậm hơn 10 lần.
+- Kiểm chứng: xem [kiểm chứng cuối của nhật ký tuần 6](journal/2026-W46.md#kiểm-chứng-cuối). Chạy tay hai ứng dụng thật với compose: dừng Kafka thì 30 lần chuyển vẫn 201 và outbox xả hết sau khi bật lại. `kill -9` relay giữa lúc xả 3.000 sự kiện: 3.050 giao dịch, 3.050 thông báo, 22 bản trùng được đếm, hai script bất biến trả 0 dòng. Lần chạy tay này chỉ có **một** lượt.
+
 ### 2026-10-07: Kiểm tra lại tuần 5
 - Hỏi AI: "kiểm tra lại toàn bộ một lần nữa, đảm bảo các kế hoạch, các test đều hoàn chỉnh và đúng".
 - AI gợi ý: build lại từ đầu không dùng cache, đối chiếu từng dòng của file tuần với code và test, kiểm mọi liên kết trong tài liệu, và sửa tạm code chính theo 18 cách để xem test nào đỏ.
