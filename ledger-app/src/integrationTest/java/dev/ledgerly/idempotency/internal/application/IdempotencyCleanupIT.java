@@ -3,6 +3,9 @@ package dev.ledgerly.idempotency.internal.application;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.ledgerly.AbstractIntegrationTest;
+import dev.ledgerly.idempotency.IdempotencyApi;
+import dev.ledgerly.idempotency.IdempotencyResult.Executed;
+import dev.ledgerly.idempotency.IdempotencyResult.Replayed;
 import dev.ledgerly.idempotency.StoredResponse;
 import dev.ledgerly.idempotency.internal.persistence.IdempotencyKeyRepository;
 import java.time.Duration;
@@ -20,16 +23,19 @@ class IdempotencyCleanupIT extends AbstractIntegrationTest {
     private static final Duration EXPIRED_AN_HOUR_AGO = Duration.ofHours(-1);
 
     private final IdempotencyCleanupJob cleanup;
+    private final IdempotencyApi idempotency;
     private final IdempotencyKeyRepository keys;
     private final JdbcClient jdbc;
     private final ScheduledTaskHolder scheduledTasks;
 
     IdempotencyCleanupIT(
             @Autowired IdempotencyCleanupJob cleanup,
+            @Autowired IdempotencyApi idempotency,
             @Autowired IdempotencyKeyRepository keys,
             @Autowired JdbcClient jdbc,
             @Autowired ScheduledTaskHolder scheduledTasks) {
         this.cleanup = cleanup;
+        this.idempotency = idempotency;
         this.keys = keys;
         this.jdbc = jdbc;
         this.scheduledTasks = scheduledTasks;
@@ -56,6 +62,26 @@ class IdempotencyCleanupIT extends AbstractIntegrationTest {
         assertThat(keys.find(expiredInProgress)).isEmpty();
         assertThat(keys.find(live)).isPresent();
         assertThat(keys.find(expiresInAnHour)).isPresent();
+    }
+
+    @Test
+    void expiredKeyStillReplaysUntilItIsDeletedAndIsFreeForANewRequestAfterwards() {
+        String key = newKey();
+        StoredResponse first = new StoredResponse(201, "{\"n\":1}", null);
+        idempotency.execute(key, HASH, () -> first);
+        jdbc.sql("UPDATE idempotency_keys SET expires_at = now() - interval '1 second' WHERE idem_key = :key")
+                .param("key", key)
+                .update();
+
+        // Past its time to live, but no cleanup has run yet: the key is kept at least that long, not exactly.
+        assertThat(idempotency.execute(key, HASH, () -> new StoredResponse(500, "{}", null)))
+                .isEqualTo(new Replayed(first));
+
+        cleanup.deleteExpired();
+
+        // The key is gone, so even a different request may use it now.
+        StoredResponse second = new StoredResponse(201, "{\"n\":2}", null);
+        assertThat(idempotency.execute(key, "b".repeat(64), () -> second)).isEqualTo(new Executed(second));
     }
 
     @Test
