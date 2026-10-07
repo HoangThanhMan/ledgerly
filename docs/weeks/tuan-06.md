@@ -2,7 +2,7 @@
 
 | Thời gian | Giai đoạn | Mốc | Ngân sách | Trạng thái |
 |---|---|---|---|---|
-| 09/11 – 15/11/2026 | 2: Lõi đúng đắn | **M3**: Nhất quán | 13.5 giờ | 🟡 Chờ merge (PR #98–#102, làm ngày 07/10/2026) |
+| 09/11 – 15/11/2026 | 2: Lõi đúng đắn | **M3**: Nhất quán | 13.5 giờ | ✅ Xong (merge PR #98–#102 ngày 08/10/2026) |
 
 ## Mục tiêu
 
@@ -12,15 +12,15 @@ Mỗi giao dịch đã commit **chắc chắn** sinh ra đúng một sự kiện
 
 | ID | Việc | Giờ | Đầu ra | Trạng thái |
 |---|---|:-:|---|---|
-| W06-01 | `ledger-contracts`: `EventEnvelope<T>`, record `TransferCompleted`, hằng số tên topic | 1.5 | `EventEnvelope`, `TransferCompleted`, `Topics`, file sự kiện mẫu | 🟡 #98 |
-| W06-02 | Flyway `V4__outbox_events.sql`, partial index `WHERE published_at IS NULL` | 0.5 | `OutboxEventRepository` | 🟡 #99 |
-| W06-03 | `OutboxWriter.append(...)` với `Propagation.MANDATORY`, gọi trong transaction chuyển tiền | 1 | `OutboxWriter`, `OutboxService` | 🟡 #99 |
-| W06-04 | `OutboxRelay`: `@Scheduled(fixedDelay)`, lấy theo lô bằng `FOR UPDATE SKIP LOCKED`, gửi, chờ ack, đánh dấu đã phát | 3 | `OutboxRelay`, `KafkaEventPublisher`, `OutboxRelayScheduler` | 🟡 #100 |
-| W06-05 | Relay chịu lỗi: Kafka lỗi thì rollback lô, backoff tăng dần, metric `outbox.pending` và `outbox.oldest.age` | 1 | `Backoff`, `OutboxMetrics` | 🟡 #100 |
-| W06-06 | Cấu hình producer `acks=all`, `enable.idempotence=true`. Bean `NewTopic` (3 partition) | 0.5 | `OutboxTopics`, `application.yaml` | 🟡 #100 |
-| W06-07 | `notification-consumer`: Flyway `V1` (`processed_events`, `notifications`), `@KafkaListener` khử trùng trong một transaction | 2.5 | `TransferEventListener`, `NotificationService` | 🟡 #101 |
-| W06-08 | Test: `OutboxAtomicityIT`, `OutboxRelayIT`, `RelayCrashDuplicateIT`, `ConsumerDedupIT` | 2.5 | | 🟡 #99, #100, #101 |
-| W06-09 | **ADR-0006**: outbox + polling relay, so với dual-write và Debezium CDC | 1 | [ADR-0006](../adr/0006-transactional-outbox-voi-polling-relay.md) | 🟡 #102 |
+| W06-01 | `ledger-contracts`: `EventEnvelope<T>`, record `TransferCompleted`, hằng số tên topic | 1.5 | `EventEnvelope`, `TransferCompleted`, `Topics`, file sự kiện mẫu | ✅ #98 |
+| W06-02 | Flyway `V4__outbox_events.sql`, partial index `WHERE published_at IS NULL` | 0.5 | `OutboxEventRepository` | ✅ #99 |
+| W06-03 | `OutboxWriter.append(...)` với `Propagation.MANDATORY`, gọi trong transaction chuyển tiền | 1 | `OutboxWriter`, `OutboxService` | ✅ #99 |
+| W06-04 | `OutboxRelay`: `@Scheduled(fixedDelay)`, lấy theo lô bằng `FOR UPDATE SKIP LOCKED`, gửi, chờ ack, đánh dấu đã phát | 3 | `OutboxRelay`, `KafkaEventPublisher`, `OutboxRelayScheduler` | ✅ #100 |
+| W06-05 | Relay chịu lỗi: Kafka lỗi thì rollback lô, backoff tăng dần, metric `outbox.pending` và `outbox.oldest.age` | 1 | `Backoff`, `OutboxMetrics` | ✅ #100 |
+| W06-06 | Cấu hình producer `acks=all`, `enable.idempotence=true`. Bean `NewTopic` (3 partition) | 0.5 | `OutboxTopics`, `application.yaml` | ✅ #100 |
+| W06-07 | `notification-consumer`: Flyway `V1` (`processed_events`, `notifications`), `@KafkaListener` khử trùng trong một transaction | 2.5 | `TransferEventListener`, `NotificationService` | ✅ #101 |
+| W06-08 | Test: `OutboxAtomicityIT`, `OutboxRelayIT`, `RelayCrashDuplicateIT`, `ConsumerDedupIT` | 2.5 | | ✅ #99, #100, #101 |
+| W06-09 | **ADR-0006**: outbox + polling relay, so với dual-write và Debezium CDC | 1 | [ADR-0006](../adr/0006-transactional-outbox-voi-polling-relay.md) | ✅ #102 |
 
 ## Ghi chú kỹ thuật
 
@@ -79,8 +79,8 @@ Bài `kill -9` tiến trình thật sẽ làm ở tuần 10 bằng compose.
 
 - [x] Toàn bộ test xanh (xem [kiểm chứng cuối](../journal/2026-W46.md#kiểm-chứng-cuối), và CI của từng PR)
 - [x] Dừng Kafka thủ công (`docker compose stop kafka`): API vẫn trả 201, outbox tồn đọng. Bật lại thì outbox xả hết (30 × 201, tồn đọng 30, xả hết sau 3 giây: [nhật ký](../journal/2026-W46.md#chạy-tay-với-hai-ứng-dụng-thật))
-- [x] ADR-0006 Accepted (do AI soạn và đặt trạng thái, tác giả chưa duyệt)
-- [ ] **Mốc M3 đạt** (đủ ba điều kiện, chờ merge #98–#102)
+- [x] ADR-0006 Accepted (do AI soạn và đặt trạng thái, merge theo yêu cầu của tác giả ngày 08/10/2026)
+- [x] **Mốc M3 đạt** (đủ ba điều kiện, PR #98–#102 đã merge ngày 08/10/2026)
 
 ## Ghi chú khi thực hiện (07/10/2026)
 
