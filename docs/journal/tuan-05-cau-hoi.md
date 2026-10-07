@@ -60,7 +60,15 @@ Phải hỏi lại: crash ở đâu?
 
 Không có trường hợp "tiền đã chuyển mà key chưa xong", vì hai việc đó là một transaction.
 
-Trường hợp khó hơn crash là **chậm**: request đầu không chết, chỉ đứng hơn 30 giây (chờ khóa, GC, mạng tới database). Request thứ hai giành key và hoàn tất. Khi request đầu tỉnh lại, câu `UPDATE ... COMPLETED` của nó có điều kiện `lease_token = :token`. Token đã bị thay nên nó nhận 0 dòng, ném exception và rollback cả bút toán của mình. Đó là **fencing token**. Trong dự án: bỏ điều kiện đó thì đúng hai test zombie đỏ, mọi test khác vẫn xanh.
+Trường hợp khó hơn crash là **chậm**: request đầu (A) không chết, chỉ đứng hơn 30 giây (chờ khóa, GC, mạng tới database). Request thứ hai (B) giành key. Khi A tỉnh lại, câu `UPDATE ... COMPLETED` của nó có điều kiện `lease_token = :token AND status = 'IN_PROGRESS'`. Token đã bị thay nên A nhận 0 dòng, ném exception và rollback cả bút toán của mình.
+
+Phải nói cho đúng từng điều kiện làm gì, vì dự án đã đo (ADR-0005, B4):
+
+- **Không có điều kiện nào:** A và B đều commit, hai giao dịch, ví nguồn bị trừ hai lần.
+- **Chỉ `status = 'IN_PROGRESS'`:** vẫn chỉ một giao dịch. Bên `UPDATE` sau chờ khóa dòng, đọc lại thấy `COMPLETED`, nhận 0 dòng và rollback. Nhưng bên thắng là A, request đã mất lease.
+- **Thêm `lease_token` (fencing token):** bên thắng luôn là request đang giữ lease.
+
+Tức là thứ chặn giao dịch thứ hai là compare-and-set trên `status` nằm trong cùng transaction với bút toán. Token làm cho việc hoàn tất gắn với đúng một lần claim, và cho phép thả key an toàn (không thả nhầm lease của request khác).
 
 Nếu request lỗi mà tiến trình còn sống (exception, hết `lock_timeout`), nó tự thả key (`locked_until = now()`) để client retry ngay, không phải chờ hết lease.
 

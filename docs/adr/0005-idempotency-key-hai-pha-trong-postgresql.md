@@ -42,8 +42,9 @@ Các lực tác động:
 | Phương án | Ưu điểm | Nhược điểm |
 |---|---|---|
 | Key ở `IN_PROGRESS` mãi | Không cần gì thêm | Một lần chết làm key kẹt tới khi hết TTL: client không bao giờ nhận được kết quả |
-| Lease có hạn (`locked_until`), hết hạn thì request sau giành lại | Tự phục hồi sau khi tiến trình chết | Request đầu **chưa chết mà chỉ chậm** vẫn commit được sau khi key đã bị giành: một key, hai giao dịch |
-| Lease kèm **fencing token** (`lease_token`), đổi mỗi lần claim hoặc giành lại | Request chậm thấy token không còn khớp và rollback toàn bộ Tx2 | Thêm một cột và một điều kiện trong câu `UPDATE` hoàn tất |
+| Lease có hạn (`locked_until`), câu hoàn tất **không có điều kiện** | Tự phục hồi sau khi tiến trình chết | Request đầu **chưa chết mà chỉ chậm** vẫn commit được sau khi key đã bị giành: một key, hai giao dịch (đo ở B4) |
+| Lease, câu hoàn tất có điều kiện `status = 'IN_PROGRESS'` | Chỉ một bên commit được: bên hoàn tất sau thấy trạng thái đã đổi và rollback (đo ở B4) | Bên thắng có thể là request **đã mất lease**. Việc hoàn tất gắn với key chứ không gắn với lần claim. Bước thả key không phân biệt được lease của mình với lease của request đã giành lại |
+| Lease kèm **fencing token** (`lease_token`), đổi mỗi lần claim hoặc giành lại, thêm vào điều kiện trên | Chỉ request đang giữ lease mới hoàn tất và thả được key | Thêm một cột và một điều kiện trong câu `UPDATE` |
 
 ### Câu hỏi 4: Lưu những kết quả nào
 
@@ -62,7 +63,7 @@ Các lực tác động:
 
 ## Quyết định
 
-Chúng tôi sẽ lưu key trong **bảng `idempotency_keys` của PostgreSQL** (1A) và xử lý theo **hai pha có fencing token** (2B, 3C):
+Chúng tôi sẽ lưu key trong **bảng `idempotency_keys` của PostgreSQL** (1A) và xử lý theo **hai pha có fencing token** (hai pha ở câu hỏi 2, phương án cuối ở câu hỏi 3):
 
 ```sql
 -- Tx1: claim. 1 dòng là giữ được key.
@@ -83,8 +84,8 @@ Key đã tồn tại thì: khác hash trả `422 idempotency-key-reused`, `COMPL
 
 Các quyết định đi kèm:
 
-- **Lưu mọi kết quả mà action trả về như một giá trị** (4B): 201 và mọi lời từ chối nghiệp vụ. Action ném exception thì Tx2 rollback, không lưu gì, và key được thả (`locked_until = now()`) để client retry ngay.
-- **Hash trên DTO đã parse** (5B): SHA-256 của `method + "\n" + path + "\n" + JSON có trường xếp theo bảng chữ cái`. `RequestHasher` dùng mapper riêng, không dùng mapper của API. Method và path nằm trong hash để một key không dùng lại được ở endpoint khác.
+- **Lưu mọi kết quả mà action trả về như một giá trị** (phương án giữa ở câu hỏi 4): 201 và mọi lời từ chối nghiệp vụ. Action ném exception thì Tx2 rollback, không lưu gì, và key được thả (`locked_until = now()`) để client retry ngay.
+- **Hash trên DTO đã parse** (câu hỏi 5): SHA-256 của `method + "\n" + path + "\n" + JSON có trường xếp theo bảng chữ cái`. `RequestHasher` dùng mapper riêng, không dùng mapper của API. Method và path nằm trong hash để một key không dùng lại được ở endpoint khác.
 - **Response lưu ở cột `JSON`, không phải `JSONB`.** Response được render thành chuỗi ngay trong action, và replay trả lại đúng chuỗi đó.
 - **Thời gian lấy từ `now()` của database**, nên các instance không cần đồng hồ khớp nhau.
 - **TTL 24 giờ là tối thiểu.** Job dọn chạy 10 phút một lần, mỗi lô 1000 key trong một transaction riêng, dùng `FOR UPDATE SKIP LOCKED`.
@@ -99,7 +100,7 @@ Redis bị loại vì khe dual write đúng là lỗi mà tính năng này phả
   - Mỗi request mới thêm hai câu lệnh ghi (`INSERT`, `UPDATE`) và một transaction. Một replay tốn một `INSERT` không thành và một `SELECT`. Chi phí này chưa đo, tuần 7 mới có baseline.
   - Client phải hiểu 409 và gửi lại theo `Retry-After`. Trong test, 28 đến 43 trên 50 client đồng thời nhận 409 ít nhất một lần.
   - Lời từ chối bị đóng băng theo key (xem câu hỏi 4).
-  - Thiết kế có nhiều trạng thái hơn hẳn phương án một transaction, và phần khó nhất (fencing) chỉ đúng nếu **mọi** đường hoàn tất key đều có điều kiện `lease_token`.
+  - Thiết kế có nhiều trạng thái hơn hẳn phương án một transaction. I5 chỉ đúng nếu **mọi** đường hoàn tất key đều là một `UPDATE` có điều kiện, nằm trong cùng transaction với nghiệp vụ (B4).
 - **Lý do "gọi mạng" yếu hơn kế hoạch đã viết.** Kế hoạch tuần 5 nói hai pha cần cho luồng gọi ngân hàng. Nhưng trong cài đặt này action chạy **bên trong Tx2**, và theo [§6.3](../01-kien-truc.md#63-nạp-tiền-qua-ngân-hàng-saga-có-trạng-thái-tuần-9) thì `POST /v1/topups` chỉ ghi lệnh `PENDING` rồi trả 202, còn cuộc gọi ngân hàng do saga làm sau đó. Tức là các action dự kiến đều chỉ đụng database. Lý do còn đứng vững là request trùng không giữ connection. Nếu tuần 9 cần một action gọi mạng trước khi trả lời, `IdempotencyApi` phải có thêm biến thể chạy action ngoài transaction.
 - **Key là toàn cục.** Chưa có xác thực nên key không gắn với người gọi: hai client dùng cùng key và cùng body thì client sau nhận kết quả của client trước. Khi có xác thực, key phải được scope theo người gọi.
 - **Lease phải dài hơn Tx2.** 30 giây so với `lock_timeout` 2 giây là dư nhiều. Lease quá ngắn không làm sai dữ liệu (fencing chặn) nhưng làm request hợp lệ bị rollback.
@@ -107,7 +108,7 @@ Redis bị loại vì khe dual write đúng là lỗi mà tính năng này phả
 
 ## Bằng chứng
 
-**B1. Test.** `./gradlew build` ngày 2026-10-07: 174/174 xanh, trong đó 52 test mới của tuần 5.
+**B1. Test.** `./gradlew build --rerun-tasks --no-build-cache` ngày 2026-10-07: 176/176 xanh, trong đó 54 test mới của tuần 5.
 
 | Test | Số ca | Khẳng định chính |
 |---|:-:|---|
@@ -116,12 +117,12 @@ Redis bị loại vì khe dual write đúng là lỗi mà tính năng này phả
 | `IdempotencyIT` | 11 | Hành vi qua HTTP: replay giống lần đầu từng byte, 422, 409, lời từ chối được lưu, lỗi 503 không được lưu |
 | `IdempotencyConcurrencyIT` | 2 | 50 client, một key: 1 giao dịch, 50 câu trả lời giống nhau, 49 replay |
 | `IdempotencyCrashRecoveryIT` | 3 | Chết sau khi claim, lỗi trước khi hoàn tất, và ca zombie |
-| `IdempotencyCleanupIT` | 4 | Key hết hạn bị xóa, key còn hạn giữ nguyên, 2.500 key qua 3 lô |
-| `RequestHasherTest`, `ProblemDetailsAdviceTest` | 4 + 2 | Hash không phụ thuộc thứ tự trường, 409 có `Retry-After` |
+| `IdempotencyCleanupIT` | 5 | Key hết hạn bị xóa, key còn hạn giữ nguyên, 2.500 key qua 3 lô, key đã xóa dùng lại được cho request khác |
+| `RequestHasherTest`, `ProblemDetailsAdviceTest`, `IdempotencyTransactionsTest` | 4 + 2 + 1 | Hash không phụ thuộc thứ tự trường, 409 có `Retry-After`, key biến mất giữa hai câu lệnh của Tx1 |
 
 **B2. Tiền và response là một transaction.** `IdempotencyCrashRecoveryIT.failureAfterTheMoneyMovedButBeforeTheKeyIsCompletedUndoesTheTransfer`: ném exception sau khi bút toán đã ghi và trước câu `UPDATE ... COMPLETED`. Kết quả: 0 giao dịch, số dư không đổi, key vẫn `IN_PROGRESS`, lần retry ngay sau đó nhận 201.
 
-**B3. 50 request đồng thời.** 50 virtual threads cùng xuất phát từ một `CountDownLatch`, cùng key, cùng body, gặp 409 thì chờ theo `Retry-After` rồi gửi lại. Một lượt chạy trong bản build trên:
+**B3. 50 request đồng thời.** 50 virtual threads cùng xuất phát từ một `CountDownLatch`, cùng key, cùng body, gặp 409 thì chờ theo `Retry-After` rồi gửi lại. Số của một lượt chạy ngày 2026-10-07:
 
 | Ca | Giao dịch tạo ra | Câu trả lời cuối | Có `Idempotent-Replayed` | Thời gian |
 |---|:-:|---|:-:|:-:|
@@ -130,7 +131,21 @@ Redis bị loại vì khe dual write đúng là lỗi mà tính năng này phả
 
 Số client nhận 409 ít nhất một lần là 28 ở một ca và 43 ở ca kia. Log của test không ghi số nào thuộc ca nào.
 
-**B4. Fencing token là cần thiết.** Thử sửa tạm câu `UPDATE ... COMPLETED` để bỏ điều kiện `lease_token = :token`, rồi chạy lại: `IdempotencyCrashRecoveryIT.requestThatOutlivesItsLease...` và `IdempotencyApiIT.requestThatLostItsLease...` đỏ, 11 test còn lại của hai lớp vẫn xanh. Trong ca zombie, request chậm commit được và nhận 201 dù key đã thuộc về request khác. Đã hoàn nguyên.
+**B4. Điều kiện của câu hoàn tất, đo trên ca zombie.** Sửa tạm phần `WHERE` của câu `UPDATE ... COMPLETED`, chạy kịch bản zombie (request A bị giữ lại trong Tx2 quá lease 1 giây, request B giành key, ví nguồn có 100 và chuyển 10), rồi hoàn nguyên:
+
+| Điều kiện ngoài `idem_key` | A (zombie) nhận | B (đã giành key) nhận | Số giao dịch | Ví nguồn còn |
+|---|:-:|:-:|:-:|:-:|
+| `lease_token = :token AND status = 'IN_PROGRESS'` (quyết định) | 409 | 201 | 1 | 90 |
+| Chỉ `status = 'IN_PROGRESS'` | 201 | 409 | 1 | 90 |
+| Không có | 201 | 201 | **2** | 80 |
+
+Điều đo được: thứ chặn giao dịch thứ hai là **điều kiện `status`** cùng với việc câu `UPDATE` nằm trong transaction của nghiệp vụ. Token quyết định **bên nào** thắng. Vì vậy lý do giữ token là lập luận, không phải số đo:
+
+- Việc hoàn tất gắn với đúng một lần claim. Nếu chỉ so `status`, một request treo đủ lâu để key bị job dọn xóa rồi được claim lại cho một request **khác** vẫn hoàn tất được dòng mới đó, và request kia sẽ nhận response không phải của mình. Cần treo hơn 24 giờ nên gần như không xảy ra, nhưng token loại hẳn trường hợp này.
+- Bước thả key sau lỗi cần token, để một request đã mất lease không thả lease của request đang giữ.
+- Response được lưu luôn là của request đang giữ lease, nên dễ lần theo khi điều tra.
+
+**B7. Thử phá code.** 18 cách sửa hỏng code (bỏ từng điều kiện trong SQL, bỏ `@Transactional` của Tx2, không thả key, không lưu lời từ chối, bỏ từng thành phần của hash, ...) đều làm ít nhất một test đỏ. Bảng đầy đủ ở [nhật ký tuần 5](../journal/2026-W45.md#thí-nghiệm-phá-code-để-thử-test).
 
 **B5. Trước và sau, gọi bằng `curl` trên app thật.** Trước tuần 5 (commit `4e73b95`): gửi hai lần cùng key `…-tr1`, ví nguồn từ 350.000 xuống 200.000. Sau tuần 5 (`bootTestRun`): gửi ba lần cùng key, lần ba đổi thứ tự trường và thêm khoảng trắng, ví nguồn vẫn 350.000 và hai lần sau có `Idempotent-Replayed: true`. Output ở [README](../../README.md#retry-an-toàn-như-thế-nào).
 

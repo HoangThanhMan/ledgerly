@@ -67,7 +67,7 @@ Thêm ca **zombie**: làm Tx2 của request đầu chậm hơn `locked_until`, �
 
 ## Definition of Done
 
-- [x] Toàn bộ test xanh (`./gradlew build` 174/174 trên máy dev ngày 07/10/2026, CI của từng PR)
+- [x] Toàn bộ test xanh (`./gradlew build --rerun-tasks --no-build-cache` 176/176 trên máy dev ngày 07/10/2026, CI của từng PR)
 - [x] Metric `ledgerly.idempotency.replays` tăng đúng (`IdempotencyApiIT`, `IdempotencyIT`, và đúng 49 trong `IdempotencyConcurrencyIT`)
 - [x] ADR-0005 Accepted (do AI soạn và đặt trạng thái, tác giả chưa duyệt)
 - [x] README có đoạn ngắn ["Retry an toàn như thế nào"](../../README.md#retry-an-toàn-như-thế-nào) kèm ví dụ `curl`
@@ -79,7 +79,8 @@ Thêm ca **zombie**: làm Tx2 của request đầu chậm hơn `locked_until`, �
 - **`locked_until <= now()`** thay cho `<` trong câu giành lại, vì bước thả key đặt `locked_until = now()`.
 - **Thời gian lấy từ database**, không tiêm `Clock`: mọi so sánh hạn lease nằm trong SQL.
 - **Hook `FaultInjector` có hai điểm**: sau khi claim và trước khi hoàn tất. Điểm đầu nằm ngoài khối có bước thả key, để giống tiến trình chết thật.
-- **Ngoài kế hoạch:** `IdempotencyKeyRepositoryIT`, `IdempotencyApiIT`, `RequestHasherTest`, ca "lỗi sau khi tiền đã ghi nhưng trước khi hoàn tất key", ca 50 request cho một lần chuyển bị từ chối, `Retry-After` cho `ProblemException`.
+- **Thử phá code:** 18 cách sửa hỏng code chính đều làm ít nhất một test đỏ ([bảng](../journal/2026-W45.md#thí-nghiệm-phá-code-để-thử-test)). Thí nghiệm này cũng cho thấy điều kiện `status` trong câu hoàn tất mới là thứ chặn giao dịch thứ hai, còn `lease_token` quyết định bên nào thắng.
+- **Ngoài kế hoạch:** `IdempotencyKeyRepositoryIT`, `IdempotencyApiIT`, `RequestHasherTest`, `IdempotencyTransactionsTest`, ca "lỗi sau khi tiền đã ghi nhưng trước khi hoàn tất key", ca 50 request cho một lần chuyển bị từ chối, `Retry-After` cho `ProblemException`.
 - **Lý do "hai pha để gọi mạng" trong mục dưới đây chưa được dùng tới:** action chạy trong Tx2. Xem phần Hệ quả của ADR-0005.
 - Giới hạn đã biết: xem [nhật ký](../journal/2026-W45.md#giới-hạn-đã-biết).
 

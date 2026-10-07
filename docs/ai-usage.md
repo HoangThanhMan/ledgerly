@@ -14,6 +14,15 @@ Mỗi mục ghi: hỏi AI gì, AI gợi ý gì, mình quyết định gì (chấ
 
 ---
 
+### 2026-10-07: Kiểm tra lại tuần 5
+- Hỏi AI: "kiểm tra lại toàn bộ một lần nữa, đảm bảo các kế hoạch, các test đều hoàn chỉnh và đúng".
+- AI gợi ý: build lại từ đầu không dùng cache, đối chiếu từng dòng của file tuần với code và test, kiểm mọi liên kết trong tài liệu, và sửa tạm code chính theo 18 cách để xem test nào đỏ.
+- Quyết định: chấp nhận kết quả, gồm cả chỗ AI tự sai:
+  - **AI đã viết sai vai trò của `lease_token`** trong ADR-0005, nhật ký và đáp án câu 3: nói rằng bỏ token thì "một key, hai giao dịch". Đo lại thì chỉ cần điều kiện `status` là vẫn một giao dịch, token chỉ quyết định bên nào thắng. Đã sửa cả ba chỗ và `01-kien-truc.md`.
+  - **AI đã viết "bỏ token thì chỉ hai test đỏ, mọi test khác vẫn xanh"** khi mới chạy 13 trong số các test. Chạy đủ thì 4 test đỏ.
+  - Thêm hai test cho chỗ còn hở: key biến mất giữa hai câu lệnh của Tx1, và vòng đời key sau khi hết hạn (vẫn replay tới khi bị xóa, xóa rồi thì dùng lại được).
+- Kiểm chứng: `./gradlew build --rerun-tasks --no-build-cache` 176/176. Bảng 18 cách phá code và bảng ba phiên bản của câu hoàn tất ở [nhật ký tuần 5](journal/2026-W45.md#thí-nghiệm-phá-code-để-thử-test). 111 liên kết tương đối trong 11 file tài liệu đã đổi đều trỏ đúng.
+
 ### 2026-10-07: Tuần 5, idempotency hai pha và ADR-0005 (W05-01 … W05-09)
 - Hỏi AI: "làm tiếp tuần 5 đi".
 - AI gợi ý:
