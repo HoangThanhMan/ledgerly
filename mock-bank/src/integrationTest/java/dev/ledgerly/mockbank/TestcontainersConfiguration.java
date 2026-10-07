@@ -9,9 +9,13 @@ import org.testcontainers.utility.DockerImageName;
 /**
  * Containers shared by every integration test and by {@code bootTestRun}.
  *
- * <p>The containers are static constants and the beans declare {@code destroyMethod = ""}, so each test JVM starts
- * them only once, even when tests create several Spring contexts: Spring calling {@code start()} again has no
- * effect, and closing a context does not stop the containers. Testcontainers (Ryuk) removes them when the JVM exits.
+ * <p>The containers are static constants, so each test JVM starts them only once, even when tests create several
+ * Spring contexts: Spring calling {@code start()} again has no effect. Testcontainers (Ryuk) removes them when the
+ * JVM exits.
+ *
+ * <p>Closing a context does stop them: Spring Boot closes every container bean of a closing context unless the bean
+ * has a destroy method of its own. The other contexts would be left connected to containers that are gone, so
+ * tests must not close their context ({@code @DirtiesContext}).
  */
 @TestConfiguration(proxyBeanMethods = false)
 class TestcontainersConfiguration {

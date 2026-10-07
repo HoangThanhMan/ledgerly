@@ -14,6 +14,19 @@ spring:
       ddl-auto: validate
   kafka:
     bootstrap-servers: localhost:9092
+    producer:
+      # The broker confirms a record only when all in-sync replicas have it.
+      acks: all
+      properties:
+        # Retries inside the producer cannot write a record twice or out of order.
+        enable.idempotence: true
+        # The relay waits for each record's acknowledgement before it sends the next, so holding a record
+        # back to fill a batch (5 ms by default) would only add that wait to every event.
+        linger.ms: 0
+        # Fail fast when the broker is unreachable: the relay holds a database transaction while it waits.
+        max.block.ms: 5000
+        request.timeout.ms: 5000
+        delivery.timeout.ms: 10000
 
 server:
   port: 8080
@@ -35,3 +48,15 @@ ledgerly:
     ttl: 24h
     # Retry-After of the 409 a request gets while another request with the same key is still running.
     retry-after: 1s
+  outbox:
+    relay:
+      # false: this instance serves the API only and leaves publishing to other instances.
+      enabled: true
+      poll-interval: 200ms
+      batch-size: 100
+      # How long one event may wait for the broker's acknowledgement before the batch is rolled back.
+      send-timeout: 5s
+      # Pause after a failed round. It doubles with every further failure, up to the maximum.
+      backoff:
+        initial: 200ms
+        max: 30s
