@@ -22,7 +22,7 @@
 | [2](weeks/tuan-02.md) | Chất lượng build & schema lõi ✅ | |
 | [3](weeks/tuan-03.md) | Domain & chuyển tiền đơn luồng ✅ | |
 | [4](weeks/tuan-04.md) | Concurrency & bất biến ✅ | M2 |
-| [5](weeks/tuan-05.md) | Idempotency | |
+| [5](weeks/tuan-05.md) | Idempotency 🟡 | |
 | [6](weeks/tuan-06.md) | Outbox + Kafka + consumer | M3 |
 | [7](weeks/tuan-07.md) | Observability & benchmark baseline | |
 | [8](weeks/tuan-08.md) | Hoàn thiện MVP, `v1.0.0` | M4 |

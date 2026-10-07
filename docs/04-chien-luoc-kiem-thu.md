@@ -65,7 +65,7 @@ flowchart TB
 | Kiến trúc | `ArchitectureTest` | | 3 |
 | Concurrency | `ConcurrentTransferIT`, `DeadlockFreedomIT`, `HotWalletDrainIT` | I1–I4 | 4 |
 | Model-based | `LedgerModelProperties` | I1–I4 | 4 |
-| Idempotency | `IdempotencyConcurrencyIT`, `IdempotencyCrashRecoveryIT`, `IdempotencyIT` | I5 | 5 |
+| Idempotency | `IdempotencyConcurrencyIT`, `IdempotencyCrashRecoveryIT`, `IdempotencyIT`, `IdempotencyApiIT`, `IdempotencyKeyRepositoryIT`, `IdempotencyCleanupIT`, `RequestHasherTest` | I5 | 5 |
 | Outbox & consumer | `OutboxAtomicityIT`, `OutboxRelayIT`, `RelayCrashDuplicateIT`, `ConsumerDedupIT`, `EventContractTest` | I6, I7 | 6 |
 | Saga | `TopUpSagaIT`, `WithdrawalSagaIT`, `BankCallbackIT` | I1–I4 | 9 |
 | Chaos | `ChaosBankIT`, `ChaosKafkaOutageIT`, `ChaosDatabaseIT`, `scripts/chaos/kill-relay.sh` | I1–I7 | 10 |

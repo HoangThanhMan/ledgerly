@@ -14,6 +14,35 @@ Mỗi mục ghi: hỏi AI gì, AI gợi ý gì, mình quyết định gì (chấ
 
 ---
 
+### 2026-10-07: Kiểm tra lại tuần 5
+- Hỏi AI: "kiểm tra lại toàn bộ một lần nữa, đảm bảo các kế hoạch, các test đều hoàn chỉnh và đúng".
+- AI gợi ý: build lại từ đầu không dùng cache, đối chiếu từng dòng của file tuần với code và test, kiểm mọi liên kết trong tài liệu, và sửa tạm code chính theo 18 cách để xem test nào đỏ.
+- Quyết định: chấp nhận kết quả, gồm cả chỗ AI tự sai:
+  - **AI đã viết sai vai trò của `lease_token`** trong ADR-0005, nhật ký và đáp án câu 3: nói rằng bỏ token thì "một key, hai giao dịch". Đo lại thì chỉ cần điều kiện `status` là vẫn một giao dịch, token chỉ quyết định bên nào thắng. Đã sửa cả ba chỗ và `01-kien-truc.md`.
+  - **AI đã viết "bỏ token thì chỉ hai test đỏ, mọi test khác vẫn xanh"** khi mới chạy 13 trong số các test. Chạy đủ thì 4 test đỏ.
+  - Thêm hai test cho chỗ còn hở: key biến mất giữa hai câu lệnh của Tx1, và vòng đời key sau khi hết hạn (vẫn replay tới khi bị xóa, xóa rồi thì dùng lại được).
+- Kiểm chứng: `./gradlew build --rerun-tasks --no-build-cache` 176/176. Bảng 18 cách phá code và bảng ba phiên bản của câu hoàn tất ở [nhật ký tuần 5](journal/2026-W45.md#thí-nghiệm-phá-code-để-thử-test). 111 liên kết tương đối trong 11 file tài liệu đã đổi đều trỏ đúng.
+
+### 2026-10-07: Tuần 5, idempotency hai pha và ADR-0005 (W05-01 … W05-09)
+- Hỏi AI: "làm tiếp tuần 5 đi".
+- AI gợi ý:
+  - Bảng `idempotency_keys` và repository trước (PR #91): mỗi lần đổi trạng thái là một câu lệnh, điều kiện nằm trong `WHERE`.
+  - `IdempotencyApi.execute` hai pha với `lease_token` làm fencing token, `RequestHasher` hash trên DTO đã parse (PR #92).
+  - Nối vào `POST /v1/transfers` và `POST /v1/admin/deposits`: response render trong action để lưu cùng transaction với bút toán (PR #93).
+  - Job dọn theo lô (PR #94), test 50 client và test crash bằng `FaultInjector` (PR #95), ADR-0005 và tài liệu (PR #96).
+- Quyết định: AI tự quyết và ghi vào ADR-0005, mình **chưa duyệt** điểm nào:
+  - Khác bản thiết kế: cột `JSON` thay cho `JSONB`, `locked_until <= now()` thay cho `<`, lưu **mọi** lời từ chối nghiệp vụ chứ không chỉ thiếu tiền, thời gian lấy từ `now()` của database thay vì tiêm `Clock`.
+  - ADR-0005 được AI đặt `Accepted`. Phần so sánh với Redis và với thiết kế một transaction là lập luận, chưa đo.
+  - AI tự chỉ ra một điểm yếu của kế hoạch: lý do "hai pha để gọi mạng" chưa được dùng tới, vì action chạy trong Tx2. Mình cần đọc phần Hệ quả của ADR-0005 và quyết định có giữ hai pha không.
+  - `FaultInjector` là điểm móc chỉ để test nhưng nằm trong code chính.
+- Kiểm chứng: `./gradlew build` 174/174 xanh (52 test mới). Test của #91–#93 viết trước và đã thấy đỏ (lỗi compile, rồi 7/11 test HTTP đỏ khi endpoint chưa nối). Test của #95 viết sau code, nên kiểm bằng cách sửa tạm: bỏ điều kiện `lease_token` thì hai test zombie đỏ. Chạy `bootTestRun` và gọi bằng `curl`: gửi ba lần cùng key, số dư chỉ đổi một lần (output ở [README](../README.md#retry-an-toàn-như-thế-nào)). Trước tuần 5, cùng thao tác đó chuyển tiền hai lần.
+
+### 2026-10-07: VS Code tự build khi mở dự án
+- Hỏi AI: vì sao bấm vào VS Code của dự án thì có thứ gì đó tự build, rồi nhờ xử lý.
+- AI gợi ý: không có `tasks.json` nào chạy khi mở thư mục. Thứ tự build là ba extension: Language Support for Java (nạp dự án Gradle và biên dịch toàn bộ), Gradle for Java (bật daemon để đọc danh sách task), Spring Boot Tools. Thêm `"java.autobuild.enabled": false` và `"gradle.autoDetect": "off"` vào `.vscode/settings.json` (file ngoài git).
+- Quyết định: chấp nhận cả hai. Đổi lại bảng Problems chỉ còn lỗi của file đang mở, và thanh Gradle không còn danh sách task.
+- Kiểm chứng: **chưa** kiểm trong VS Code, mới kiểm file JSON hợp lệ.
+
 ### 2026-10-04: Tuần 4, khóa có thứ tự, test đồng thời, jqwik và ADR-0004 (W04-01 … W04-08)
 - Hỏi AI: thực hiện tuần 4.
 - AI gợi ý:

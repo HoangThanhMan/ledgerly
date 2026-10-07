@@ -2,7 +2,7 @@
 
 | Thời gian | Giai đoạn | Mốc | Ngân sách | Trạng thái |
 |---|---|---|---|---|
-| 02/11 – 08/11/2026 | 2: Lõi đúng đắn | | 13.5 giờ | ⬜ Chưa bắt đầu |
+| 02/11 – 08/11/2026 | 2: Lõi đúng đắn | | 13.5 giờ | 🟡 Chờ merge (PR #91–#96, làm ngày 07/10/2026) |
 
 ## Mục tiêu
 
@@ -10,17 +10,17 @@ Client retry bao nhiêu lần, đồng thời hay tuần tự, và kể cả khi
 
 ## Công việc
 
-| ID | Việc | Giờ | Đầu ra |
-|---|---|:-:|---|
-| W05-01 | Flyway `V3__idempotency_keys.sql` | 0.5 | |
-| W05-02 | `IdempotencyApi.execute(key, requestHash, action)`: claim (Tx1), rồi action + complete (Tx2) | 3 | |
-| W05-03 | Tính `requestHash`: SHA-256 của `method + path + body đã chuẩn hóa` | 1 | |
-| W05-04 | Các nhánh: replay (header `Idempotent-Replayed: true`), 422 khi body khác, 409 + `Retry-After`, giành lại khóa sau khi `locked_until` hết hạn | 2 | |
-| W05-05 | Lưu cả lỗi nghiệp vụ có tính xác định (422 thiếu tiền) thành `COMPLETED` | 0.5 | |
-| W05-06 | Job dọn key hết hạn (`@Scheduled`, xóa theo lô `LIMIT 1000`) | 1 | |
-| W05-07 | `IdempotencyConcurrencyIT`: 50 request đồng thời cùng key | 2 | |
-| W05-08 | `IdempotencyCrashRecoveryIT`: giả lập crash giữa Tx1 và Tx2 | 2 | |
-| W05-09 | **ADR-0005**: lưu key trong PostgreSQL (so sánh với Redis), thiết kế hai pha, TTL 24 giờ | 1.5 | |
+| ID | Việc | Giờ | Đầu ra | Trạng thái |
+|---|---|:-:|---|---|
+| W05-01 | Flyway `V3__idempotency_keys.sql` | 0.5 | `IdempotencyKeyRepository` | 🟡 #91 |
+| W05-02 | `IdempotencyApi.execute(key, requestHash, action)`: claim (Tx1), rồi action + complete (Tx2) | 3 | `IdempotencyService`, `IdempotencyTransactions` | 🟡 #92 |
+| W05-03 | Tính `requestHash`: SHA-256 của `method + path + body đã chuẩn hóa` | 1 | `RequestHasher` | 🟡 #92 |
+| W05-04 | Các nhánh: replay (header `Idempotent-Replayed: true`), 422 khi body khác, 409 + `Retry-After`, giành lại khóa sau khi `locked_until` hết hạn | 2 | `IdempotentRequests` | 🟡 #93 |
+| W05-05 | Lưu cả lỗi nghiệp vụ có tính xác định (422 thiếu tiền) thành `COMPLETED` | 0.5 | | 🟡 #93 |
+| W05-06 | Job dọn key hết hạn (`@Scheduled`, xóa theo lô `LIMIT 1000`) | 1 | `IdempotencyCleanupJob` | 🟡 #94 |
+| W05-07 | `IdempotencyConcurrencyIT`: 50 request đồng thời cùng key | 2 | | 🟡 #95 |
+| W05-08 | `IdempotencyCrashRecoveryIT`: giả lập crash giữa Tx1 và Tx2 | 2 | | 🟡 #95 |
+| W05-09 | **ADR-0005**: lưu key trong PostgreSQL (so sánh với Redis), thiết kế hai pha, TTL 24 giờ | 1.5 | [ADR-0005](../adr/0005-idempotency-key-hai-pha-trong-postgresql.md) | 🟡 #96 |
 
 ## Ghi chú kỹ thuật
 
@@ -67,10 +67,22 @@ Thêm ca **zombie**: làm Tx2 của request đầu chậm hơn `locked_until`, �
 
 ## Definition of Done
 
-- [ ] Toàn bộ test xanh
-- [ ] Metric `ledgerly.idempotency.replays` tăng đúng
-- [ ] ADR-0005 Accepted
-- [ ] README có đoạn ngắn "Retry an toàn như thế nào" kèm ví dụ `curl`
+- [x] Toàn bộ test xanh (`./gradlew build --rerun-tasks --no-build-cache` 176/176 trên máy dev ngày 07/10/2026, CI của từng PR)
+- [x] Metric `ledgerly.idempotency.replays` tăng đúng (`IdempotencyApiIT`, `IdempotencyIT`, và đúng 49 trong `IdempotencyConcurrencyIT`)
+- [x] ADR-0005 Accepted (do AI soạn và đặt trạng thái, tác giả chưa duyệt)
+- [x] README có đoạn ngắn ["Retry an toàn như thế nào"](../../README.md#retry-an-toàn-như-thế-nào) kèm ví dụ `curl`
+
+## Ghi chú khi thực hiện (07/10/2026)
+
+- **Lưu mọi lời từ chối nghiệp vụ**, không chỉ thiếu tiền (W05-05): ví không tồn tại, chuyển cho chính mình, sai tiền tệ cũng được lưu và replay.
+- **`JSON` thay cho `JSONB`** ở cột `response_body`, để replay trả lại đúng chuỗi của lần đầu.
+- **`locked_until <= now()`** thay cho `<` trong câu giành lại, vì bước thả key đặt `locked_until = now()`.
+- **Thời gian lấy từ database**, không tiêm `Clock`: mọi so sánh hạn lease nằm trong SQL.
+- **Hook `FaultInjector` có hai điểm**: sau khi claim và trước khi hoàn tất. Điểm đầu nằm ngoài khối có bước thả key, để giống tiến trình chết thật.
+- **Thử phá code:** 18 cách sửa hỏng code chính đều làm ít nhất một test đỏ ([bảng](../journal/2026-W45.md#thí-nghiệm-phá-code-để-thử-test)). Thí nghiệm này cũng cho thấy điều kiện `status` trong câu hoàn tất mới là thứ chặn giao dịch thứ hai, còn `lease_token` quyết định bên nào thắng.
+- **Ngoài kế hoạch:** `IdempotencyKeyRepositoryIT`, `IdempotencyApiIT`, `RequestHasherTest`, `IdempotencyTransactionsTest`, ca "lỗi sau khi tiền đã ghi nhưng trước khi hoàn tất key", ca 50 request cho một lần chuyển bị từ chối, `Retry-After` cho `ProblemException`.
+- **Lý do "hai pha để gọi mạng" trong mục dưới đây chưa được dùng tới:** action chạy trong Tx2. Xem phần Hệ quả của ADR-0005.
+- Giới hạn đã biết: xem [nhật ký](../journal/2026-W45.md#giới-hạn-đã-biết).
 
 ## Rủi ro và phương án
 

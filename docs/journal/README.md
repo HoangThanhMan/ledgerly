@@ -60,3 +60,10 @@ Dự kiến X giờ, thực tế Y giờ. Lệch vì ...
 |---|---|---|
 | [2026-W44.md](2026-W44.md) | Nhật ký tuần 4, có số liệu thí nghiệm khóa | Xong |
 | [tuan-04-cau-hoi.md](tuan-04-cau-hoi.md) | Đáp án tham khảo 5 câu hỏi tuần 4 | Chờ tác giả luyện |
+
+## Tuần 5
+
+| File | Nội dung | Trạng thái |
+|---|---|---|
+| [2026-W45.md](2026-W45.md) | Nhật ký tuần 5, có số liệu test 50 request đồng thời | Xong |
+| [tuan-05-cau-hoi.md](tuan-05-cau-hoi.md) | Đáp án tham khảo 5 câu hỏi tuần 5 | Chờ tác giả luyện |

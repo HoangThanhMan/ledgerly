@@ -208,7 +208,7 @@ erDiagram
         text status "IN_PROGRESS | COMPLETED"
         uuid lease_token "đổi mỗi lần claim hoặc giành lại (fencing)"
         int response_status
-        jsonb response_body
+        json response_body "nguyên văn, replay trả lại đúng chuỗi này"
         uuid resource_id
         timestamptz locked_until "phục hồi khi crash"
         timestamptz expires_at "TTL 24h"
@@ -316,7 +316,7 @@ sequenceDiagram
 
     rect rgb(235, 245, 255)
     Note over A,DB: Tx1: claim (rất ngắn)
-    A->>DB: INSERT idempotency_keys(k1, hash, IN_PROGRESS,<br/>lease_token = t1, locked_until = now()+30s)<br/>ON CONFLICT DO NOTHING RETURNING *
+    A->>DB: INSERT idempotency_keys(k1, hash, IN_PROGRESS,<br/>lease_token = t1, locked_until = now()+30s)<br/>ON CONFLICT DO NOTHING
     end
 
     opt INSERT trả 0 dòng (key đã tồn tại)
@@ -328,7 +328,7 @@ sequenceDiagram
         else IN_PROGRESS, chưa hết hạn
             A-->>C: 409 + Retry-After: 1
         else IN_PROGRESS, hết hạn (tiến trình trước đã crash hoặc quá chậm)
-            A->>DB: UPDATE idempotency_keys SET lease_token = t2, locked_until = now()+30s<br/>WHERE idem_key = k1 AND status = 'IN_PROGRESS' AND locked_until < now()
+            A->>DB: UPDATE idempotency_keys SET lease_token = t2, locked_until = now()+30s<br/>WHERE idem_key = k1 AND status = 'IN_PROGRESS' AND locked_until <= now()
             Note over A: 1 dòng: giành lại được, sang Tx2 với token t2<br/>0 dòng: request khác đã giành trước, trả 409
         end
     end
@@ -350,11 +350,15 @@ sequenceDiagram
     end
 ```
 
-Lỗi nghiệp vụ có tính xác định (ví dụ thiếu số dư, trả 422) cũng được lưu thành `COMPLETED`. Retry với cùng key sẽ nhận lại đúng lỗi đó. Lỗi validate (400) xảy ra **trước** khi claim nên không được lưu.
+Mọi lời từ chối nghiệp vụ (thiếu số dư, ví không tồn tại, chuyển cho chính mình, sai tiền tệ) cũng được lưu thành `COMPLETED`. Retry với cùng key sẽ nhận lại đúng lỗi đó, kể cả khi ví đã được nạp thêm: muốn thử lại thì dùng key mới. Lỗi validate (400) xảy ra **trước** khi claim nên không được lưu.
 
-**Vì sao cần `lease_token` (fencing token).** `locked_until` chỉ là một lease có hạn. Nếu Tx2 của request A chạy lâu hơn 30 giây (chờ khóa hot account, GC pause, mạng tới DB chậm), request B sẽ giành lại key và hoàn tất Tx2 của nó. Nếu câu `UPDATE ... SET COMPLETED` của A không có điều kiện, A vẫn commit được, và một key sinh ra **hai** giao dịch (vi phạm I5). Khi `UPDATE` phải khớp đúng token đang giữ, A nhận về 0 dòng và rollback toàn bộ Tx2. Điều kiện `status = 'IN_PROGRESS'` trong câu giành lại cũng cần thiết: nếu A vừa commit `COMPLETED` giữa lúc B đọc và lúc B `UPDATE`, B không được giành một key đã xong.
+Response được render thành JSON **bên trong Tx2** và lưu nguyên văn (cột `JSON`, không phải `JSONB`), nên replay trả lại đúng chuỗi của lần đầu, chỉ thêm header `Idempotent-Replayed: true`. Hash của request gồm cả method và path: cùng key ở endpoint khác là `422 idempotency-key-reused`. Lý do của các lựa chọn này nằm ở [ADR-0005](adr/0005-idempotency-key-hai-pha-trong-postgresql.md).
+
+**Vì sao cần `lease_token` (fencing token).** `locked_until` chỉ là một lease có hạn. Nếu Tx2 của request A chạy lâu hơn 30 giây (chờ khóa hot account, GC pause, mạng tới DB chậm), request B sẽ giành lại key và hoàn tất Tx2 của nó. Nếu câu `UPDATE ... SET COMPLETED` của A không có điều kiện, A vẫn commit được, và một key sinh ra **hai** giao dịch (vi phạm I5). Khi `UPDATE` phải khớp đúng token đang giữ, A nhận về 0 dòng và rollback toàn bộ Tx2. Số đo ở tuần 5 ([ADR-0005, B4](adr/0005-idempotency-key-hai-pha-trong-postgresql.md#bằng-chứng)) cho thấy riêng điều kiện `status = 'IN_PROGRESS'` trong câu hoàn tất đã đủ để chỉ một bên commit. Token thêm hai thứ: bên thắng luôn là request đang giữ lease, và việc hoàn tất gắn với đúng một lần claim. Điều kiện `status = 'IN_PROGRESS'` trong câu giành lại cũng cần thiết: nếu A vừa commit `COMPLETED` giữa lúc B đọc và lúc B `UPDATE`, B không được giành một key đã xong.
 
 **Tx2 lỗi kỹ thuật** (exception, mất kết nối, timeout khóa): Tx2 rollback nên chưa có hiệu ứng nào. Sau đó thả key theo kiểu best-effort, bằng `UPDATE idempotency_keys SET locked_until = now() WHERE idem_key = k1 AND lease_token = t`, để client retry ngay mà không phải nhận 409 tới khi lease hết hạn. Nếu bước thả key cũng lỗi thì lease tự hết hạn là lớp dự phòng.
+
+**Dọn key.** `expires_at` là 24 giờ sau lần claim đầu. Một job chạy 10 phút một lần xóa key quá hạn theo lô 1000 (`FOR UPDATE SKIP LOCKED`), nên key sống *ít nhất* 24 giờ và vẫn replay cho tới khi bị xóa. Key `IN_PROGRESS` quá hạn (tiến trình chết và không ai retry) cũng bị xóa.
 
 ### 6.2 Outbox relay và consumer idempotent (tuần 6)
 
@@ -462,7 +466,7 @@ flowchart LR
 - JSON dùng `camelCase`. Số tiền là **chuỗi số nguyên** theo đơn vị nhỏ nhất, ví dụ `"amount": "150000"`, để tránh mất chính xác ở client JavaScript.
 - Lỗi theo **RFC 9457 Problem Details** (`application/problem+json`), có `type`, `title`, `status`, `detail`, `instance`. Lỗi validate có thêm `errors` (danh sách `field`, `message`). `traceId` được thêm khi có tracing (tuần 7).
 - Phân trang lịch sử bằng keyset (`?after=<entryId>&limit=50`, `limit` từ 1 đến 100), không dùng offset. Response có `items` và `nextCursor`. `nextCursor` là giá trị `after` của trang kế, hoặc `null` ở trang cuối.
-- Header `Idempotency-Key` (chuỗi 1–64 ký tự ASCII nhìn thấy được, khuyến nghị dùng UUID) **bắt buộc** với mọi `POST` làm dịch chuyển tiền.
+- Header `Idempotency-Key` (chuỗi 1–64 ký tự ASCII nhìn thấy được, khuyến nghị dùng UUID) **bắt buộc** với mọi `POST` làm dịch chuyển tiền. Gửi lại cùng key và cùng nội dung thì nhận lại response của lần đầu kèm `Idempotent-Replayed: true`. Gặp `409` thì chờ theo `Retry-After` rồi gửi lại với **cùng** key.
 
 ### 8.2 Danh sách endpoint
 
@@ -489,7 +493,7 @@ flowchart LR
 | 404 | `/problems/wallet-not-found` | Ví không tồn tại (account `SYSTEM` không phải là ví) |
 | 404 | `/problems/transfer-not-found` | Giao dịch chuyển tiền không tồn tại |
 | 409 | `/problems/idempotency-in-progress` | Key đang xử lý, kèm header `Retry-After` |
-| 422 | `/problems/idempotency-key-reused` | Cùng key nhưng body khác |
+| 422 | `/problems/idempotency-key-reused` | Cùng key nhưng khác method, path hoặc body |
 | 422 | `/problems/insufficient-funds` | Không đủ số dư |
 | 422 | `/problems/same-account-transfer` | Chuyển cho chính mình |
 | 422 | `/problems/currency-mismatch` | Tiền tệ của request khác tiền tệ của ví |
