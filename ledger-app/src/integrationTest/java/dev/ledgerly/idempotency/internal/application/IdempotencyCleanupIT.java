@@ -46,15 +46,16 @@ class IdempotencyCleanupIT extends AbstractIntegrationTest {
         keys.insert(expiredInProgress, HASH, UUID.randomUUID(), LEASE, EXPIRED_AN_HOUR_AGO);
         String live = newKey();
         keys.insert(live, HASH, UUID.randomUUID(), LEASE, Duration.ofHours(24));
-        String aboutToExpire = newKey();
-        keys.insert(aboutToExpire, HASH, UUID.randomUUID(), LEASE, Duration.ofMinutes(1));
+        // Not a minute: a key that expired while a later test counts deletions would make that count wrong.
+        String expiresInAnHour = newKey();
+        keys.insert(expiresInAnHour, HASH, UUID.randomUUID(), LEASE, Duration.ofHours(1));
 
         assertThat(cleanup.deleteExpired()).isGreaterThanOrEqualTo(2);
 
         assertThat(keys.find(expiredCompleted)).isEmpty();
         assertThat(keys.find(expiredInProgress)).isEmpty();
         assertThat(keys.find(live)).isPresent();
-        assertThat(keys.find(aboutToExpire)).isPresent();
+        assertThat(keys.find(expiresInAnHour)).isPresent();
     }
 
     @Test
