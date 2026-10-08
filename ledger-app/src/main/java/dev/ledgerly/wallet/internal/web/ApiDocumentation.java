@@ -51,6 +51,8 @@ class ApiDocumentation {
                         - **Errors** are RFC 9457 Problem Details with the media type \
                         `application/problem+json`. The `type` member tells them apart.
                         - **There is no authentication.** Whoever can reach the API can act on every wallet."""))
-                .servers(List.of(new Server().url("http://localhost:8080").description("Local")));
+                // Relative, so "try it out" in Swagger UI calls whichever host served the document, and the
+                // document does not change with the port or the host the application runs on.
+                .servers(List.of(new Server().url("/").description("The server that serves this document")));
     }
 }
