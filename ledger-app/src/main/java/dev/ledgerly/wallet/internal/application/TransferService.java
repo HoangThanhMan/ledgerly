@@ -14,6 +14,8 @@ import dev.ledgerly.ledger.TransactionView;
 import dev.ledgerly.outbox.OutboxEvent;
 import dev.ledgerly.outbox.OutboxWriter;
 import dev.ledgerly.shared.Money;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.util.Currency;
 import java.util.List;
 import java.util.Optional;
@@ -37,16 +39,43 @@ public class TransferService {
     private final LedgerApi ledger;
     private final WalletService wallets;
     private final OutboxWriter outbox;
+    private final MeterRegistry meters;
 
-    TransferService(LedgerApi ledger, WalletService wallets, OutboxWriter outbox) {
+    TransferService(LedgerApi ledger, WalletService wallets, OutboxWriter outbox, MeterRegistry meters) {
         this.ledger = ledger;
         this.wallets = wallets;
         this.outbox = outbox;
+        this.meters = meters;
     }
 
     /** Transactional so that the ledger entries and the event commit together, whoever the caller is. */
     @Transactional
     public TransferResult transfer(UUID sourceWalletId, UUID targetWalletId, Money amount) {
+        TransferResult result = decide(sourceWalletId, targetWalletId, amount);
+        count(result);
+        return result;
+    }
+
+    /**
+     * Counts what the service decided. A request answered from its idempotency key never gets here, so a retry is
+     * not counted twice. A failure that throws is not counted: it shows up as a 5xx in the HTTP metrics.
+     */
+    private void count(TransferResult result) {
+        String outcome = switch (result) {
+            case TransferResult.Completed completed -> "completed";
+            case TransferResult.InsufficientFunds funds -> "insufficient_funds";
+            case TransferResult.WalletNotFound notFound -> "wallet_not_found";
+            case TransferResult.SameWallet same -> "same_wallet";
+            case TransferResult.CurrencyMismatch mismatch -> "currency_mismatch";
+        };
+        Counter.builder("ledgerly.transfers")
+                .description("Transfers the service decided, by outcome")
+                .tag("outcome", outcome)
+                .register(meters)
+                .increment();
+    }
+
+    private TransferResult decide(UUID sourceWalletId, UUID targetWalletId, Money amount) {
         if (sourceWalletId.equals(targetWalletId)) {
             return new TransferResult.SameWallet(sourceWalletId);
         }
