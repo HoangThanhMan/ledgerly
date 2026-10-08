@@ -13,8 +13,8 @@ info:
   title: Ledgerly API
   version: "1"
 servers:
-- description: Local
-  url: http://localhost:8080
+- description: The server that serves this document
+  url: /
 tags:
 - description: "Open wallets, read their balance and their entry history."
   name: Wallets
