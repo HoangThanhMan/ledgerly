@@ -1,130 +1,410 @@
 # Ledgerly
 
-**Ví điện tử theo mô hình sổ cái kép (double-entry ledger), có bất biến được kiểm chứng bằng máy.**
-
 [![CI](https://github.com/HoangThanhMan/ledgerly/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/HoangThanhMan/ledgerly/actions/workflows/ci.yml)
 ![Java 25](https://img.shields.io/badge/Java-25_LTS-orange)
 ![Spring Boot 4.1](https://img.shields.io/badge/Spring_Boot-4.1-6DB33F)
 ![PostgreSQL 18](https://img.shields.io/badge/PostgreSQL-18-336791)
 ![Kafka 4](https://img.shields.io/badge/Kafka-4.x_KRaft-231F20)
 
-> 🚧 **Trạng thái:** tuần 7, hệ thống **nhìn thấy được và có số đo đầu tiên**. Một lần chuyển tiền là một trace đi từ HTTP qua 12 câu SQL, outbox, Kafka tới consumer ([ADR-0007](docs/adr/0007-opentelemetry-qua-boot-starter-va-grafana-lgtm.md)), dashboard Grafana nằm trong repo. Baseline k6 vòng mở ở 300 request mỗi giây: p50 2,17 ms, p95 4,21 ms, p99 **17,14 ms** trên một laptop, qua loopback. Ép tải thì trần là khoảng 1.560 lần chuyển mỗi giây với 2 nhân, và ở mọi mức tải sổ cái vẫn đúng. [Báo cáo](docs/benchmarks.md) ghi cả những gì chưa tốt: một lần đo hỏng được giữ lại, và những đợt server đứng vài giây chưa tìm ra nguyên nhân ([#105](https://github.com/HoangThanhMan/ledgerly/issues/105)). Trước đó: transactional outbox ([ADR-0006](docs/adr/0006-transactional-outbox-voi-polling-relay.md), tuần 6), retry an toàn bằng `Idempotency-Key` ([ADR-0005](docs/adr/0005-idempotency-key-hai-pha-trong-postgresql.md), tuần 5), khóa account theo thứ tự `id` ([ADR-0004](docs/adr/0004-khoa-bi-quan-co-thu-tu.md), tuần 4). Chưa có nạp/rút qua ngân hàng. Ví dụ `curl` cho mọi endpoint ở [nhật ký tuần 3](docs/journal/2026-W43.md#gọi-thử-bằng-curl). Xem [lộ trình 12 tuần](docs/03-lo-trinh.md).
+E-wallet backend on a double-entry ledger, with money invariants backed by tests and measurements.
 
-Ledgerly là backend ví điện tử (mở ví, chuyển tiền, nạp/rút qua ngân hàng giả lập), xây dựng quanh bốn đảm bảo:
+Ledgerly lets you open wallets, deposit money, transfer between wallets and read the entry history over a REST API. Every completed transfer publishes an event to Kafka, and a separate service consumes it to create a notification.
 
-| Đảm bảo | Cách làm | Bằng chứng (sẽ có) |
+The business scope is small on purpose. The project is about the places where a money system usually goes wrong: two requests debiting the same wallet, a client that loses its connection and retries, a database write whose event never goes out, a message delivered twice. Money must not appear or disappear in any of those cases, and each guarantee comes with a test or a measurement.
+
+## Table of contents
+
+- [What problems it solves](#what-problems-it-solves)
+- [Architecture](#architecture)
+- [Install](#install)
+- [Usage](#usage)
+- [Configuration](#configuration)
+- [API](#api)
+- [Testing](#testing)
+- [Performance](#performance)
+- [Tech stack](#tech-stack)
+- [Repository layout](#repository-layout)
+- [Documentation](#documentation)
+- [Current limitations](#current-limitations)
+- [Contributing](#contributing)
+- [Author](#author)
+- [License](#license)
+
+## What problems it solves
+
+| Problem | Approach | Evidence |
 |---|---|---|
-| Không chi tiêu trùng khi có tải đồng thời | Khóa account theo thứ tự id, ràng buộc ở database | Test 200 virtual threads + kiểm tra bất biến |
-| API chuyển tiền idempotent | `Idempotency-Key` hai pha theo mô hình Stripe | `IdempotencyConcurrencyIT`: 50 request đồng thời cùng key → 1 giao dịch, 50 câu trả lời giống nhau |
-| DB và sự kiện nhất quán | Transactional outbox + consumer khử trùng | `kill -9` relay giữa lúc xả 3.000 sự kiện (chạy tay): 3.050 giao dịch, 3.050 thông báo, 22 bản trùng bị loại. `RelayCrashDuplicateIT`, `ConsumerDedupIT` |
-| Đối soát với ngân hàng | Job so khớp sao kê, tự xử lý giao dịch mơ hồ | Test "ghost charge" |
+| **Double spending** when several requests debit one wallet | Lock the account rows with `SELECT ... FOR NO KEY UPDATE` before checking the balance. A `CHECK` constraint in the database also rejects a negative balance | `HotWalletDrainIT`: 500 threads each transfer 1 from a wallet holding 100, and exactly 100 succeed |
+| **Deadlocks** when A→B and B→A run at the same time | Every transaction locks its accounts in ascending `id` order | `DeadlockFreedomIT`: 1,000 pairs of opposite transfers, 0 deadlocks. With the lock kept but the `ORDER BY` removed, the same test deadlocks more than 70 times |
+| **A wrong ledger** under concurrent load | Entries are append-only, and the entries of a transaction must sum to zero, checked by a trigger at commit | `ConcurrentTransferIT`: 10,000 transfers from 200 virtual threads, after which the four ledger invariants still hold. `LedgerModelProperties`: 1,000 random operation sequences compared with an in-memory model |
+| **Client retries** when it cannot tell whether the money moved | An `Idempotency-Key` header, a two-phase design with a lease and a fencing token, stored in PostgreSQL | `IdempotencyConcurrencyIT`: 50 concurrent requests with one key produce 1 transaction and 50 identical responses. `IdempotencyCrashRecoveryIT`: a failure after the money moved rolls the whole transfer back |
+| **The database is written but the event is not published** (dual write) | Transactional outbox: the event is written in the same transaction as the entries, and a relay reads the outbox table and sends to Kafka | `OutboxAtomicityIT`, `RelayCrashDuplicateIT`. Run by hand: `kill -9` on the application while it drained 3,000 events ended with 3,050 transactions and 3,050 notifications |
+| **Messages delivered more than once** | The consumer deduplicates by `eventId` in the same transaction that writes the notification | `ConsumerDedupIT`. In the `kill -9` run above, 22 duplicates were dropped |
+| **Module boundaries eroding** over time | Each module has a public API and an `internal` package. ArchUnit checks the dependency matrix on every build | `ArchitectureTest` |
+| **Not knowing where the time goes** | OpenTelemetry: one transfer is one trace from HTTP through every SQL statement, the outbox and Kafka to the consumer | `TracePropagationIT`, `TraceContinuationIT`, a Grafana dashboard in the repository |
 
-## Kiến trúc
+The reasoning behind each choice, the alternatives that were rejected and the measurements are in the [ADRs](docs/adr/README.md).
+
+## Architecture
+
+### Components
 
 ```mermaid
 flowchart LR
-    client(["Client / k6"]) -->|"HTTP + Idempotency-Key"| app["ledger-app<br/>modular monolith"]
-    app --> pg[("PostgreSQL 18")]
-    app -->|outbox relay| kafka[["Kafka"]]
-    kafka --> consumer["notification-consumer"]
-    app -->|HTTP| bank["mock-bank"]
-    bank -->|webhook| app
+    client(["Client / k6"])
+    app["<b>ledger-app</b><br/>modular monolith<br/>Spring Boot · virtual threads"]
+    consumer["<b>notification-consumer</b><br/>idempotent Kafka listener"]
+    pg[("<b>PostgreSQL 18</b><br/>one database per service")]
+    kafka[["<b>Kafka</b><br/>KRaft"]]
+    lgtm["<b>Grafana LGTM</b><br/>metrics · traces"]
+
+    client -->|"REST + Idempotency-Key"| app
+    app -->|JDBC| pg
+    app -->|"outbox relay"| kafka
+    kafka --> consumer
+    consumer -->|JDBC| pg
+    app -. OTLP .-> lgtm
+    consumer -. OTLP .-> lgtm
 ```
 
-Chi tiết: [docs/01-kien-truc.md](docs/01-kien-truc.md).
+`ledger-app` is a **modular monolith**: everything that touches money lives in one process and one database, so a transfer is a single local transaction and needs no distributed transaction. What should be separate is separated through Kafka: `notification-consumer` is its own process with its own database, and a slow or dead consumer does not affect transfers ([ADR-0001](docs/adr/0001-modular-monolith.md)).
 
-## Cấu trúc repo
+### Modules inside `ledger-app`
 
-| Module | Mô tả |
+```mermaid
+flowchart TB
+    wallet["<b>wallet</b><br/>REST API, open wallet / deposit / transfer"]
+    idem["<b>idempotency</b><br/>claims keys, stores and replays responses"]
+    ledger["<b>ledger</b><br/>double-entry ledger: accounts, transactions, entries<br/>ordered locking"]
+    outbox["<b>outbox</b><br/>writes events inside the transaction<br/>relay sends them to Kafka"]
+    shared["<b>shared</b><br/>Money, Problem Details"]
+
+    wallet --> idem
+    wallet --> ledger
+    wallet --> outbox
+    idem --> shared
+    ledger --> shared
+    outbox --> shared
+```
+
+Each module is a package under `dev.ledgerly`. Types at the package root are its public API, and everything under `internal` (`web`, `application`, `domain`, `persistence`) is private to the module. ArchUnit checks three rules on every build: a module only calls the modules it is allowed to and there are no cycles, `internal.domain` is plain Java with no dependency on Spring or JDBC, and `@Transactional` appears only in the `application` layer.
+
+### One transfer
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Client
+    participant A as ledger-app
+    participant DB as PostgreSQL
+    participant K as Kafka
+    participant N as notification-consumer
+
+    C->>A: POST /v1/transfers (Idempotency-Key)
+    Note over A,DB: Transaction 1: claim the key
+    A->>DB: INSERT idempotency_keys ... ON CONFLICT DO NOTHING
+    Note over A,DB: Transaction 2: all or nothing
+    A->>DB: lock both accounts in ascending id order
+    A->>DB: check the balance, write the transaction and 2 entries
+    A->>DB: write the TransferCompleted event to the outbox
+    A->>DB: store the response on the key (lease token must match)
+    A-->>C: 201 Created
+    Note over A,K: After the request has been answered
+    A->>K: relay reads the outbox (SKIP LOCKED), sends, waits for the ack
+    K->>N: TransferCompleted
+    N->>N: deduplicate by eventId, write the notification
+```
+
+The money, the event and the response are committed in **the same transaction**. So there is no state in which the money moved but the event was lost, or the money moved and a retry moves it again. The relay delivers each event at least once and the consumer handles each `eventId` at most once, so the effect happens exactly once.
+
+### The database is the last line of defence
+
+The money rules do not live only in Java. If the code has a bug, PostgreSQL still refuses:
+
+- `CHECK` constraints reject a negative balance on a user wallet and an entry with a zero amount.
+- Triggers reject `UPDATE`, `DELETE` and `TRUNCATE` on the entries table. The ledger is append-only, and a mistake is fixed with a reversing entry.
+- A `DEFERRABLE INITIALLY DEFERRED` constraint trigger checks at commit that the entries of every transaction sum to zero.
+- Money is a `BIGINT` in the minor unit of the currency, never a floating-point number ([ADR-0003](docs/adr/0003-bieu-dien-tien-te.md)).
+
+The full design, including the data model, the error codes and the planned extensions: [docs/01-kien-truc.md](docs/01-kien-truc.md).
+
+## Install
+
+### Requirements
+
+| What | Notes |
 |---|---|
-| [`ledger-app`](ledger-app) | Ứng dụng chính, gồm các module `ledger`, `wallet`, `idempotency`, `outbox`, `bankgateway`, `topup`, `reconciliation` |
-| [`mock-bank`](mock-bank) | Ngân hàng giả lập có thể cấu hình độ trễ và lỗi |
-| [`notification-consumer`](notification-consumer) | Kafka consumer idempotent |
-| [`ledger-contracts`](ledger-contracts) | Định nghĩa sự kiện dùng chung |
-| [`build-logic`](build-logic) | Gradle convention plugins |
-| [`docs`](docs) | Tài liệu: kiến trúc, lộ trình, ADR, kế hoạch từng tuần |
+| Docker Engine and Docker Compose v2 | Runs PostgreSQL, Kafka and Grafana. The integration tests need Docker too (Testcontainers) |
+| JDK 17 or later | Only to run Gradle. Gradle downloads the JDK 25 used for compilation if the machine does not have it |
+| `curl`, `jq`, `uuidgen` | Only for the example commands under [Usage](#usage) |
+| Free ports | 8080, 8082, 5433, 9092, plus 3000 and 4318 when Grafana is on |
 
-## Bắt đầu nhanh
+Gradle does not need to be installed: the repository ships the Gradle wrapper (`./gradlew`).
 
-**Yêu cầu:** Docker và JDK 17+ để chạy Gradle. JDK 25 sẽ được Gradle tự tải nếu máy chưa có.
+### Steps
 
 ```bash
-# 1. Build và chạy toàn bộ test (Testcontainers tự bật PostgreSQL và Kafka)
-./gradlew build
+git clone https://github.com/HoangThanhMan/ledgerly.git
+cd ledgerly
 
-# Chỉ unit test (nhanh) hoặc chỉ integration test (Testcontainers)
-./gradlew test
-./gradlew integrationTest
+# 1. Infrastructure: PostgreSQL on port 5433, Kafka on port 9092
+docker compose up -d --wait
 
-# Sửa format trước khi commit (build sẽ đỏ nếu lệch format, lỗi null hoặc lỗi Error Prone)
-./gradlew spotlessApply
+# 2. The two applications, one terminal each. Flyway creates the schema at startup
+./gradlew :ledger-app:bootRun
+./gradlew :notification-consumer:bootRun
 
-# 2. Bật hạ tầng dev: PostgreSQL ở cổng 5433, Kafka ở cổng 9092
-docker compose up -d
+# 3. Check: both must answer "status":"UP"
+curl -s localhost:8080/actuator/health
+curl -s localhost:8082/actuator/health
+```
 
-# 3. Chạy từng ứng dụng
-./gradlew :ledger-app:bootRun              # http://localhost:8080/actuator/health
-./gradlew :mock-bank:bootRun               # http://localhost:8081/actuator/health
-./gradlew :notification-consumer:bootRun   # http://localhost:8082/actuator/health
+To try the API without compose, `./gradlew :ledger-app:bootTestRun` starts PostgreSQL and Kafka through Testcontainers.
 
-# Hoặc chạy một app với Testcontainers, không cần compose
-./gradlew :ledger-app:bootTestRun
+To stop and clean up: `Ctrl+C` in both terminals, then `docker compose down` (add `-v` to delete the data as well).
 
-# 4. Xem metric và trace: thêm Grafana ở http://localhost:3000 (dashboard Ledgerly là trang chủ),
-#    rồi chạy ứng dụng với profile observability. Không có profile thì ứng dụng không gửi gì đi.
-docker compose --profile observability up -d
+## Usage
+
+### A first transfer
+
+```bash
+# Open two wallets
+A=$(curl -s -X POST localhost:8080/v1/wallets -H 'Content-Type: application/json' -d '{"currency":"VND"}' | jq -r .id)
+B=$(curl -s -X POST localhost:8080/v1/wallets -H 'Content-Type: application/json' -d '{"currency":"VND"}' | jq -r .id)
+
+# Deposit 500,000 into wallet A
+curl -s -X POST localhost:8080/v1/admin/deposits -H 'Content-Type: application/json' \
+  -H "Idempotency-Key: $(uuidgen)" \
+  -d "{\"walletId\":\"$A\",\"amount\":\"500000\",\"currency\":\"VND\"}"
+
+# Transfer 150,000 from A to B. Run this curl command TWICE with the same key
+KEY=$(uuidgen)
+curl -si -X POST localhost:8080/v1/transfers -H 'Content-Type: application/json' \
+  -H "Idempotency-Key: $KEY" \
+  -d "{\"sourceWalletId\":\"$A\",\"targetWalletId\":\"$B\",\"amount\":\"150000\",\"currency\":\"VND\"}"
+
+# Balance and entry history of wallet A
+curl -s localhost:8080/v1/wallets/$A
+curl -s "localhost:8080/v1/wallets/$A/entries?limit=5"
+```
+
+The second send returns the response of the first, adds the header `Idempotent-Replayed: true`, and does not move the money again:
+
+```console
+HTTP/1.1 201
+Idempotent-Replayed: true
+Location: /v1/transfers/01a11ad9-7f10-7459-a273-deb24dbb4296
+Content-Type: application/json
+
+{"id":"01a11ad9-7f10-7459-a273-deb24dbb4296","status":"COMPLETED","sourceWalletId":"01a11ad9-7eb8-...","targetWalletId":"01a11ad9-7ec9-...","amount":"150000","currency":"VND","createdAt":"2026-10-08T09:30:23.885956Z"}
+```
+
+```console
+$ curl -s localhost:8080/v1/wallets/$A
+{"id":"01a11ad9-7eb8-...","currency":"VND","balance":"350000","createdAt":"2026-10-08T09:30:23.800096Z"}
+```
+
+### See the event and check the ledger
+
+```bash
+# The TransferCompleted event on Kafka
+docker compose exec kafka /opt/kafka/bin/kafka-console-consumer.sh \
+  --bootstrap-server localhost:9092 --topic ledgerly.transfers.v1 --from-beginning --max-messages 1
+
+# The notification that notification-consumer created
+docker compose exec postgres psql -U ledgerly -d notification -c 'SELECT message, created_at FROM notifications'
+
+# The four ledger invariants: each query lists violations, so a sound ledger returns 0 rows from all four
+docker compose exec -T postgres psql -U ledgerly -d ledger < scripts/invariants.sql
+```
+
+```console
+                                 message                                  |          created_at
+--------------------------------------------------------------------------+-------------------------------
+ You received 150000 VND from wallet 01a11ae0-91a3-73aa-abf2-99d7ab7901bc | 2026-10-08 09:38:21.016439+00
+```
+
+### Metrics and traces
+
+By default the applications export no metrics and no traces. Add Grafana and restart both applications with the `observability` profile:
+
+```bash
+docker compose --profile observability up -d --wait
 SPRING_PROFILES_ACTIVE=observability ./gradlew :ledger-app:bootRun
 SPRING_PROFILES_ACTIVE=observability ./gradlew :notification-consumer:bootRun
 ```
 
-Số đo hiệu năng và cách chạy lại bài đo: [docs/benchmarks.md](docs/benchmarks.md).
+Open http://localhost:3000 (user `admin`, password `admin`): the Ledgerly dashboard is the home page. In Explore, pick the Tempo data source to see traces. One transfer is one trace across both services: the HTTP request, 12 SQL statements, `outbox publish`, the send to Kafka, then the processing in the consumer.
 
-## Retry an toàn như thế nào
+## Configuration
 
-Client mất kết nối giữa chừng thì không biết tiền đã chuyển hay chưa. Vì vậy mọi `POST` làm dịch chuyển tiền bắt buộc có header `Idempotency-Key`: client sinh một giá trị (nên là UUID) cho **mỗi thao tác** và giữ nguyên nó qua mọi lần gửi lại.
+The defaults live in each application's `application.yaml` and work as they are with `compose.yaml`. Override them with environment variables following the Spring Boot convention, for example `SERVER_PORT=9080` or `LEDGERLY_OUTBOX_RELAY_ENABLED=false`.
 
-Output dưới đây là output thật của `./gradlew :ledger-app:bootTestRun` ngày 07/10/2026, chỉ rút gọn UUID thành `<A>`, `<B>`, `<T>`. Ví `<A>` có 500.000.
+| Property | Default | Meaning |
+|---|---|---|
+| `server.port` | `8080` (`ledger-app`), `8082` (`notification-consumer`) | HTTP port |
+| `spring.datasource.url` | `jdbc:postgresql://localhost:5433/ledger` | Database of `ledger-app`. The consumer uses the `notification` database |
+| `spring.kafka.bootstrap-servers` | `localhost:9092` | Kafka |
+| `ledgerly.ledger.lock-timeout` | `2s` | Longest wait for the account locks. After that the answer is `503` with `Retry-After` |
+| `ledgerly.idempotency.lease` | `30s` | How long a request may hold a key. After that a retry with the same key takes it over |
+| `ledgerly.idempotency.ttl` | `24h` | Minimum time a key and its response are kept |
+| `ledgerly.outbox.relay.enabled` | `true` | `false`: this instance serves the API only and publishes no events |
+| `ledgerly.outbox.relay.poll-interval`, `batch-size` | `200ms`, `100` | Polling interval and batch size of the relay |
+| `management.tracing.sampling.probability` | `0.1` | Share of requests that are traced. The `observability` profile sets `1.0` |
 
-```console
-$ curl -si -X POST localhost:8080/v1/transfers -H 'Content-Type: application/json' \
-    -H 'Idempotency-Key: 6f1c2d3e-0002' \
-    -d '{"sourceWalletId":"<A>","targetWalletId":"<B>","amount":"150000","currency":"VND"}'
-HTTP/1.1 201
-Location: /v1/transfers/<T>
-Content-Type: application/json
+## API
 
-{"id":"<T>","status":"COMPLETED","sourceWalletId":"<A>","targetWalletId":"<B>","amount":"150000","currency":"VND","createdAt":"2026-10-07T02:03:23.711026Z"}
+| Method | Path | Description | `Idempotency-Key` |
+|---|---|---|:-:|
+| `POST` | `/v1/wallets` | Open a wallet | |
+| `GET` | `/v1/wallets/{id}` | Balance and details of a wallet | |
+| `GET` | `/v1/wallets/{id}/entries` | Entry history, keyset pagination (`?after=&limit=`) | |
+| `POST` | `/v1/transfers` | Transfer between two wallets | Required |
+| `GET` | `/v1/transfers/{id}` | Details of a transfer | |
+| `POST` | `/v1/admin/deposits` | Deposit into a wallet from a system account, for development and tests | Required |
 
-$ # Gửi lại đúng lệnh trên: cùng response, thêm một header, tiền không chuyển lần hai
-HTTP/1.1 201
-Idempotent-Replayed: true
-Location: /v1/transfers/<T>
-Content-Type: application/json
+Amounts are integer strings in the minor unit (`"amount": "150000"`), so a JavaScript client cannot lose precision. Errors follow RFC 9457 Problem Details:
 
-{"id":"<T>","status":"COMPLETED","sourceWalletId":"<A>","targetWalletId":"<B>","amount":"150000","currency":"VND","createdAt":"2026-10-07T02:03:23.711026Z"}
-
-$ curl -s localhost:8080/v1/wallets/<A>
-{"id":"<A>","currency":"VND","balance":"350000","createdAt":"2026-10-07T02:03:23.608103Z"}
+```json
+{"type":"/problems/insufficient-funds","title":"Insufficient funds","status":422,
+ "detail":"Wallet 01a11ad9-7eb8-... has 350000 VND, the transfer needs 9999999 VND","instance":"/v1/transfers"}
 ```
 
-| Tình huống | Câu trả lời | Client nên làm gì |
+### How retries stay safe
+
+A client that loses its connection midway cannot tell whether the money moved. So every `POST` that moves money requires an `Idempotency-Key` header: the client generates one value (a UUID is recommended) for **each operation** and keeps it across every resend.
+
+| Situation | Response | What the client should do |
 |---|---|---|
-| Cùng key, cùng nội dung, request đầu đã xong | Response của lần đầu, kèm `Idempotent-Replayed: true`. Đổi thứ tự trường JSON hay khoảng trắng vẫn tính là cùng nội dung | Dùng kết quả |
-| Cùng key, request đầu còn đang chạy | `409 idempotency-in-progress`, kèm `Retry-After: 1` | Chờ rồi gửi lại với **cùng** key |
-| Cùng key, khác body hoặc khác endpoint | `422 idempotency-key-reused` | Lỗi của client: mỗi thao tác một key |
-| Lần đầu bị từ chối nghiệp vụ (ví dụ `422 insufficient-funds`) | Lần sau nhận lại đúng lỗi đó, kể cả khi ví đã được nạp thêm | Muốn thử lại thì dùng key **mới** |
-| Lần đầu lỗi kỹ thuật (`503`, `500`) | Không có gì được lưu, tiền chưa chuyển | Gửi lại với cùng key |
-| Thiếu header hoặc body không hợp lệ | `400 validation-error`, key không bị dùng mất | Sửa request |
+| Same key, same content, the first request has finished | The response of the first request, with `Idempotent-Replayed: true`. Reordered JSON fields or different whitespace still count as the same content | Use the result |
+| Same key, the first request is still running | `409 idempotency-in-progress`, with `Retry-After: 1` | Wait, then resend with the **same** key |
+| Same key, different body or different endpoint | `422 idempotency-key-reused` | A client bug: one key per operation |
+| The first request was rejected by a business rule (for example `422 insufficient-funds`) | Later requests get that same error, even after the wallet has been topped up | To try again, use a **new** key |
+| The first request failed technically (`503`, `500`) | Nothing was stored and no money moved | Resend with the same key |
+| Missing header or invalid body | `400 validation-error`, and the key is not used up | Fix the request |
 
-Key được giữ ít nhất 24 giờ. Thiết kế hai pha, lý do không dùng Redis và các giới hạn nằm ở [ADR-0005](docs/adr/0005-idempotency-key-hai-pha-trong-postgresql.md).
+A key is kept for at least 24 hours. The two-phase design, why Redis is not used, and the limits are in [ADR-0005](docs/adr/0005-idempotency-key-hai-pha-trong-postgresql.md).
 
-## Tài liệu
+## Testing
 
-- [Tổng quan dự án](docs/00-tong-quan-du-an.md): mục tiêu, phạm vi, mốc, rủi ro
-- [Kiến trúc](docs/01-kien-truc.md): C4, mô hình dữ liệu, luồng nghiệp vụ, API
-- [Cấu trúc thư mục](docs/02-cau-truc-thu-muc.md)
-- [Lộ trình](docs/03-lo-trinh.md) và [kế hoạch từng tuần](docs/weeks/)
-- [Hướng AI Engineer](docs/research/huong-ai-engineer.md): vì sao thêm một trợ lý ví, và kế hoạch ba tuần A1–A3 (chưa có code)
-- [Chiến lược kiểm thử](docs/04-chien-luoc-kiem-thu.md)
-- [Quy ước làm việc](docs/05-quy-uoc-lam-viec.md)
-- [Architecture Decision Records](docs/adr/README.md)
+```bash
+./gradlew build             # everything: formatting, Error Prone, NullAway, unit tests, integration tests, coverage
+./gradlew test              # unit tests, ArchUnit
+./gradlew integrationTest   # Testcontainers: real PostgreSQL 18 and Kafka
+./gradlew spotlessApply     # fix formatting
+```
+
+- **No H2, no mocked database.** Persistence tests run on real PostgreSQL, the same version the application runs on.
+- **Concurrency tests check invariants, not just the absence of errors.** After each run, `InvariantChecker` executes the very statements in [`scripts/invariants.sql`](scripts/invariants.sql). Randomised tests log their seed, and `-Pledgerly.test.seed=<n>` replays a failed run.
+- **Failures are injected on purpose.** Tests simulate a process dying at the hardest points: after the money moved but before the key is marked complete, and after the relay sent to Kafka but before it committed.
+- **Quality gates in CI:** a formatting difference, a null error (NullAway in JSpecify mode) or an Error Prone error fails the build. Line coverage of the `internal.domain` packages must be at least 80%.
+
+| Invariant | Statement |
+|---|---|
+| I1 | The entries of every transaction sum to zero |
+| I2 | No user wallet has a negative balance |
+| I3 | Every account's balance equals the sum of its entries |
+| I4 | The balances of all accounts, system accounts included, sum to zero |
+| I5 | Each `Idempotency-Key` produces at most one transaction |
+| I6 | Every committed transfer has exactly one outbox event |
+| I7 | Each `eventId` has at most one effect in the consumer |
+
+Details: [docs/04-chien-luoc-kiem-thu.md](docs/04-chien-luoc-kiem-thu.md).
+
+## Performance
+
+Measured with k6 and the `constant-arrival-rate` executor (open loop, so the moments when the server is slow are still measured), 1 minute of warm-up and 5 minutes of measurement, three runs, median reported. `ledger-app` was pinned to 2 CPU cores. After each run the script rechecks the ledger invariants and compares the number of transactions, events and notifications.
+
+| `POST /v1/transfers` | Result |
+|---|---|
+| Latency at 300 requests per second | p50 **2.17 ms**, p95 **4.21 ms**, p99 **17.14 ms**, no errors |
+| Throughput ceiling on 2 cores | About **1,560 transfers per second**. The application's CPU runs out first, not PostgreSQL |
+| Correctness under overload | At every load level the ledger stays correct and each transaction has exactly one event and one notification |
+
+These numbers come from **one laptop running everything, over loopback, with a small data set**. They are not the capacity of the system on a server. The report also records what did not go well: one run that the benchmark itself disturbed is kept together with its cause, and there are stalls of a few seconds whose cause has not been found ([#105](https://github.com/HoangThanhMan/ledgerly/issues/105)).
+
+![Grafana dashboard during the ramp test](docs/images/dashboard-tuan-07.png)
+
+*The `Ledgerly` dashboard during a ramp test in four steps: 600, 1,000, 1,500 and 2,000 requests per second.*
+
+Method, environment, per-request data and how to rerun it: [docs/benchmarks.md](docs/benchmarks.md).
+
+## Tech stack
+
+| Layer | Choice |
+|---|---|
+| Language | Java 25 (records, sealed interfaces, pattern matching, virtual threads), no preview features, no Lombok |
+| Framework | Spring Boot 4.1, Spring Framework 7 |
+| Data | PostgreSQL 18, Flyway, explicit SQL through `JdbcClient` on the money path ([ADR-0002](docs/adr/0002-postgresql-va-sql-tuong-minh.md)) |
+| Messaging | Kafka 4 (KRaft), producer with `acks=all` and idempotence |
+| Testing | JUnit 5, AssertJ, Testcontainers, ArchUnit, jqwik (property-based) |
+| Quality | Spotless (Palantir Java Format), Error Prone, NullAway, JaCoCo |
+| Observability | OpenTelemetry through the Spring Boot starter, Grafana LGTM ([ADR-0007](docs/adr/0007-opentelemetry-qua-boot-starter-va-grafana-lgtm.md)) |
+| Performance | k6 |
+| Build, CI | Gradle 9 (Kotlin DSL, version catalog, convention plugins), GitHub Actions |
+
+## Repository layout
+
+| Directory | Contents |
+|---|---|
+| [`ledger-app`](ledger-app) | The main application: modules `wallet`, `ledger`, `idempotency`, `outbox`, `shared` |
+| [`notification-consumer`](notification-consumer) | Idempotent Kafka consumer with its own database |
+| [`ledger-contracts`](ledger-contracts) | Event definitions shared by producer and consumer |
+| [`mock-bank`](mock-bank) | Skeleton of a simulated bank, no business logic yet |
+| [`build-logic`](build-logic) | Gradle convention plugins: Java setup, quality gates, the `integrationTest` source set |
+| [`infra`](infra) | PostgreSQL init script, Grafana dashboard |
+| [`perf`](perf) | k6 scenario, the script that runs the benchmark, raw results of every run |
+| [`scripts`](scripts) | Queries that check the ledger invariants |
+| [`docs`](docs) | Architecture, ADRs, test strategy, benchmark report |
+
+Good places to start reading the code:
+
+- [`V1__ledger_core.sql`](ledger-app/src/main/resources/db/migration/V1__ledger_core.sql): the ledger schema and the database-level constraints.
+- [`LedgerService`](ledger-app/src/main/java/dev/ledgerly/ledger/internal/application/LedgerService.java) and [`PostingRules`](ledger-app/src/main/java/dev/ledgerly/ledger/internal/domain/PostingRules.java): posting a transaction, with locking and I/O kept apart from the pure business rules.
+- [`IdempotencyService`](ledger-app/src/main/java/dev/ledgerly/idempotency/internal/application/IdempotencyService.java): the two phases, claiming a key and completing it.
+- [`OutboxRelay`](ledger-app/src/main/java/dev/ledgerly/outbox/internal/application/OutboxRelay.java): reads the outbox and sends to Kafka.
+- [`ConcurrentTransferIT`](ledger-app/src/integrationTest/java/dev/ledgerly/wallet/ConcurrentTransferIT.java) and [`ArchitectureTest`](ledger-app/src/test/java/dev/ledgerly/ArchitectureTest.java): the concurrency test and the module boundary test.
+
+## Documentation
+
+The design documents and ADRs are written in Vietnamese. Code, comments, commit messages and API messages are in English.
+
+- [Architecture](docs/01-kien-truc.md): C4, data model, business flows, API, events
+- [Architecture Decision Records](docs/adr/README.md): one page per major decision, with the rejected alternatives and the evidence
+  - [0001](docs/adr/0001-modular-monolith.md) Modular monolith
+  - [0002](docs/adr/0002-postgresql-va-sql-tuong-minh.md) PostgreSQL and explicit SQL
+  - [0003](docs/adr/0003-bieu-dien-tien-te.md) Representing money
+  - [0004](docs/adr/0004-khoa-bi-quan-co-thu-tu.md) Ordered pessimistic locking
+  - [0005](docs/adr/0005-idempotency-key-hai-pha-trong-postgresql.md) Two-phase idempotency keys
+  - [0006](docs/adr/0006-transactional-outbox-voi-polling-relay.md) Transactional outbox with a polling relay
+  - [0007](docs/adr/0007-opentelemetry-qua-boot-starter-va-grafana-lgtm.md) OpenTelemetry and Grafana LGTM
+- [Test strategy](docs/04-chien-luoc-kiem-thu.md) and [benchmark report](docs/benchmarks.md)
+- [Working conventions](docs/05-quy-uoc-lam-viec.md): Git, commits, pull requests, code conventions
+- [How AI is used in this project](docs/ai-usage.md): what AI did and how it was verified
+- [All documentation](docs/README.md)
+
+## Current limitations
+
+- **Money stays inside the system.** Top-ups and withdrawals through a bank, and statement reconciliation, are designed in the [architecture document](docs/01-kien-truc.md) but not implemented. `mock-bank` is only an application skeleton.
+- **No authentication or authorisation.** Whoever can reach the API can act on every wallet. Do not run it outside a development environment.
+- **One currency.** Wallets can only be opened in VND.
+- **No overload protection.** Past the ceiling, requests queue up instead of being rejected early ([benchmark, section 5](docs/benchmarks.md#5-tăng-tải-thứ-gì-gãy-trước)).
+- **Not packaged for deployment.** The applications have no Dockerfile, and every measurement comes from one development machine.
+
+## Contributing
+
+This is a personal project, but questions, bug reports and suggestions are welcome through [Issues](https://github.com/HoangThanhMan/ledgerly/issues). For a pull request:
+
+- `./gradlew build` must pass. Run `./gradlew spotlessApply` before committing to fix formatting.
+- The PR title follows [Conventional Commits](https://www.conventionalcommits.org/), for example `fix(outbox): ...`.
+- A change in behaviour needs a test.
+
+The full conventions: [docs/05-quy-uoc-lam-viec.md](docs/05-quy-uoc-lam-viec.md).
+
+## Author
+
+[@HoangThanhMan](https://github.com/HoangThanhMan)
+
+## License
+
+The repository has no license file yet, so by default all rights are reserved by the author.
