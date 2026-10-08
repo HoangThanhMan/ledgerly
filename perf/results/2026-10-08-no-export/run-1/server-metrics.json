@@ -1,0 +1,11 @@
+{
+  "ledger_cpu_avg": null,
+  "ledger_cpu_max": null,
+  "server_p99_ms": null,
+  "sql_p99_ms": null,
+  "lock_wait_p99_ms": null,
+  "hikari_pending_max": null,
+  "hikari_active_max": null,
+  "outbox_pending_max": null,
+  "outbox_oldest_age_max_ms": null
+}

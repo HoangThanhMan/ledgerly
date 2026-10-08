@@ -8,7 +8,7 @@
 ![PostgreSQL 18](https://img.shields.io/badge/PostgreSQL-18-336791)
 ![Kafka 4](https://img.shields.io/badge/Kafka-4.x_KRaft-231F20)
 
-> 🚧 **Trạng thái:** tuần 6, mỗi lần chuyển tiền đã commit sinh ra đúng một sự kiện `TransferCompleted` trên Kafka qua **transactional outbox** ([ADR-0006](docs/adr/0006-transactional-outbox-voi-polling-relay.md)): Kafka sập thì API vẫn chạy và sự kiện nằm chờ, relay bị `kill -9` giữa chừng thì không mất sự kiện nào, bản trùng bị consumer loại bỏ và đếm được. Trước đó: retry an toàn bằng `Idempotency-Key` ([ADR-0005](docs/adr/0005-idempotency-key-hai-pha-trong-postgresql.md), tuần 5), khóa account theo thứ tự `id` ([ADR-0004](docs/adr/0004-khoa-bi-quan-co-thu-tu.md), tuần 4). Chưa có observability và nạp/rút qua ngân hàng. Ví dụ `curl` cho mọi endpoint ở [nhật ký tuần 3](docs/journal/2026-W43.md#gọi-thử-bằng-curl). Xem [lộ trình 12 tuần](docs/03-lo-trinh.md).
+> 🚧 **Trạng thái:** tuần 7, hệ thống **nhìn thấy được và có số đo đầu tiên**. Một lần chuyển tiền là một trace đi từ HTTP qua 12 câu SQL, outbox, Kafka tới consumer ([ADR-0007](docs/adr/0007-opentelemetry-qua-boot-starter-va-grafana-lgtm.md)), dashboard Grafana nằm trong repo. Baseline k6 vòng mở ở 300 request mỗi giây: p50 2,17 ms, p95 4,21 ms, p99 **17,14 ms** trên một laptop, qua loopback. Ép tải thì trần là khoảng 1.560 lần chuyển mỗi giây với 2 nhân, và ở mọi mức tải sổ cái vẫn đúng. [Báo cáo](docs/benchmarks.md) ghi cả những gì chưa tốt: một lần đo hỏng được giữ lại, và những đợt server đứng vài giây chưa tìm ra nguyên nhân ([#105](https://github.com/HoangThanhMan/ledgerly/issues/105)). Trước đó: transactional outbox ([ADR-0006](docs/adr/0006-transactional-outbox-voi-polling-relay.md), tuần 6), retry an toàn bằng `Idempotency-Key` ([ADR-0005](docs/adr/0005-idempotency-key-hai-pha-trong-postgresql.md), tuần 5), khóa account theo thứ tự `id` ([ADR-0004](docs/adr/0004-khoa-bi-quan-co-thu-tu.md), tuần 4). Chưa có nạp/rút qua ngân hàng. Ví dụ `curl` cho mọi endpoint ở [nhật ký tuần 3](docs/journal/2026-W43.md#gọi-thử-bằng-curl). Xem [lộ trình 12 tuần](docs/03-lo-trinh.md).
 
 Ledgerly là backend ví điện tử (mở ví, chuyển tiền, nạp/rút qua ngân hàng giả lập), xây dựng quanh bốn đảm bảo:
 
@@ -69,7 +69,15 @@ docker compose up -d
 
 # Hoặc chạy một app với Testcontainers, không cần compose
 ./gradlew :ledger-app:bootTestRun
+
+# 4. Xem metric và trace: thêm Grafana ở http://localhost:3000 (dashboard Ledgerly là trang chủ),
+#    rồi chạy ứng dụng với profile observability. Không có profile thì ứng dụng không gửi gì đi.
+docker compose --profile observability up -d
+SPRING_PROFILES_ACTIVE=observability ./gradlew :ledger-app:bootRun
+SPRING_PROFILES_ACTIVE=observability ./gradlew :notification-consumer:bootRun
 ```
+
+Số đo hiệu năng và cách chạy lại bài đo: [docs/benchmarks.md](docs/benchmarks.md).
 
 ## Retry an toàn như thế nào
 

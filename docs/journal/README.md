@@ -74,3 +74,10 @@ Dự kiến X giờ, thực tế Y giờ. Lệch vì ...
 |---|---|---|
 | [2026-W46.md](2026-W46.md) | Nhật ký tuần 6, có lần chạy tay dừng Kafka và `kill -9` relay | Xong |
 | [tuan-06-cau-hoi.md](tuan-06-cau-hoi.md) | Đáp án tham khảo 5 câu hỏi tuần 6 | Chờ tác giả luyện |
+
+## Tuần 7
+
+| File | Nội dung | Trạng thái |
+|---|---|---|
+| [2026-W47.md](2026-W47.md) | Nhật ký tuần 7, có bảng baseline, bảy đột biến và lần đo hỏng | Xong |
+| [tuan-07-cau-hoi.md](tuan-07-cau-hoi.md) | Đáp án tham khảo 4 câu hỏi tuần 7 | Chờ tác giả luyện |

@@ -563,19 +563,24 @@ Quy tắc tiến hóa schema:
 
 ## 10. Quan sát hệ thống (Observability)
 
-Dùng `spring-boot-starter-opentelemetry` (Micrometer → OTLP) gửi tới container `grafana/otel-lgtm`. Chi tiết quyết định trong ADR-0007, tuần 7.
+Ba ứng dụng dùng `spring-boot-starter-opentelemetry` (Micrometer → OTLP). Mặc định **không xuất gì**. Chạy với `SPRING_PROFILES_ACTIVE=observability` thì metric (10 giây một lần) và trace được gửi tới container `grafana/otel-lgtm` (`docker compose --profile observability up -d`, Grafana ở `:3000`, dashboard nạp từ `infra/grafana/dashboards/ledgerly.json`). Quyết định và bằng chứng ở [ADR-0007](adr/0007-opentelemetry-qua-boot-starter-va-grafana-lgtm.md).
 
 | Loại | Tên | Ý nghĩa |
 |---|---|---|
-| Counter | `ledgerly.transfers{outcome}` | Số giao dịch theo kết quả: `completed`, `insufficient_funds`, ... |
+| Counter | `ledgerly.transfers{outcome}` | Số lần chuyển tiền theo kết quả: `completed`, `insufficient_funds`, `wallet_not_found`, `same_wallet`, `currency_mismatch`. Chỉ tăng **sau khi transaction commit**, nên một lần chuyển bị rollback không được đếm. Request lặp `Idempotency-Key` không được đếm lại |
 | Counter | `ledgerly.idempotency.replays` | Số request được trả lại từ cache idempotency |
 | Gauge | `ledgerly.outbox.pending` | Số sự kiện chưa phát |
 | Gauge | `ledgerly.outbox.oldest.age` | Tuổi của sự kiện cũ nhất chưa phát (độ trễ relay) |
-| Timer | `ledgerly.posting.lock.wait` | Thời gian chờ khóa account |
+| Timer | `ledgerly.posting.lock.wait` | Thời gian chờ khóa account, có histogram |
+| Timer | `jdbc.query` | Thời gian của từng câu SQL (thư viện `datasource-micrometer`), có histogram |
 | Counter | `notification.duplicates` | Số bản trùng consumer đã loại bỏ |
 | Có sẵn | `hikaricp.connections.pending`, `http.server.requests`, `kafka.consumer.*` | Từ Micrometer |
 
-Trace đi xuyên suốt từ HTTP → JDBC → outbox → Kafka header `traceparent` → consumer. Log JSON có `traceId`.
+Trên Prometheus của LGTM, tên metric có dạng khác: dấu chấm thành gạch dưới, counter thêm `_total`, timer thêm đơn vị (`ledgerly_transfers_total`, `http_server_requests_milliseconds_bucket`). Nhãn phân biệt ứng dụng là `service_name`.
+
+**Trace** của một lần chuyển tiền đi từ HTTP → từng câu SQL → relay → Kafka → consumer. Relay chạy sau khi request đã trả lời, trên luồng khác, nên không có gì tự nối hai việc đó: `OutboxService` lưu `traceparent` của request vào cột `headers` của dòng outbox, `KafkaEventPublisher` khôi phục nó và mở span `outbox publish` quanh lần gửi. Record trên Kafka mang header `traceparent`, consumer nối tiếp. Span của SQL chỉ có câu lệnh, **không** có giá trị tham số. Tỉ lệ lấy mẫu là 10%, profile `observability` nâng lên 100%.
+
+**Log** là log dòng trên console, có `traceId` và `spanId`. Log chưa được gửi lên Loki (lý do ở ADR-0007).
 
 ## 11. Triển khai
 
