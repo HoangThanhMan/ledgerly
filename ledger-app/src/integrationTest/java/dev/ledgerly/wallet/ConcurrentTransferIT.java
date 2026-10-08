@@ -23,6 +23,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.test.context.TestPropertySource;
 
 /**
  * Random transfers between a few wallets from many threads at once. Money must neither appear nor vanish: every
@@ -30,8 +31,17 @@ import org.springframework.jdbc.core.simple.JdbcClient;
  *
  * <p>The number of transfers and the random seed can be set with the system properties
  * {@code ledgerly.test.concurrentTransfers} and {@code ledgerly.test.seed}. The seed is logged to replay a failure.
+ *
+ * <p>200 threads share a pool of 10 connections, and the pool does not serve them in the order they arrived. On a
+ * machine with few cores some threads wait for most of the test, and the pool's default limit of 30 seconds turns
+ * that wait into an exception that says nothing about the ledger. So a thread may wait here for as long as the
+ * whole test may take. How long a request should wait for a connection is a question for the application's
+ * configuration, not for this test.
  */
+@TestPropertySource(properties = "spring.datasource.hikari.connection-timeout=" + ConcurrentTransferIT.TIMEOUT_MILLIS)
 class ConcurrentTransferIT extends AbstractIntegrationTest {
+
+    static final long TIMEOUT_MILLIS = 300_000;
 
     private static final Logger log = LoggerFactory.getLogger(ConcurrentTransferIT.class);
 
@@ -65,7 +75,7 @@ class ConcurrentTransferIT extends AbstractIntegrationTest {
             int transfers = TRANSFERS / THREADS;
             tasks.add(() -> randomTransfers(wallets, random, transfers));
         }
-        Outcome outcome = ConcurrentTransfers.runTogether(tasks, 300);
+        Outcome outcome = ConcurrentTransfers.runTogether(tasks, TIMEOUT_MILLIS / 1000);
 
         assertThat(outcome.failures())
                 .as("transfers that ended in an exception")

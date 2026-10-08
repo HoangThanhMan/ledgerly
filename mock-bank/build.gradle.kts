@@ -6,6 +6,7 @@ description = "Simulated bank: collections, payouts, webhooks, statements, confi
 
 dependencies {
     implementation(libs.spring.boot.starter.actuator)
+    implementation(libs.spring.boot.starter.opentelemetry)
     implementation(libs.spring.boot.starter.flyway)
     implementation(libs.spring.boot.starter.jdbc)
     implementation(libs.spring.boot.starter.validation)

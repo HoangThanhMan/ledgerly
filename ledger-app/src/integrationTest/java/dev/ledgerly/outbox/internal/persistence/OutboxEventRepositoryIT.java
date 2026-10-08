@@ -44,7 +44,14 @@ class OutboxEventRepositoryIT extends AbstractIntegrationTest {
     void insertedEventIsUnpublishedAndReadBackAsWritten() {
         UUID aggregate = UUID.randomUUID();
 
-        UUID id = events.insert(TOPIC, "Order", aggregate, "OrderPlaced", 2, "{\"total\":\"15\"}");
+        UUID id = events.insert(
+                TOPIC,
+                "Order",
+                aggregate,
+                "OrderPlaced",
+                2,
+                "{\"total\":\"15\"}",
+                "{\"traceparent\":\"00-abc-def-01\"}");
 
         assertThat(inTransaction(() -> events.lockNextBatch(10)))
                 .singleElement()
@@ -56,6 +63,7 @@ class OutboxEventRepositoryIT extends AbstractIntegrationTest {
                     assertThat(row.eventType()).isEqualTo("OrderPlaced");
                     assertThat(row.eventVersion()).isEqualTo(2);
                     assertThat(row.payload()).isEqualToIgnoringWhitespace("{\"total\":\"15\"}");
+                    assertThat(row.headers()).isEqualToIgnoringWhitespace("{\"traceparent\":\"00-abc-def-01\"}");
                     assertThat(row.createdAt()).isNotNull();
                 });
         assertThat(attemptsOf(id)).isZero();
@@ -178,7 +186,7 @@ class OutboxEventRepositoryIT extends AbstractIntegrationTest {
     }
 
     private UUID insert() {
-        return events.insert(TOPIC, "Order", UUID.randomUUID(), "OrderPlaced", 1, "{}");
+        return events.insert(TOPIC, "Order", UUID.randomUUID(), "OrderPlaced", 1, "{}", "{}");
     }
 
     private <T> T inTransaction(java.util.function.Supplier<T> work) {

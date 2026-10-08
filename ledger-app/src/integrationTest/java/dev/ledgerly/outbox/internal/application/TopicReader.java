@@ -56,6 +56,23 @@ final class TopicReader implements AutoCloseable {
         return records;
     }
 
+    /**
+     * The first record whose value contains the given JSON string field with the given value, for callers that do
+     * not know the record key in advance.
+     */
+    ConsumerRecord<String, String> readFirstWithPayloadField(String field, String value, Duration timeout) {
+        String needle = "\"" + field + "\":\"" + value + "\"";
+        long deadline = System.nanoTime() + timeout.toNanos();
+        while (System.nanoTime() < deadline) {
+            for (ConsumerRecord<String, String> record : consumer.poll(POLL)) {
+                if (record.value().contains(needle)) {
+                    return record;
+                }
+            }
+        }
+        throw new AssertionError("no record with " + needle + " within " + timeout);
+    }
+
     @Override
     public void close() {
         consumer.close();

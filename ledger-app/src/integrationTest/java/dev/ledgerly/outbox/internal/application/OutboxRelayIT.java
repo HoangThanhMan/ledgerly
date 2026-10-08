@@ -14,6 +14,8 @@ import dev.ledgerly.wallet.internal.application.TransferResult;
 import dev.ledgerly.wallet.internal.application.TransferService;
 import dev.ledgerly.wallet.internal.application.WalletService;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.tracing.Tracer;
+import io.micrometer.tracing.propagation.Propagator;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
@@ -204,7 +206,7 @@ class OutboxRelayIT extends AbstractIntegrationTest {
     @Test
     void oneRoundPublishesAtMostOneBatch() {
         for (int i = 0; i < 250; i++) {
-            events.insert("test.batches", "Order", UUID.randomUUID(), "OrderPlaced", 1, "{}");
+            events.insert("test.batches", "Order", UUID.randomUUID(), "OrderPlaced", 1, "{}", "{}");
         }
 
         assertThat(relay.relayBatch()).isEqualTo(100);
@@ -259,7 +261,7 @@ class OutboxRelayIT extends AbstractIntegrationTest {
         KafkaTemplate<String, String> template = new KafkaTemplate<>(new DefaultKafkaProducerFactory<>(producer));
         return new OutboxRelay(
                 events,
-                new KafkaEventPublisher(template, json, Duration.ofMillis(500)),
+                new KafkaEventPublisher(template, json, Tracer.NOOP, Propagator.NOOP, Duration.ofMillis(500)),
                 transaction,
                 new StaticListableBeanFactory().getBeanProvider(OutboxFaults.class),
                 100);
