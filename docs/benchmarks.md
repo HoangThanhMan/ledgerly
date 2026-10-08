@@ -147,6 +147,7 @@ Một đợt đứng trông như sau: trong 0,5 đến 6 giây gần như không
 | Tiến trình khác chiếm hai nhân của ứng dụng | Ở mức 600 của bài tăng tải, CPU được lấy mẫu từng giây. Trong hai đợt đứng, hai nhân bận kín **bởi chính ứng dụng** (nó dùng trọn cả hai, bình thường 0,73 nhân), các tiến trình khác lấy nhiều nhất 0,66 nhân trong một giây | Loại, cho hai đợt được lấy mẫu |
 | Hai nhân là quá ít lúc dồn việc | Chạy lại mức 600 với 4 nhân (`2026-10-08-ramp-0600-4cpu`): một đợt đứng dài 12 giây, tệ nhất trong ngày. Trong đợt đó ứng dụng dùng 2,5 tới trọn 4 nhân (trước đó khoảng 0,8), và heap còn sống sau mỗi lần GC tăng từ 88 lên 176 MB trong 9 giây | Loại. Thêm nhân không hết đứng. (Lần chạy này có database lớn gấp đôi mức 600 gốc) |
 | HikariCP quay vòng khi pool cạn và người chờ là luồng ảo | Profile JFR lúc quá tải: HikariCP chiếm 1,2% mẫu | Không thấy. Nhưng profile đó chụp lúc quá tải đều, chưa có profile nào chụp đúng một đợt đứng |
+| Pool không phục vụ người chờ theo thứ tự đến | Tìm thấy khi CI đỏ, không phải trong bài k6. `ConcurrentTransferIT` (200 luồng, pool 10) trên CI: 17 luồng chờ một connection **hơn 30 giây** trong một test dài 37 giây, rồi lỗi `Connection is not available`. Tái hiện được trên máy dev: ép test vào 2 nhân và đặt hạn chờ 3 giây thì hơn 180 luồng xếp hàng và nhiều luồng hết hạn, còn với 16 nhân thì không luồng nào chờ tới 3 giây | **Có thật, và nặng hơn khi ít nhân.** Chưa chứng minh nó là cơ chế của đợt đứng trong bài k6, nhưng `ledger-app` trong bài đo chạy đúng trên 2 nhân với pool 10. Đây là đầu mối tốt nhất hiện có |
 
 Tóm lại những gì đo được: một đợt đứng mở đầu bằng một lần dừng ngắn (0,1 đến 0,4 giây), rồi ứng dụng **dùng CPU gấp khoảng ba đến năm lần bình thường mà request không xong**, giữ ngày càng nhiều object, trong 2 đến 12 giây, rồi tự hồi. Nó không bị tiến trình khác chèn, không thiếu RAM, và thêm nhân không giúp. **Chưa biết nó dùng CPU vào việc gì.**
 
@@ -154,7 +155,8 @@ Việc cần làm tiếp, chưa làm trong tuần này (issue [#105](https://git
 
 - Bật JFR liên tục (`-XX:StartFlightRecording`) cho mọi lượt, để đợt đứng kế tiếp có sẵn profile.
 - Cố định heap (`-Xms` bằng `-Xmx`), để loại việc nới heap khỏi danh sách nghi vấn.
-- Thử pool lớn hơn 10 và một giới hạn số request đồng thời. Việc này trùng với tuần 10 (ADR-0009).
+- Thử pool lớn hơn 10 và một giới hạn số request đồng thời, để request không bao giờ phải xếp hàng ở pool. Việc này trùng với tuần 10 (ADR-0009).
+- Hạn chờ connection mặc định của HikariCP là 30 giây. Khi quá tải, một request có thể chờ ngần ấy rồi nhận lỗi 500. Cũng thuộc tuần 10.
 
 Tới lúc đó, câu trả lời trung thực là: **p99 khoảng 17 ms, kèm một rủi ro đứng vài giây chưa giải thích được.**
 
@@ -225,7 +227,7 @@ Nhưng lượt này khác lượt gốc ở ba điểm nữa: ứng dụng vừa
 
 ## 6. Chi phí của việc xuất metric và trace
 
-Có ba dữ kiện, chưa cái nào đủ để thành một con số.
+Có bốn dữ kiện. Chỉ cái cuối là một phép so sánh đúng cách, và nó không phải của bài k6.
 
 **1. Tắt xuất, một lượt.** Ngay sau lượt 5 của baseline, hai ứng dụng được khởi động lại không có profile `observability` và chạy một lượt 300 request mỗi giây (`perf/results/2026-10-08-no-export/`).
 
@@ -245,7 +247,16 @@ CPU không phân biệt được. p99 thấp hơn khoảng 4 ms, nhiều hơn m�
 
 **3. Tắt observation của SQL.** Không kết luận được ([mục 5.2](#52-một-phép-thử-không-kết-luận-được)).
 
-Điều nói được: việc **gửi** metric và trace đi ở mức lấy mẫu 10% rẻ tới mức bài đo này không nhìn thấy. Phần đắt là việc đo trong tiến trình, trước hết là 12 observation SQL cho mỗi lần chuyển tiền. Đắt bao nhiêu thì chưa đo được: cần một phép so sánh đúng cách (cùng database, cùng độ nóng của JVM, ba lượt mỗi bên) cho `jdbc.includes` và cho histogram.
+**4. Một phép so sánh có kiểm soát, bằng test.** `ConcurrentTransferIT` thực hiện 10.000 lần chuyển từ 200 luồng, gọi thẳng service. Chạy nó trên 2 nhân (`taskset -c 0,1`), xen kẽ bật và tắt `jdbc.datasource-proxy.enabled`, mỗi lần một JVM và một database mới:
+
+| Observation của SQL | Thời gian của test (giây) |
+|---|--:|
+| Bật | 35,8 · 35,5 · 35,3 |
+| Tắt | 29,6 · 29,9 |
+
+Bật thì test chậm hơn khoảng **19%**. Đây là con số duy nhất trong mục này đến từ việc đổi đúng một biến, có lặp lại. Giới hạn của nó: test gọi thẳng service, không qua HTTP và không qua hai transaction của idempotency, nên không suy thẳng ra được trần 1.560 sẽ tăng bao nhiêu.
+
+Điều nói được: việc **gửi** metric và trace đi ở mức lấy mẫu 10% rẻ tới mức bài đo này không nhìn thấy. Phần đắt là việc đo trong tiến trình, trước hết là observation cho từng câu SQL: khoảng một phần năm thời gian của một tải toàn chuyển tiền trên 2 nhân. Trên đường API thì chưa có con số: cần lặp lại phép so sánh ở mục 5.2 cho đúng cách (cùng database, cùng độ nóng của JVM, ba lượt mỗi bên).
 
 ## Lần đo hỏng và nguyên nhân
 

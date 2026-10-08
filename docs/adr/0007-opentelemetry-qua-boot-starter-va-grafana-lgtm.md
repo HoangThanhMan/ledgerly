@@ -71,13 +71,14 @@ Java agent bị loại vì nó nằm ngoài build và không test được cùng
 - **Tích cực:** một lần chuyển tiền là một trace xuyên HTTP, SQL, relay, Kafka và consumer (B1). Điều đó có test tự động, không cần Grafana (B2). Metric nghiệp vụ, metric của Spring và trace đi chung một đường. Không có collector thì ứng dụng vẫn chạy bình thường.
 - **Tiêu cực / đánh đổi:**
   - **Log chưa lên Loki.** Boot 4.1 có sẵn exporter OTLP cho log nhưng không có cầu nối từ Logback, phải thêm thư viện ngoài. Log trên console đã có `traceId` và `spanId`, nên tìm theo trace vẫn làm được bằng tay.
-  - **Chi phí của việc đo không nhỏ:** gần 40% CPU phần Java của ứng dụng lúc quá tải (B4), mà CPU của ứng dụng lại là thứ chạm trần trước ([benchmarks §5](../benchmarks.md#5-tăng-tải-thứ-gì-gãy-trước)). Một lần chuyển tiền mở 12 observation SQL. Nếu cần CPU, `jdbc.includes` và histogram của `jdbc.query` là hai chỗ vặn đầu tiên. Quyết định này chấp nhận chi phí đó để đổi lấy việc nhìn thấy từng câu SQL, và chưa đo được tắt đi thì lợi bao nhiêu.
+  - **Chi phí của việc đo không nhỏ:** gần 40% CPU phần Java của ứng dụng lúc quá tải (B4), mà CPU của ứng dụng lại là thứ chạm trần trước ([benchmarks §5](../benchmarks.md#5-tăng-tải-thứ-gì-gãy-trước)). Một lần chuyển tiền mở 12 observation SQL. Nếu cần CPU, `jdbc.includes` và histogram của `jdbc.query` là hai chỗ vặn đầu tiên. Quyết định này chấp nhận chi phí đó (khoảng 19% trong phép đo có kiểm soát ở B4) để đổi lấy việc nhìn thấy từng câu SQL.
+  - **Chi phí đó làm lộ một test vốn sát ngưỡng.** `ConcurrentTransferIT` chậm đi một phần năm và bắt đầu đỏ trên CI: 200 luồng chờ 10 connection, một số luồng chờ quá 30 giây. Test được sửa để không phụ thuộc vào hạn chờ của pool. Chuyện pool không phục vụ theo thứ tự thì còn nguyên ([benchmarks §4.4](../benchmarks.md#44-các-đợt-đứng-biết-gì-và-chưa-biết-gì)).
   - **Thêm một thư viện ngoài BOM** (`datasource-micrometer`), phải tự theo dõi phiên bản khi nâng Boot.
   - **Trace của một lần chuyển kéo dài tới khi consumer xử lý xong**, tức gồm cả độ trễ của relay. Khi Kafka sập, span `outbox publish` chỉ xuất hiện sau khi Kafka trở lại.
   - **Phân vị trên dashboard tính từ bucket** phía server. Số để báo cáo là số của bộ sinh tải, vì nó gồm cả mạng và thời gian request chờ được nhận.
 - **`mock-bank` có starter nhưng chưa có gì để đo**: nó chưa có nghiệp vụ tới tuần 9.
 - **Image LGTM là `0.35.0`, ghim trong compose.** Tên metric trên Prometheus do collector của image này đặt (ví dụ `http_server_requests_milliseconds_bucket`). Nâng image có thể đổi tên và làm dashboard trống.
-- **Cần theo dõi:** dung lượng RAM của container LGTM khi lấy mẫu 100%, số span mỗi request (hiện 18) khi thêm tính năng, và phép so sánh còn nợ: bật so với tắt observation SQL, đo đúng cách.
+- **Cần theo dõi:** dung lượng RAM của container LGTM khi lấy mẫu 100%, số span mỗi request (hiện 18) khi thêm tính năng, và phép so sánh còn nợ: bật so với tắt observation SQL trên đường API, đo đúng cách.
 
 ## Bằng chứng
 
@@ -103,8 +104,9 @@ Một lần chuyển tiền qua API là **12 câu SQL**. Con số này lần đ�
 
 - **Tắt xuất OTLP, một lượt ở 300 request mỗi giây:** CPU của `ledger-app` là 0,32 nhân, so với 0,32 đến 0,36 nhân khi bật. Không phân biệt được. p99 là 12,90 ms so với 17,01 đến 17,38 ms: có dấu hiệu, nhưng chỉ một lượt.
 - **Profile JFR lúc quá tải:** 38,9% mẫu CPU phần Java nằm trong code đo đạc. Khoản lớn nhất là observation cho từng câu SQL (13,6%), rồi tracing (10,8%) và Observation API (9,4%). Code của Ledgerly chiếm 1,8%.
-- **Tắt observation của SQL:** phép thử không kết luận được, vì lượt so sánh khác lượt gốc ở bốn điểm.
+- **Tắt observation của SQL trong bài k6:** phép thử không kết luận được, vì lượt so sánh khác lượt gốc ở bốn điểm.
+- **Tắt observation của SQL trong một test có kiểm soát:** `ConcurrentTransferIT` (10.000 lần chuyển, gọi thẳng service) trên 2 nhân, xen kẽ bật và tắt: 35,8, 35,5 và 35,3 giây khi bật, 29,6 và 29,9 giây khi tắt. Bật thì chậm hơn khoảng 19%.
 
-Tức là **gửi đi thì rẻ, đo trong tiến trình thì không**. Chưa có con số cho việc tắt bớt.
+Tức là **gửi đi thì rẻ, đo trong tiến trình thì không**: observation cho từng câu SQL tốn khoảng một phần năm thời gian của một tải toàn chuyển tiền.
 
 **B5. Tài liệu.** Spring Boot 4.1.1, *Observability* (tên thuộc tính cấu hình, và việc Boot không bắc cầu log sang OTLP). README của `grafana/docker-otel-lgtm` (đường dẫn provisioning cho dashboard).

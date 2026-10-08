@@ -87,6 +87,7 @@ Tăng `rate` theo bậc 100 → 200 → … cho tới khi p99 vượt SLO hoặc
 - **Mục "Tìm điểm gãy" đã làm:** trần khoảng 1.560 lần chuyển mỗi giây với 2 nhân, CPU của ứng dụng hết trước, gần 40% CPU đó là đo đạc ([benchmarks §5](../benchmarks.md#5-tăng-tải-thứ-gì-gãy-trước)).
 - **Rủi ro "máy local yếu" đã thành sự thật**, nặng hơn dự tính: lần đo đầu hỏng vì chính bài đo, và ngay cả lô chính thức cũng có những đợt server đứng 2 đến 12 giây chưa giải thích được. Việc theo tiếp ở issue [#105](https://github.com/HoangThanhMan/ledgerly/issues/105).
 - **Giới hạn CPU bằng `taskset`, không bằng `cpus: 2` của compose**, vì ứng dụng chưa chạy trong container (tuần 8).
+- **`ConcurrentTransferIT` được sửa trong tuần này** dù là test của tuần 4: nó đỏ trên CI vì luồng chờ connection quá 30 giây, và observation của SQL (thêm ở tuần này) đẩy nó qua ngưỡng. Chi tiết ở [nhật ký](../journal/2026-W47.md#học-được).
 
 ## Rủi ro và phương án
 

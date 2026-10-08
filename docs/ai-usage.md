@@ -31,6 +31,8 @@ Mỗi mục ghi: hỏi AI gì, AI gợi ý gì, mình quyết định gì (chấ
   - **Ghi đè một file kết quả** của lần đo đầu, vì lệnh đổi tên thư mục lỗi mà không được kiểm tra.
   - **Counter đếm trước khi commit.** AI tìm ra khi đọc lại diff trong lúc chờ benchmark. Sửa, thêm test, rồi đo lại baseline trên code đã sửa.
   - **Script chạy benchmark lỗi ngay lần chạy thật đầu tiên** (đường dẫn tương đối cho volume của Docker), vì trước đó nó mới được kiểm tra cú pháp.
+  - **Một phép so sánh đổi bốn thứ cùng lúc** (tắt observation của SQL trong bài k6), cho kết quả ngược và vô dụng. Sau đó AI đo lại câu hỏi ấy bằng một test có sẵn, đổi một biến.
+  - **CI đỏ ở 2 trên 5 PR.** Không phải lỗi mới: observation của SQL làm `ConcurrentTransferIT` chậm đi một phần năm và vượt hạn chờ 30 giây của pool connection. Cùng lỗi đó đã làm đỏ PR #77 ngày 05/10 mà AI ghi là "chưa rõ nguyên nhân" suốt hai tuần, vì không tải báo cáo test của CI về đọc. Lần này có đọc, tái hiện được, sửa test.
 - Kiểm chứng: PR #106 đến #110. 237 test, hai lượt build sạch đều xanh, bảy đột biến đều bị test bắt. Baseline 300 request mỗi giây: p99 17,14 ms (trung vị ba lượt). Cả ngày 18 lượt đo, 2,27 triệu request, không request nào lỗi, hai script bất biến trả 0 dòng sau mọi lượt. **Còn mở:** những đợt server đứng 2 đến 12 giây chưa tìm ra nguyên nhân (issue #105), và chi phí của observation chưa có con số. Mình chưa đọc ADR-0007 và chưa tự chạy lại bài đo.
 
 ### 2026-10-07: Nghiên cứu và lập kế hoạch hướng AI Engineer

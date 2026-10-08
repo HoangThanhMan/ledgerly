@@ -70,7 +70,7 @@ Câu này có hai nửa, và nửa sau quan trọng hơn. Trả lời bằng **p
 
 **Những gì chưa biết, nói luôn:**
 
-- Tắt bớt đo đạc thì trần tăng bao nhiêu: chưa đo được. Phép thử duy nhất đổi bốn thứ cùng lúc nên vô dụng.
-- Có những đợt cả server đứng 2 đến 12 giây ngay ở tải thấp. Đã loại năm giả thuyết bằng phép đo (bộ nhớ, checkpoint, dữ liệu lớn, tiến trình khác chèn nhân, thiếu nhân). Nguyên nhân thật thì chưa có. Bước tiếp là để JFR chạy liên tục cho tới khi bắt được một đợt.
+- Tắt bớt đo đạc thì trần tăng bao nhiêu: chưa đo được trên đường API. Phép thử bằng k6 đổi bốn thứ cùng lúc nên vô dụng. Có một con số đo đúng cách ở chỗ khác: một test 10.000 lần chuyển trên 2 nhân chạy 35,5 giây khi bật observation của SQL và 29,7 giây khi tắt, tức chậm hơn khoảng 19%.
+- Có những đợt cả server đứng 2 đến 12 giây ngay ở tải thấp. Đã loại năm giả thuyết bằng phép đo (bộ nhớ, checkpoint, dữ liệu lớn, tiến trình khác chèn nhân, thiếu nhân). Nguyên nhân thật thì chưa có. Đầu mối tốt nhất đến từ một test đỏ trên CI: pool connection không phục vụ người chờ theo thứ tự, và trên máy ít nhân có luồng chờ hơn 30 giây. Bước tiếp là để JFR chạy liên tục cho tới khi bắt được một đợt.
 
 **Công thức chung khi được hỏi câu này:** (1) ép tới khi có thứ gì đó chạm trần, (2) xem tài nguyên nào bão hòa **trước**, phân biệt nguyên nhân với hệ quả, (3) profile để biết bên trong tài nguyên đó, (4) đổi **một** thứ rồi đo lại. Dự án làm được ba bước đầu. Bước bốn còn nợ.
