@@ -18,4 +18,7 @@ public sealed interface PostingResult {
     record CurrencyMismatch(UUID accountId, Currency accountCurrency, Currency postingCurrency) implements Rejected {}
 
     record InsufficientFunds(UUID accountId, Money available, Money requested) implements Rejected {}
+
+    /** The posting would take the balance of this account past what the ledger can hold in a 64-bit integer. */
+    record BalanceLimitExceeded(UUID accountId) implements Rejected {}
 }

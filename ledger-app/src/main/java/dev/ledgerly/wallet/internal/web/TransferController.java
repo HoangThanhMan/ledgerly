@@ -3,6 +3,7 @@ package dev.ledgerly.wallet.internal.web;
 import dev.ledgerly.shared.problem.ProblemException;
 import dev.ledgerly.shared.problem.ProblemResponses;
 import dev.ledgerly.shared.problem.ProblemType;
+import dev.ledgerly.wallet.internal.application.TransferResult.BalanceLimitExceeded;
 import dev.ledgerly.wallet.internal.application.TransferResult.Completed;
 import dev.ledgerly.wallet.internal.application.TransferResult.CurrencyMismatch;
 import dev.ledgerly.wallet.internal.application.TransferResult.InsufficientFunds;
@@ -84,6 +85,7 @@ class TransferController {
         ProblemType.INSUFFICIENT_FUNDS,
         ProblemType.SAME_ACCOUNT_TRANSFER,
         ProblemType.CURRENCY_MISMATCH,
+        ProblemType.BALANCE_LIMIT_EXCEEDED,
         ProblemType.OVERLOADED
     })
     @PostMapping
@@ -110,6 +112,8 @@ class TransferController {
             case SameWallet same ->
                 new Reply.Rejected(new ProblemException(
                         ProblemType.SAME_ACCOUNT_TRANSFER, "Source and target are both wallet " + same.walletId()));
+            case BalanceLimitExceeded exceeded ->
+                new Reply.Rejected(WalletProblems.balanceLimitExceeded(exceeded.walletId()));
             case CurrencyMismatch mismatch ->
                 new Reply.Rejected(WalletProblems.currencyMismatch(
                         mismatch.walletId(), mismatch.walletCurrency(), mismatch.requestedCurrency()));

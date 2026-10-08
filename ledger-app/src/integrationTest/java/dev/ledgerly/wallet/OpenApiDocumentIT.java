@@ -184,7 +184,11 @@ class OpenApiDocumentIT extends AbstractIntegrationTest {
         assertThat(problemsOf(document, responses, "409")).containsExactly("idempotency-in-progress");
         assertThat(problemsOf(document, responses, "422"))
                 .containsExactlyInAnyOrder(
-                        "insufficient-funds", "same-account-transfer", "currency-mismatch", "idempotency-key-reused");
+                        "insufficient-funds",
+                        "same-account-transfer",
+                        "currency-mismatch",
+                        "balance-limit-exceeded",
+                        "idempotency-key-reused");
         assertThat(problemsOf(document, responses, "503")).containsExactly("overloaded");
         assertThat(document.<String>read(responses + "['422'].content['application/problem+json'].schema['$ref']"))
                 .isEqualTo("#/components/schemas/Problem");

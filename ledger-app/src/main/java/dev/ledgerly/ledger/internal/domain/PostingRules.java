@@ -2,6 +2,7 @@ package dev.ledgerly.ledger.internal.domain;
 
 import dev.ledgerly.ledger.Posting;
 import dev.ledgerly.ledger.PostingResult.AccountNotFound;
+import dev.ledgerly.ledger.PostingResult.BalanceLimitExceeded;
 import dev.ledgerly.ledger.PostingResult.CurrencyMismatch;
 import dev.ledgerly.ledger.PostingResult.InsufficientFunds;
 import dev.ledgerly.shared.Money;
@@ -19,7 +20,8 @@ import java.util.stream.Collectors;
  *
  * <p>Malformed postings (fewer than two, a zero amount, the same account twice, or not summing to zero) are
  * programming errors and throw {@link IllegalArgumentException}. Conditions a client can cause (unknown account,
- * wrong currency, not enough money) are returned as {@link PostingDecision.Rejected}.
+ * wrong currency, not enough money, a balance past what a {@code long} can hold) are returned as
+ * {@link PostingDecision.Rejected}.
  */
 public final class PostingRules {
 
@@ -40,7 +42,12 @@ public final class PostingRules {
                 return new PostingDecision.Rejected(new CurrencyMismatch(
                         account.id(), balance.currency(), posting.amount().currency()));
             }
-            Money balanceAfter = balance.plus(posting.amount());
+            Money balanceAfter;
+            try {
+                balanceAfter = balance.plus(posting.amount());
+            } catch (ArithmeticException overflow) {
+                return new PostingDecision.Rejected(new BalanceLimitExceeded(account.id()));
+            }
             if (balanceAfter.isNegative() && !account.allowNegative()) {
                 return new PostingDecision.Rejected(new InsufficientFunds(
                         account.id(), balance, posting.amount().negate()));
