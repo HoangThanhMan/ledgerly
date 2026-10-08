@@ -1,20 +1,12 @@
 name: Task
-description: Một việc trong kế hoạch tuần (mã Wxx-yy)
-title: "Wxx-yy: "
+description: Một việc cần làm
+title: ""
 body:
-  - type: input
-    id: id
-    attributes:
-      label: ID
-      description: Mã task trong file tuần, ví dụ W04-03
-      placeholder: W04-03
-    validations:
-      required: true
   - type: textarea
     id: description
     attributes:
       label: Mô tả
-      description: Làm gì và vì sao. Chép từ file tuần nếu có.
+      description: Làm gì và vì sao.
     validations:
       required: true
   - type: input
@@ -28,19 +20,12 @@ body:
     attributes:
       label: Ước lượng (giờ)
       placeholder: "2"
-  - type: input
-    id: plan
-    attributes:
-      label: Kế hoạch tuần
-      placeholder: https://github.com/HoangThanhMan/ledgerly/blob/main/docs/weeks/tuan-04.md
   - type: checkboxes
     id: dod
     attributes:
       label: Definition of Done
-      description: Theo docs/05-quy-uoc-lam-viec.md §4
       options:
         - label: Code + test, CI xanh
         - label: Không còn `TODO` nào chưa gắn issue
-        - label: Tài liệu liên quan đã cập nhật (README / ADR / OpenAPI)
-        - label: Giải thích được **từng dòng** (đặc biệt là code có AI hỗ trợ)
-        - label: Tick task trong file tuần
+        - label: README đã cập nhật nếu thay đổi ảnh hưởng tới nó
+        - label: Giải thích được **từng dòng**

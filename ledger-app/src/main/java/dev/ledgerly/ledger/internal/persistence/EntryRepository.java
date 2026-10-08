@@ -13,7 +13,7 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class EntryRepository {
 
-    // Entries carry no currency of their own: it belongs to the account (ADR-0003).
+    // Entries carry no currency of their own: it belongs to the account.
     private static final String SELECT_VIEW = "SELECT e.id, e.transaction_id, e.account_id, e.amount,"
             + " e.balance_after, e.created_at, a.currency"
             + " FROM entries e JOIN accounts a ON a.id = e.account_id";

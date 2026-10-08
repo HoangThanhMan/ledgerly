@@ -13,7 +13,7 @@
 # set it to add runs to a results directory without overwriting the ones it has).
 #
 # Start nothing else on the machine while this runs. A run records how long processes were stalled waiting
-# for memory, CPU and disk, so that a disturbed run can be recognised afterwards. Method: docs/benchmarks.md.
+# for memory, CPU and disk, so that a disturbed run can be recognised afterwards.
 set -u
 
 NAME=${1:?usage: perf/run-baseline.sh <results-name> [rate] [runs]}

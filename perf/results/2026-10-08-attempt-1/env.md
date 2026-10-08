@@ -1,6 +1,6 @@
 # 2026-10-08-attempt-1: lần đo bị nhiễu
 
-**Không dùng làm baseline.** Giữ lại để thấy một lần đo hỏng trông như thế nào. Phân tích: [docs/benchmarks.md](../../../docs/benchmarks.md#lần-đo-hỏng-và-nguyên-nhân).
+**Không dùng làm baseline.** Giữ lại để thấy một lần đo hỏng trông như thế nào.
 
 - Ngày chạy: 2026-10-08, 07:58 đến 08:17
 - Máy, Docker, JDK, cấu hình ứng dụng, kịch bản: như [baseline](../2026-10-08-baseline/env.md)

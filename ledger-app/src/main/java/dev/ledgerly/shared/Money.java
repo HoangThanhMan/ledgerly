@@ -4,7 +4,7 @@ import java.util.Currency;
 import java.util.regex.Pattern;
 
 /**
- * An amount in the minor unit of its currency (for VND, one dong), as described in ADR-0003.
+ * An amount in the minor unit of its currency (for VND, one dong).
  *
  * <p>Arithmetic never wraps around: overflow throws {@link ArithmeticException}. Mixing currencies is a programming
  * error and throws {@link IllegalArgumentException}.

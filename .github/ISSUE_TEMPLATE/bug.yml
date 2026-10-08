@@ -36,7 +36,7 @@ body:
     id: invariants
     attributes:
       label: Bất biến bị vi phạm
-      description: Xem docs/04-chien-luoc-kiem-thu.md §2
+      description: Các bất biến I1–I7 được liệt kê trong README, mục Testing
       multiple: true
       options:
         - Không

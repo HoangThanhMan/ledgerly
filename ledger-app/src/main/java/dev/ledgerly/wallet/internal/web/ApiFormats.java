@@ -13,7 +13,7 @@ final class ApiFormats {
     static final String IDEMPOTENCY_KEY_MESSAGE = "must be 1 to 64 visible ASCII characters";
 
     /**
-     * Amounts travel as strings of minor units, so JavaScript clients do not round them (ADR-0003). At most 18
+     * Amounts travel as strings of minor units, so JavaScript clients do not round them. At most 18
      * digits always fit in a {@code long}.
      */
     static final String AMOUNT_PATTERN = "[1-9][0-9]{0,17}";

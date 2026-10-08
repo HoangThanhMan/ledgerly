@@ -21,7 +21,7 @@ import java.util.Set;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Module boundaries of {@code ledger-app}, as described in docs/01-kien-truc.md §4. Each module is a top-level
+ * Module boundaries of {@code ledger-app}. Each module is a top-level
  * package under {@code dev.ledgerly}. Its public API lives at the package root, everything under {@code internal} is
  * private to it.
  */
@@ -83,7 +83,7 @@ class ArchitectureTest {
             .orShould()
             .beAnnotatedWith("jakarta.transaction.Transactional");
 
-    /** Money is a {@code long} in minor units (ADR-0003). Floating point cannot represent it exactly. */
+    /** Money is a {@code long} in minor units. Floating point cannot represent it exactly. */
     @ArchTest
     static final ArchRule domainHasNoFloatingPointFields = noFields()
             .that()

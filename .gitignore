@@ -44,3 +44,7 @@ Thumbs.db
 
 # jqwik: failed samples kept between runs
 .jqwik-database
+
+### Private notes ###
+# Design notes and plans are kept outside the repository.
+/docs/

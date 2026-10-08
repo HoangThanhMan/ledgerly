@@ -1,6 +1,6 @@
 # 2026-10-08-ramp-2000: bài tăng tải, mức 2.000 request mỗi giây
 
-Một bậc của bài thăm dò "thứ gì gãy trước". Không phải baseline. Bảng và cách đọc: [docs/benchmarks.md](../../../docs/benchmarks.md#5-tăng-tải-thứ-gì-gãy-trước).
+Một bậc của bài thăm dò "thứ gì gãy trước". Không phải baseline.
 
 - Ngày chạy: 2026-10-08, 09:35 đến 09:38
 - Máy, Docker, JDK, cấu hình ứng dụng: như [baseline](../2026-10-08-baseline/env.md), trừ những điểm ghi dưới đây
