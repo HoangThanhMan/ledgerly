@@ -22,9 +22,9 @@ The business scope is small on purpose. The project is about the places where a 
 - [API](#api)
 - [Testing](#testing)
 - [Performance](#performance)
+- [Design decisions](#design-decisions)
 - [Tech stack](#tech-stack)
 - [Repository layout](#repository-layout)
-- [Documentation](#documentation)
 - [Current limitations](#current-limitations)
 - [Contributing](#contributing)
 - [Author](#author)
@@ -43,7 +43,7 @@ The business scope is small on purpose. The project is about the places where a 
 | **Module boundaries eroding** over time | Each module has a public API and an `internal` package. ArchUnit checks the dependency matrix on every build | `ArchitectureTest` |
 | **Not knowing where the time goes** | OpenTelemetry: one transfer is one trace from HTTP through every SQL statement, the outbox and Kafka to the consumer | `TracePropagationIT`, `TraceContinuationIT`, a Grafana dashboard in the repository |
 
-The reasoning behind each choice, the alternatives that were rejected and the measurements are in the [ADRs](docs/adr/README.md).
+The reasoning behind the main choices, and the alternatives that were rejected, are under [Design decisions](#design-decisions).
 
 ## Architecture
 
@@ -67,7 +67,7 @@ flowchart LR
     consumer -. OTLP .-> lgtm
 ```
 
-`ledger-app` is a **modular monolith**: everything that touches money lives in one process and one database, so a transfer is a single local transaction and needs no distributed transaction. What should be separate is separated through Kafka: `notification-consumer` is its own process with its own database, and a slow or dead consumer does not affect transfers ([ADR-0001](docs/adr/0001-modular-monolith.md)).
+`ledger-app` is a **modular monolith**: everything that touches money lives in one process and one database, so a transfer is a single local transaction and needs no distributed transaction. What should be separate is separated through Kafka: `notification-consumer` is its own process with its own database, and a slow or dead consumer does not affect transfers.
 
 ### Modules inside `ledger-app`
 
@@ -124,9 +124,7 @@ The money rules do not live only in Java. If the code has a bug, PostgreSQL stil
 - `CHECK` constraints reject a negative balance on a user wallet and an entry with a zero amount.
 - Triggers reject `UPDATE`, `DELETE` and `TRUNCATE` on the entries table. The ledger is append-only, and a mistake is fixed with a reversing entry.
 - A `DEFERRABLE INITIALLY DEFERRED` constraint trigger checks at commit that the entries of every transaction sum to zero.
-- Money is a `BIGINT` in the minor unit of the currency, never a floating-point number ([ADR-0003](docs/adr/0003-bieu-dien-tien-te.md)).
-
-The full design, including the data model, the error codes and the planned extensions: [docs/01-kien-truc.md](docs/01-kien-truc.md).
+- Money is a `BIGINT` in the minor unit of the currency, never a floating-point number.
 
 ## Install
 
@@ -283,7 +281,7 @@ A client that loses its connection midway cannot tell whether the money moved. S
 | The first request failed technically (`503`, `500`) | Nothing was stored and no money moved | Resend with the same key |
 | Missing header or invalid body | `400 validation-error`, and the key is not used up | Fix the request |
 
-A key is kept for at least 24 hours. The two-phase design, why Redis is not used, and the limits are in [ADR-0005](docs/adr/0005-idempotency-key-hai-pha-trong-postgresql.md).
+A key is kept for at least 24 hours.
 
 ## Testing
 
@@ -309,8 +307,6 @@ A key is kept for at least 24 hours. The two-phase design, why Redis is not used
 | I6 | Every committed transfer has exactly one outbox event |
 | I7 | Each `eventId` has at most one effect in the consumer |
 
-Details: [docs/04-chien-luoc-kiem-thu.md](docs/04-chien-luoc-kiem-thu.md).
-
 ## Performance
 
 Measured with k6 and the `constant-arrival-rate` executor (open loop, so the moments when the server is slow are still measured), 1 minute of warm-up and 5 minutes of measurement, three runs, median reported. `ledger-app` was pinned to 2 CPU cores. After each run the script rechecks the ledger invariants and compares the number of transactions, events and notifications.
@@ -321,13 +317,43 @@ Measured with k6 and the `constant-arrival-rate` executor (open loop, so the mom
 | Throughput ceiling on 2 cores | About **1,560 transfers per second**. The application's CPU runs out first, not PostgreSQL |
 | Correctness under overload | At every load level the ledger stays correct and each transaction has exactly one event and one notification |
 
-These numbers come from **one laptop running everything, over loopback, with a small data set**. They are not the capacity of the system on a server. The report also records what did not go well: one run that the benchmark itself disturbed is kept together with its cause, and there are stalls of a few seconds whose cause has not been found ([#105](https://github.com/HoangThanhMan/ledgerly/issues/105)).
+These numbers come from **one laptop running everything, over loopback, with a small data set** (Intel Core i7-11800H, 7 GB RAM, PostgreSQL and Kafka in Docker, k6 on the same machine). They are not the capacity of the system on a server.
 
-![Grafana dashboard during the ramp test](docs/images/dashboard-tuan-07.png)
+Two things did not go well and are kept in the open. The first batch of runs is unusable: the benchmark script took a dashboard screenshot in the middle of a run and wrote its raw output to a RAM-backed directory. That batch is still in the repository, labelled as such. And in 4 of 11 runs at 300 requests per second the server stalled for 0.5 to 6 seconds. The cause has not been found ([#105](https://github.com/HoangThanhMan/ledgerly/issues/105)), so the honest summary is a p99 of about 17 ms with an unexplained risk of a stall of a few seconds.
+
+![Grafana dashboard during the ramp test](assets/dashboard-ramp-test.png)
 
 *The `Ledgerly` dashboard during a ramp test in four steps: 600, 1,000, 1,500 and 2,000 requests per second.*
 
-Method, environment, per-request data and how to rerun it: [docs/benchmarks.md](docs/benchmarks.md).
+Every run is in [`perf/results`](perf/results): the k6 summary, one line per request (enough to recompute any percentile), server-side metrics, the post-run checks and a description of the environment (the notes are in Vietnamese). To rerun the baseline, with nothing else running on the machine:
+
+```bash
+docker compose --profile observability up -d --wait
+./gradlew :ledger-app:bootJar :notification-consumer:bootJar
+export SPRING_PROFILES_ACTIVE=observability
+export MANAGEMENT_TRACING_SAMPLING_PROBABILITY=0.1   # the profile traces every request, the baseline traced 10%
+taskset -c 0,1 java -Xmx512m -jar ledger-app/build/libs/ledger-app-0.1.0-SNAPSHOT.jar &
+java -Xmx256m -jar notification-consumer/build/libs/notification-consumer-0.1.0-SNAPSHOT.jar &
+
+# Three runs at 300 requests per second, results in perf/results/<name>/
+perf/run-baseline.sh "$(date +%F)-baseline" 300 3
+```
+
+## Design decisions
+
+| Question | Choice | Rejected, and why |
+|---|---|---|
+| How to structure the system | A modular monolith with boundaries checked by ArchUnit, plus one consumer process behind Kafka | Microservices: a transfer would be a saga from day one, at a high operating cost. A plain monolith: no boundaries to keep the money code apart |
+| Which database | PostgreSQL | MySQL has no deferred constraints or constraint triggers, so "the entries of a transaction sum to zero" could not be enforced in the database |
+| How to reach the database on the money path | Explicit SQL through `JdbcClient` | JPA alone hides which locks are taken and when the flush happens |
+| How to represent money | `BIGINT` in minor units, with signed entries | Floating point cannot represent amounts exactly |
+| How to stop double spending and deadlocks | Row locks taken in `id` order, at `READ COMMITTED` | Locking without `ORDER BY` still deadlocked about 72 times in 2,000 transfers, and locking each account in posting order 129 to 143 times (both measured). `SERIALIZABLE` and optimistic locking turn contention into retries, which grow with contention on a hot account (reasoned, not measured) |
+| Where to keep idempotency keys | A table in the same PostgreSQL, so the stored response commits with the money | Redis: two stores, with a gap between the PostgreSQL commit and the Redis write in which a crash leaves them disagreeing |
+| One transaction or two for an idempotent request | Two phases: claim the key, then do the work and complete the key | One transaction: a duplicate request blocks on the unique index and holds a connection until the first one commits |
+| What if the request holding a key is slow, not dead | A lease with a fencing token that the completing `UPDATE` must match | A lease with an unconditional completing `UPDATE`: the slow request could still commit after a retry took the key over, giving two transfers for one key (measured) |
+| How to publish events | A transactional outbox, drained by a polling relay with `FOR UPDATE SKIP LOCKED` | Writing to the database and then to Kafka loses the event if the process dies in between. Kafka transactions do not cover PostgreSQL. Debezium adds Kafka Connect and a replication slot to operate, and is much harder to run in tests |
+| How to instrument | The Spring Boot OpenTelemetry starter, with Grafana LGTM in one container for development | The OpenTelemetry Java agent rewrites bytecode at runtime and lives outside the build, so it is hard to test in `./gradlew build`. Separate Prometheus, Jaeger and Grafana mean three services to wire together |
+| How to follow a request through the outbox | Store the request's `traceparent` on the outbox row and restore it when the relay sends | A separate trace for the relay with a span link back: correct, but harder to read |
 
 ## Tech stack
 
@@ -335,11 +361,11 @@ Method, environment, per-request data and how to rerun it: [docs/benchmarks.md](
 |---|---|
 | Language | Java 25 (records, sealed interfaces, pattern matching, virtual threads), no preview features, no Lombok |
 | Framework | Spring Boot 4.1, Spring Framework 7 |
-| Data | PostgreSQL 18, Flyway, explicit SQL through `JdbcClient` on the money path ([ADR-0002](docs/adr/0002-postgresql-va-sql-tuong-minh.md)) |
+| Data | PostgreSQL 18, Flyway, explicit SQL through `JdbcClient` on the money path |
 | Messaging | Kafka 4 (KRaft), producer with `acks=all` and idempotence |
 | Testing | JUnit 5, AssertJ, Testcontainers, ArchUnit, jqwik (property-based) |
 | Quality | Spotless (Palantir Java Format), Error Prone, NullAway, JaCoCo |
-| Observability | OpenTelemetry through the Spring Boot starter, Grafana LGTM ([ADR-0007](docs/adr/0007-opentelemetry-qua-boot-starter-va-grafana-lgtm.md)) |
+| Observability | OpenTelemetry through the Spring Boot starter, Grafana LGTM |
 | Performance | k6 |
 | Build, CI | Gradle 9 (Kotlin DSL, version catalog, convention plugins), GitHub Actions |
 
@@ -352,10 +378,9 @@ Method, environment, per-request data and how to rerun it: [docs/benchmarks.md](
 | [`ledger-contracts`](ledger-contracts) | Event definitions shared by producer and consumer |
 | [`mock-bank`](mock-bank) | Skeleton of a simulated bank, no business logic yet |
 | [`build-logic`](build-logic) | Gradle convention plugins: Java setup, quality gates, the `integrationTest` source set |
-| [`infra`](infra) | PostgreSQL init script, Grafana dashboard |
+| [`infra`](infra) | PostgreSQL init script, Grafana dashboard definition |
 | [`perf`](perf) | k6 scenario, the script that runs the benchmark, raw results of every run |
 | [`scripts`](scripts) | Queries that check the ledger invariants |
-| [`docs`](docs) | Architecture, ADRs, test strategy, benchmark report |
 
 Good places to start reading the code:
 
@@ -365,30 +390,12 @@ Good places to start reading the code:
 - [`OutboxRelay`](ledger-app/src/main/java/dev/ledgerly/outbox/internal/application/OutboxRelay.java): reads the outbox and sends to Kafka.
 - [`ConcurrentTransferIT`](ledger-app/src/integrationTest/java/dev/ledgerly/wallet/ConcurrentTransferIT.java) and [`ArchitectureTest`](ledger-app/src/test/java/dev/ledgerly/ArchitectureTest.java): the concurrency test and the module boundary test.
 
-## Documentation
-
-The design documents and ADRs are written in Vietnamese. Code, comments, commit messages and API messages are in English.
-
-- [Architecture](docs/01-kien-truc.md): C4, data model, business flows, API, events
-- [Architecture Decision Records](docs/adr/README.md): one page per major decision, with the rejected alternatives and the evidence
-  - [0001](docs/adr/0001-modular-monolith.md) Modular monolith
-  - [0002](docs/adr/0002-postgresql-va-sql-tuong-minh.md) PostgreSQL and explicit SQL
-  - [0003](docs/adr/0003-bieu-dien-tien-te.md) Representing money
-  - [0004](docs/adr/0004-khoa-bi-quan-co-thu-tu.md) Ordered pessimistic locking
-  - [0005](docs/adr/0005-idempotency-key-hai-pha-trong-postgresql.md) Two-phase idempotency keys
-  - [0006](docs/adr/0006-transactional-outbox-voi-polling-relay.md) Transactional outbox with a polling relay
-  - [0007](docs/adr/0007-opentelemetry-qua-boot-starter-va-grafana-lgtm.md) OpenTelemetry and Grafana LGTM
-- [Test strategy](docs/04-chien-luoc-kiem-thu.md) and [benchmark report](docs/benchmarks.md)
-- [Working conventions](docs/05-quy-uoc-lam-viec.md): Git, commits, pull requests, code conventions
-- [How AI is used in this project](docs/ai-usage.md): what AI did and how it was verified
-- [All documentation](docs/README.md)
-
 ## Current limitations
 
-- **Money stays inside the system.** Top-ups and withdrawals through a bank, and statement reconciliation, are designed in the [architecture document](docs/01-kien-truc.md) but not implemented. `mock-bank` is only an application skeleton.
+- **Money stays inside the system.** Top-ups and withdrawals through a bank, and statement reconciliation, are planned but not implemented. `mock-bank` is only an application skeleton.
 - **No authentication or authorisation.** Whoever can reach the API can act on every wallet. Do not run it outside a development environment.
 - **One currency.** Wallets can only be opened in VND.
-- **No overload protection.** Past the ceiling, requests queue up instead of being rejected early ([benchmark, section 5](docs/benchmarks.md#5-tăng-tải-thứ-gì-gãy-trước)).
+- **No overload protection.** Past the ceiling, requests queue up instead of being rejected early: at 2,000 requests per second some waited 7 seconds and still got a `201`.
 - **Not packaged for deployment.** The applications have no Dockerfile, and every measurement comes from one development machine.
 
 ## Contributing
@@ -398,8 +405,6 @@ This is a personal project, but questions, bug reports and suggestions are welco
 - `./gradlew build` must pass. Run `./gradlew spotlessApply` before committing to fix formatting.
 - The PR title follows [Conventional Commits](https://www.conventionalcommits.org/), for example `fix(outbox): ...`.
 - A change in behaviour needs a test.
-
-The full conventions: [docs/05-quy-uoc-lam-viec.md](docs/05-quy-uoc-lam-viec.md).
 
 ## Author
 

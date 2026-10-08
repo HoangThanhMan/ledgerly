@@ -1,6 +1,6 @@
 # 2026-10-08-attempt-2: lần đo sạch trên code trước lần sửa cuối
 
-Ba lượt 300 request mỗi giây sau khi sửa bài đo (không chụp ảnh trong lượt đo, k6 nén output). Không phải baseline chính thức, vì sau đó code còn một thay đổi: counter `ledgerly.transfers` chuyển sang tăng sau khi commit. Dùng để thấy hai lần đo cùng cấu hình chênh nhau bao nhiêu. Bảng so sánh: [docs/benchmarks.md](../../../docs/benchmarks.md).
+Ba lượt 300 request mỗi giây sau khi sửa bài đo (không chụp ảnh trong lượt đo, k6 nén output). Không phải baseline chính thức, vì sau đó code còn một thay đổi: counter `ledgerly.transfers` chuyển sang tăng sau khi commit. Dùng để thấy hai lần đo cùng cấu hình chênh nhau bao nhiêu.
 
 - Ngày chạy: 2026-10-08, 08:19 đến 08:38
 - Máy, Docker, JDK, cấu hình ứng dụng, kịch bản: như [baseline](../2026-10-08-baseline/env.md)

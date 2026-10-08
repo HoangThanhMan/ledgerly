@@ -9,7 +9,7 @@
 //
 // The executor is open-loop: requests are started on schedule whether or not earlier ones have returned. A
 // closed-loop generator waits for each response and so sends fewer requests exactly when the server is slow,
-// which hides the slowness (coordinated omission). Method: docs/04-chien-luoc-kiem-thu.md §6.
+// which hides the slowness (coordinated omission).
 import http from 'k6/http';
 import { check } from 'k6';
 import exec from 'k6/execution';

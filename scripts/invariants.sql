@@ -1,4 +1,4 @@
--- Ledger invariants I1–I4 (docs/04-chien-luoc-kiem-thu.md §2).
+-- Ledger invariants I1–I4.
 --
 -- Every query lists violations, so a sound ledger returns no rows from any of them.
 -- Run by hand after a load test or a chaos scenario:

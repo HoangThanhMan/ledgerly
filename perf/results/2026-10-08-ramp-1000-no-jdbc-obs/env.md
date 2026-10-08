@@ -1,6 +1,6 @@
 # 2026-10-08-ramp-1000-no-jdbc-obs: mức 1.000, tắt observation của SQL
 
-**Phép thử không kết luận được.** Xem [docs/benchmarks.md](../../../docs/benchmarks.md#52-một-phép-thử-không-kết-luận-được).
+**Phép thử không kết luận được.**
 
 - Ngày chạy: 2026-10-08, 09:50 đến 09:54
 - Máy, Docker, JDK, cấu hình ứng dụng: như [baseline](../2026-10-08-baseline/env.md), trừ những điểm ghi dưới đây

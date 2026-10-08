@@ -5,7 +5,7 @@ import org.jspecify.annotations.Nullable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 
-/** The problem types of the API, as listed in docs/01-kien-truc.md §8.3. */
+/** The problem types of the API. */
 public enum ProblemType {
     VALIDATION_ERROR(HttpStatus.BAD_REQUEST, "validation-error", "Request is not valid"),
     WALLET_NOT_FOUND(HttpStatus.NOT_FOUND, "wallet-not-found", "Wallet not found"),

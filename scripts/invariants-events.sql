@@ -1,4 +1,4 @@
--- Event invariant I6 (docs/04-chien-luoc-kiem-thu.md §2): every transfer has exactly one event, and every event is
+-- Event invariant I6: every transfer has exactly one event, and every event is
 -- published in the end.
 --
 -- Every query lists violations, so a sound system returns no rows from any of them.

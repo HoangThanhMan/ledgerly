@@ -1,6 +1,6 @@
 # 2026-10-08-ramp-0600-4cpu: mức 600 với 4 nhân
 
-Một lượt để thử giả thuyết "hai nhân là quá ít lúc dồn việc". Kết quả: vẫn có đợt đứng, dài hơn. Xem [docs/benchmarks.md](../../../docs/benchmarks.md#44-các-đợt-đứng-biết-gì-và-chưa-biết-gì).
+Một lượt để thử giả thuyết "hai nhân là quá ít lúc dồn việc". Kết quả: vẫn có đợt đứng, dài hơn.
 
 - Ngày chạy: 2026-10-08, 09:42 đến 09:45
 - Máy, Docker, JDK, cấu hình ứng dụng: như [baseline](../2026-10-08-baseline/env.md), trừ những điểm ghi dưới đây

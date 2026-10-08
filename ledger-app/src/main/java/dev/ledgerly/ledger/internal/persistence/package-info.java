@@ -1,4 +1,4 @@
-/** Ledger tables accessed with {@code JdbcClient}: explicit SQL for the posting hot path (ADR-0002). */
+/** Ledger tables accessed with {@code JdbcClient}: explicit SQL for the posting hot path. */
 @NullMarked
 package dev.ledgerly.ledger.internal.persistence;
 

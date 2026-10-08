@@ -58,7 +58,7 @@ public class AccountRepository {
      * Locks the accounts a posting touches until the transaction ends, and returns their current state.
      *
      * <p>The rows are locked in id order. Two postings that share accounts therefore always wait for each other in
-     * the same order and cannot deadlock (ADR-0004). {@code FOR NO KEY UPDATE} is the lock an {@code UPDATE} of the
+     * the same order and cannot deadlock. {@code FOR NO KEY UPDATE} is the lock an {@code UPDATE} of the
      * balance takes anyway: it excludes other postings but, unlike {@code FOR UPDATE}, does not block inserts of
      * rows that reference the account.
      *
