@@ -168,7 +168,8 @@
             "showPoints": "never",
             "stacking": {
               "mode": "none"
-            }
+            },
+            "axisSoftMax": 0.01
           }
         },
         "overrides": []
@@ -192,7 +193,8 @@
           "expr": "(sum(rate(http_server_requests_milliseconds_count{service_name=\"ledger-app\", status=~\"5..\"}[1m])) / sum(rate(http_server_requests_milliseconds_count{service_name=\"ledger-app\"}[1m]))) or vector(0)",
           "legendFormat": "5xx"
         }
-      ]
+      ],
+      "description": "Zero is the normal state. The axis spans at least 0 to 1% so that a flat zero line is not stretched."
     },
     {
       "id": 4,
@@ -650,7 +652,7 @@
           "legendFormat": "{{service_name}}"
         }
       ],
-      "description": "Share of the CPUs the JVM may use."
+      "description": "Share of all CPUs of the machine, also for a JVM that is pinned to fewer: pinned to 2 of 16 CPUs it peaks at 12.5%."
     }
   ]
 }
