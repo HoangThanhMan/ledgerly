@@ -2,7 +2,7 @@
 
 | Thời gian | Giai đoạn | Mốc | Ngân sách | Trạng thái |
 |---|---|---|---|---|
-| 16/11 – 22/11/2026 | 3: MVP | | 13 giờ | 🟡 Xong, chờ merge (PR #106–#110, làm ngày 08/10/2026) |
+| 16/11 – 22/11/2026 | 3: MVP | | 13 giờ | ✅ Xong (merge PR #106–#110 ngày 08/10/2026) |
 
 ## Mục tiêu
 
@@ -13,13 +13,13 @@
 
 | ID | Việc | Giờ | Đầu ra | Trạng thái |
 |---|---|:-:|---|---|
-| W07-01 | Compose profile `observability`: `grafana/otel-lgtm`. Thêm `spring-boot-starter-opentelemetry` vào 3 app | 2 | `compose.yaml`, profile Spring `observability` trong `application.yaml` của ba app | 🟡 #106, #108 |
-| W07-02 | Metric nghiệp vụ (Micrometer): `transfers`, `idempotency.replays`, `outbox.pending`, `outbox.oldest.age`, `posting.lock.wait` | 2 | Counter `ledgerly.transfers{outcome}` trong `TransferService`. Bốn metric kia có từ tuần 4–6 | 🟡 #107 |
-| W07-03 | Trace xuyên Kafka: bật observation cho `KafkaTemplate` và listener, kiểm tra `traceparent` trong header | 1 | `OutboxService`, `KafkaEventPublisher`, `TracePropagationIT`, `TraceContinuationIT` | 🟡 #106 |
-| W07-04 | Dashboard Grafana (provisioning JSON trong repo): RPS, p50/p95/p99, lỗi, outbox lag, Hikari pending | 2 | `infra/grafana/dashboards/ledgerly.json` | 🟡 #108 |
-| W07-05 | k6 `transfer-constant-rate.js`: `setup()` tạo 1.000 ví và nạp tiền. Executor `constant-arrival-rate`, có thresholds | 3 | `perf/k6/transfer-constant-rate.js`, `perf/run-baseline.sh`, `perf/compact-raw.py` | 🟡 #109 |
-| W07-06 | `docs/benchmarks.md`: phương pháp, mẫu mô tả môi trường. Chạy baseline 3 lần, lấy trung vị | 2 | [benchmarks.md](../benchmarks.md), `perf/results/2026-10-08-baseline/` | 🟡 #110 |
-| W07-07 | **ADR-0007**: OTel qua Boot starter + LGTM (so với Java agent, Prometheus/Jaeger rời) | 1 | [ADR-0007](../adr/0007-opentelemetry-qua-boot-starter-va-grafana-lgtm.md) | 🟡 #110 |
+| W07-01 | Compose profile `observability`: `grafana/otel-lgtm`. Thêm `spring-boot-starter-opentelemetry` vào 3 app | 2 | `compose.yaml`, profile Spring `observability` trong `application.yaml` của ba app | ✅ #106, #108 |
+| W07-02 | Metric nghiệp vụ (Micrometer): `transfers`, `idempotency.replays`, `outbox.pending`, `outbox.oldest.age`, `posting.lock.wait` | 2 | Counter `ledgerly.transfers{outcome}` trong `TransferService`. Bốn metric kia có từ tuần 4–6 | ✅ #107 |
+| W07-03 | Trace xuyên Kafka: bật observation cho `KafkaTemplate` và listener, kiểm tra `traceparent` trong header | 1 | `OutboxService`, `KafkaEventPublisher`, `TracePropagationIT`, `TraceContinuationIT` | ✅ #106 |
+| W07-04 | Dashboard Grafana (provisioning JSON trong repo): RPS, p50/p95/p99, lỗi, outbox lag, Hikari pending | 2 | `infra/grafana/dashboards/ledgerly.json` | ✅ #108 |
+| W07-05 | k6 `transfer-constant-rate.js`: `setup()` tạo 1.000 ví và nạp tiền. Executor `constant-arrival-rate`, có thresholds | 3 | `perf/k6/transfer-constant-rate.js`, `perf/run-baseline.sh`, `perf/compact-raw.py` | ✅ #109 |
+| W07-06 | `docs/benchmarks.md`: phương pháp, mẫu mô tả môi trường. Chạy baseline 3 lần, lấy trung vị | 2 | [benchmarks.md](../benchmarks.md), `perf/results/2026-10-08-baseline/` | ✅ #110 |
+| W07-07 | **ADR-0007**: OTel qua Boot starter + LGTM (so với Java agent, Prometheus/Jaeger rời) | 1 | [ADR-0007](../adr/0007-opentelemetry-qua-boot-starter-va-grafana-lgtm.md) | ✅ #110 |
 
 ## Ghi chú kỹ thuật
 
@@ -69,7 +69,7 @@ Tăng `rate` theo bậc 100 → 200 → … cho tới khi p99 vượt SLO hoặc
 
 - [x] `docker compose --profile observability up` mở được Grafana tại `:3000`, có dashboard sẵn (11 panel, là trang chủ)
 - [x] `docs/benchmarks.md` có bảng baseline đầu tiên với đủ thông tin môi trường (p50 2,17 ms, p95 4,21 ms, p99 17,14 ms ở 300 request mỗi giây, [bảng](../benchmarks.md#4-baseline-300-request-mỗi-giây))
-- [x] ADR-0007 Accepted (do AI soạn và đặt trạng thái)
+- [x] ADR-0007 Accepted (do AI soạn và đặt trạng thái, merge theo yêu cầu của tác giả ngày 08/10/2026)
 - [x] Ảnh chụp dashboard lưu trong `docs/images/` ([dashboard-tuan-07.png](../images/dashboard-tuan-07.png), chụp trong bài tăng tải)
 
 ## Kiểm thử bắt buộc: kết quả
