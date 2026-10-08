@@ -1,0 +1,952 @@
+openapi: 3.1.0
+info:
+  description: |-
+    E-wallet API on a double-entry ledger: open wallets, deposit, transfer between wallets, read balances and entry history.
+
+    Conventions:
+
+    - **Amounts** are strings holding an integer in the minor unit of the currency (`"150000"` is 150,000 VND), so no client rounds them. Entry amounts are signed from the wallet's side: negative is money out, positive is money in.
+    - **Ids** of wallets and transfers are UUIDs.
+    - **Requests that move money** need an `Idempotency-Key` header. Retrying with the same key never moves money twice.
+    - **Errors** are RFC 9457 Problem Details with the media type `application/problem+json`. The `type` member tells them apart.
+    - **There is no authentication.** Whoever can reach the API can act on every wallet.
+  title: Ledgerly API
+  version: "1"
+servers:
+- description: Local
+  url: http://localhost:8080
+tags:
+- description: "Open wallets, read their balance and their entry history."
+  name: Wallets
+- description: "Put money into wallets from the system funding account. For development,\
+    \ tests and demos."
+  name: Deposits
+- description: Move money between two wallets.
+  name: Transfers
+paths:
+  /v1/admin/deposits:
+    post:
+      description: |-
+        Credits the wallet and debits the system funding account, which is allowed to go negative, in one database transaction. This is how wallets get money in development, tests and demos: no bank is involved, and since the API has no authentication the endpoint must not be reachable from outside.
+
+        The call needs an `Idempotency-Key`, with the same rules as a transfer: a retry with the same key returns the stored response with `Idempotent-Replayed: true` and credits nothing again. The response has no `Location`: a deposit cannot be read back on its own, it appears as an entry of the wallet.
+      operationId: createDeposit
+      parameters:
+      - description: "Identifies this operation, so that it is safe to send again.\
+          \ Generate one value for each operation (a UUID is recommended) and send\
+          \ that same value on every retry of it. 1 to 64 visible ASCII characters.\
+          \ The key and the response stored under it are kept for at least 24 hours."
+        example: 9b2e4c1a-7d3f-4a6b-8c5d-0e1f2a3b4c5d
+        in: header
+        name: Idempotency-Key
+        required: true
+        schema:
+          type: string
+          pattern: "[\\x21-\\x7E]{1,64}"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DepositRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DepositResponse"
+          description: The deposit is complete. Also the answer when a completed deposit
+            is retried with the same Idempotency-Key.
+          headers:
+            Idempotent-Replayed:
+              description: "Present with the value `true` when this is the stored\
+                \ response of an earlier request with the same Idempotency-Key, and\
+                \ nothing was done again."
+              schema:
+                type: string
+                enum:
+                - "true"
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              examples:
+                validation-error:
+                  description: "The body, a parameter or a header is missing or malformed.\
+                    \ Nothing was done, and an Idempotency-Key sent with the request\
+                    \ was not used up."
+                  summary: Request is not valid
+                  value:
+                    status: 400
+                    title: Request is not valid
+                    type: /problems/validation-error
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Request is not valid
+        "404":
+          content:
+            application/problem+json:
+              examples:
+                wallet-not-found:
+                  description: No wallet has this id. System accounts are not wallets.
+                  summary: Wallet not found
+                  value:
+                    status: 404
+                    title: Wallet not found
+                    type: /problems/wallet-not-found
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Wallet not found
+        "409":
+          content:
+            application/problem+json:
+              examples:
+                idempotency-in-progress:
+                  description: "An earlier request with the same Idempotency-Key has\
+                    \ not finished. Wait for the time in Retry-After, then send the\
+                    \ request again with the same key."
+                  summary: Request with this Idempotency-Key is still in progress
+                  value:
+                    status: 409
+                    title: Request with this Idempotency-Key is still in progress
+                    type: /problems/idempotency-in-progress
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Request with this Idempotency-Key is still in progress
+          headers:
+            Retry-After:
+              description: Seconds to wait before sending the same request again.
+              schema:
+                type: integer
+                format: int32
+                example: 1
+        "422":
+          content:
+            application/problem+json:
+              examples:
+                currency-mismatch:
+                  description: The currency of the request is not the currency of
+                    a wallet it names.
+                  summary: Currency does not match the wallet
+                  value:
+                    status: 422
+                    title: Currency does not match the wallet
+                    type: /problems/currency-mismatch
+                idempotency-key-reused:
+                  description: "The Idempotency-Key was first sent with another method,\
+                    \ path or body. Use a new key for every operation."
+                  summary: Idempotency-Key was already used with a different request
+                  value:
+                    status: 422
+                    title: Idempotency-Key was already used with a different request
+                    type: /problems/idempotency-key-reused
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: "Idempotency-Key was already used with a different request,\
+            \ or: Currency does not match the wallet"
+        "500":
+          content:
+            application/problem+json:
+              examples:
+                internal-error:
+                  description: "Something unexpected failed. The cause is in the server\
+                    \ log, not in the response. A request that moves money was rolled\
+                    \ back and may be retried with the same Idempotency-Key."
+                  summary: Internal error
+                  value:
+                    status: 500
+                    title: Internal error
+                    type: /problems/internal-error
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal error
+        "503":
+          content:
+            application/problem+json:
+              examples:
+                overloaded:
+                  description: "The request could not get the locks it needs in time.\
+                    \ Nothing was done. Wait for the time in Retry-After, then send\
+                    \ the request again with the same Idempotency-Key."
+                  summary: Service is overloaded
+                  value:
+                    status: 503
+                    title: Service is overloaded
+                    type: /problems/overloaded
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Service is overloaded
+          headers:
+            Retry-After:
+              description: Seconds to wait before sending the same request again.
+              schema:
+                type: integer
+                format: int32
+                example: 1
+      summary: Deposit money into a wallet
+      tags:
+      - Deposits
+  /v1/transfers:
+    post:
+      description: |-
+        Moves `amount` from the source wallet to the target wallet in a single database transaction: either both balances change and two entries are written, or nothing changes at all. The transfer is complete when the call returns 201, there is no pending state. A completed transfer also publishes a `TransferCompleted` event.
+
+        The call needs an `Idempotency-Key`. Sending the same request again with the same key never moves the money twice: it returns the stored response of the first attempt with the header `Idempotent-Replayed: true`. That holds for business rejections too: a transfer refused with `insufficient-funds` stays refused under its key even after the wallet is topped up, so a new attempt needs a new key.
+
+        When the outcome is unknown, retry with the same key: after a lost connection, a 409, a 500 or a 503. In those cases nothing was stored and no money moved, or the first attempt is still running.
+      operationId: createTransfer
+      parameters:
+      - description: "Identifies this operation, so that it is safe to send again.\
+          \ Generate one value for each operation (a UUID is recommended) and send\
+          \ that same value on every retry of it. 1 to 64 visible ASCII characters.\
+          \ The key and the response stored under it are kept for at least 24 hours."
+        example: 6f1c2d3e-4a5b-4c6d-8e7f-9a0b1c2d3e4f
+        in: header
+        name: Idempotency-Key
+        required: true
+        schema:
+          type: string
+          pattern: "[\\x21-\\x7E]{1,64}"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransferRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransferResponse"
+          description: The transfer is complete. Also the answer when a completed
+            transfer is retried with the same Idempotency-Key.
+          headers:
+            Idempotent-Replayed:
+              description: "Present with the value `true` when this is the stored\
+                \ response of an earlier request with the same Idempotency-Key, and\
+                \ nothing was done again."
+              schema:
+                type: string
+                enum:
+                - "true"
+              style: simple
+            Location:
+              description: Path of the transfer.
+              schema:
+                type: string
+                example: /v1/transfers/01a11ad9-7f10-7459-a273-deb24dbb4296
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              examples:
+                validation-error:
+                  description: "The body, a parameter or a header is missing or malformed.\
+                    \ Nothing was done, and an Idempotency-Key sent with the request\
+                    \ was not used up."
+                  summary: Request is not valid
+                  value:
+                    status: 400
+                    title: Request is not valid
+                    type: /problems/validation-error
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Request is not valid
+        "404":
+          content:
+            application/problem+json:
+              examples:
+                wallet-not-found:
+                  description: No wallet has this id. System accounts are not wallets.
+                  summary: Wallet not found
+                  value:
+                    status: 404
+                    title: Wallet not found
+                    type: /problems/wallet-not-found
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Wallet not found
+        "409":
+          content:
+            application/problem+json:
+              examples:
+                idempotency-in-progress:
+                  description: "An earlier request with the same Idempotency-Key has\
+                    \ not finished. Wait for the time in Retry-After, then send the\
+                    \ request again with the same key."
+                  summary: Request with this Idempotency-Key is still in progress
+                  value:
+                    status: 409
+                    title: Request with this Idempotency-Key is still in progress
+                    type: /problems/idempotency-in-progress
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Request with this Idempotency-Key is still in progress
+          headers:
+            Retry-After:
+              description: Seconds to wait before sending the same request again.
+              schema:
+                type: integer
+                format: int32
+                example: 1
+        "422":
+          content:
+            application/problem+json:
+              examples:
+                currency-mismatch:
+                  description: The currency of the request is not the currency of
+                    a wallet it names.
+                  summary: Currency does not match the wallet
+                  value:
+                    status: 422
+                    title: Currency does not match the wallet
+                    type: /problems/currency-mismatch
+                idempotency-key-reused:
+                  description: "The Idempotency-Key was first sent with another method,\
+                    \ path or body. Use a new key for every operation."
+                  summary: Idempotency-Key was already used with a different request
+                  value:
+                    status: 422
+                    title: Idempotency-Key was already used with a different request
+                    type: /problems/idempotency-key-reused
+                insufficient-funds:
+                  description: "The source wallet holds less than the amount. No money\
+                    \ moved. The rejection is stored under the Idempotency-Key, so\
+                    \ a new attempt needs a new key."
+                  summary: Insufficient funds
+                  value:
+                    status: 422
+                    title: Insufficient funds
+                    type: /problems/insufficient-funds
+                same-account-transfer:
+                  description: The source and the target of a transfer are the same
+                    wallet.
+                  summary: Source and target wallet are the same
+                  value:
+                    status: 422
+                    title: Source and target wallet are the same
+                    type: /problems/same-account-transfer
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: "Idempotency-Key was already used with a different request,\
+            \ or: Insufficient funds, or: Source and target wallet are the same, or:\
+            \ Currency does not match the wallet"
+        "500":
+          content:
+            application/problem+json:
+              examples:
+                internal-error:
+                  description: "Something unexpected failed. The cause is in the server\
+                    \ log, not in the response. A request that moves money was rolled\
+                    \ back and may be retried with the same Idempotency-Key."
+                  summary: Internal error
+                  value:
+                    status: 500
+                    title: Internal error
+                    type: /problems/internal-error
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal error
+        "503":
+          content:
+            application/problem+json:
+              examples:
+                overloaded:
+                  description: "The request could not get the locks it needs in time.\
+                    \ Nothing was done. Wait for the time in Retry-After, then send\
+                    \ the request again with the same Idempotency-Key."
+                  summary: Service is overloaded
+                  value:
+                    status: 503
+                    title: Service is overloaded
+                    type: /problems/overloaded
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Service is overloaded
+          headers:
+            Retry-After:
+              description: Seconds to wait before sending the same request again.
+              schema:
+                type: integer
+                format: int32
+                example: 1
+      summary: Transfer money between two wallets
+      tags:
+      - Transfers
+  /v1/transfers/{id}:
+    get:
+      description: "Returns a completed transfer. Only transfers have an address here:\
+        \ the id of a deposit answers `transfer-not-found`."
+      operationId: getTransfer
+      parameters:
+      - description: "Id of the transfer, as returned when it was made."
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransferResponse"
+          description: The transfer.
+        "400":
+          content:
+            application/problem+json:
+              examples:
+                validation-error:
+                  description: "The body, a parameter or a header is missing or malformed.\
+                    \ Nothing was done, and an Idempotency-Key sent with the request\
+                    \ was not used up."
+                  summary: Request is not valid
+                  value:
+                    status: 400
+                    title: Request is not valid
+                    type: /problems/validation-error
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Request is not valid
+        "404":
+          content:
+            application/problem+json:
+              examples:
+                transfer-not-found:
+                  description: No transfer has this id. The id of a deposit is not
+                    the id of a transfer.
+                  summary: Transfer not found
+                  value:
+                    status: 404
+                    title: Transfer not found
+                    type: /problems/transfer-not-found
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Transfer not found
+        "500":
+          content:
+            application/problem+json:
+              examples:
+                internal-error:
+                  description: "Something unexpected failed. The cause is in the server\
+                    \ log, not in the response. A request that moves money was rolled\
+                    \ back and may be retried with the same Idempotency-Key."
+                  summary: Internal error
+                  value:
+                    status: 500
+                    title: Internal error
+                    type: /problems/internal-error
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal error
+      summary: Read a transfer
+      tags:
+      - Transfers
+  /v1/wallets:
+    post:
+      description: "Creates an empty wallet: a ledger account for a user, with a balance\
+        \ of 0. Only VND is supported, every other currency is rejected with `unsupported-currency`.\
+        \ This call is not idempotent: sending it twice opens two wallets."
+      operationId: openWallet
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OpenWalletRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletResponse"
+          description: The wallet was opened.
+          headers:
+            Location:
+              description: Path of the new wallet.
+              schema:
+                type: string
+                example: /v1/wallets/01a11ad9-7eb8-7b3e-9d1f-2f3c6f1c2a10
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              examples:
+                validation-error:
+                  description: "The body, a parameter or a header is missing or malformed.\
+                    \ Nothing was done, and an Idempotency-Key sent with the request\
+                    \ was not used up."
+                  summary: Request is not valid
+                  value:
+                    status: 400
+                    title: Request is not valid
+                    type: /problems/validation-error
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Request is not valid
+        "422":
+          content:
+            application/problem+json:
+              examples:
+                unsupported-currency:
+                  description: Wallets cannot be opened in this currency. Only VND
+                    is supported.
+                  summary: Currency is not supported
+                  value:
+                    status: 422
+                    title: Currency is not supported
+                    type: /problems/unsupported-currency
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Currency is not supported
+        "500":
+          content:
+            application/problem+json:
+              examples:
+                internal-error:
+                  description: "Something unexpected failed. The cause is in the server\
+                    \ log, not in the response. A request that moves money was rolled\
+                    \ back and may be retried with the same Idempotency-Key."
+                  summary: Internal error
+                  value:
+                    status: 500
+                    title: Internal error
+                    type: /problems/internal-error
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal error
+      summary: Open a wallet
+      tags:
+      - Wallets
+  /v1/wallets/{id}:
+    get:
+      description: "Returns the wallet with its current balance. The balance always\
+        \ equals the sum of the wallet's entries and is never negative. System accounts\
+        \ are not wallets: the id of one answers `wallet-not-found`."
+      operationId: getWallet
+      parameters:
+      - description: "Id of the wallet, as returned when it was opened."
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletResponse"
+          description: The wallet.
+        "400":
+          content:
+            application/problem+json:
+              examples:
+                validation-error:
+                  description: "The body, a parameter or a header is missing or malformed.\
+                    \ Nothing was done, and an Idempotency-Key sent with the request\
+                    \ was not used up."
+                  summary: Request is not valid
+                  value:
+                    status: 400
+                    title: Request is not valid
+                    type: /problems/validation-error
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Request is not valid
+        "404":
+          content:
+            application/problem+json:
+              examples:
+                wallet-not-found:
+                  description: No wallet has this id. System accounts are not wallets.
+                  summary: Wallet not found
+                  value:
+                    status: 404
+                    title: Wallet not found
+                    type: /problems/wallet-not-found
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Wallet not found
+        "500":
+          content:
+            application/problem+json:
+              examples:
+                internal-error:
+                  description: "Something unexpected failed. The cause is in the server\
+                    \ log, not in the response. A request that moves money was rolled\
+                    \ back and may be retried with the same Idempotency-Key."
+                  summary: Internal error
+                  value:
+                    status: 500
+                    title: Internal error
+                    type: /problems/internal-error
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal error
+      summary: Read a wallet
+      tags:
+      - Wallets
+  /v1/wallets/{id}/entries:
+    get:
+      description: |-
+        Returns the ledger entries of the wallet, newest first. Every completed transfer or deposit adds one entry to each account it touches, and an entry is never changed or deleted, so this is the full history of the balance.
+
+        Pages are read by keyset, not by offset: take `nextCursor` from a page and pass it as `after` to get the next, older page. `nextCursor` is null on the last page. Entries written while you page only appear in front of the first page, so no page repeats or skips an entry.
+      operationId: listWalletEntries
+      parameters:
+      - description: "Id of the wallet, as returned when it was opened."
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: Return only entries older than the entry with this id. Pass the
+          `nextCursor` of the previous page. Leave it out for the first page.
+        example: 1042
+        in: query
+        name: after
+        required: false
+        schema:
+          type: integer
+          format: int64
+          exclusiveMinimum: 0
+      - description: "Largest number of entries in the page, from 1 to 100."
+        in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 50
+          maximum: 100
+          minimum: 1
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EntryPageResponse"
+          description: "One page of entries, newest first."
+        "400":
+          content:
+            application/problem+json:
+              examples:
+                validation-error:
+                  description: "The body, a parameter or a header is missing or malformed.\
+                    \ Nothing was done, and an Idempotency-Key sent with the request\
+                    \ was not used up."
+                  summary: Request is not valid
+                  value:
+                    status: 400
+                    title: Request is not valid
+                    type: /problems/validation-error
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Request is not valid
+        "404":
+          content:
+            application/problem+json:
+              examples:
+                wallet-not-found:
+                  description: No wallet has this id. System accounts are not wallets.
+                  summary: Wallet not found
+                  value:
+                    status: 404
+                    title: Wallet not found
+                    type: /problems/wallet-not-found
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Wallet not found
+        "500":
+          content:
+            application/problem+json:
+              examples:
+                internal-error:
+                  description: "Something unexpected failed. The cause is in the server\
+                    \ log, not in the response. A request that moves money was rolled\
+                    \ back and may be retried with the same Idempotency-Key."
+                  summary: Internal error
+                  value:
+                    status: 500
+                    title: Internal error
+                    type: /problems/internal-error
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal error
+      summary: List the entries of a wallet
+      tags:
+      - Wallets
+components:
+  schemas:
+    DepositRequest:
+      type: object
+      description: The deposit to make.
+      properties:
+        amount:
+          type: string
+          description: "Amount to credit, as a string holding a positive integer in\
+            \ the minor unit of the currency. No sign, no leading zeros, no decimals,\
+            \ at most 18 digits."
+          example: "500000"
+          pattern: "[1-9][0-9]{0,17}"
+        currency:
+          type: string
+          description: ISO 4217 code of the currency. Must be the currency of the
+            wallet. Only VND is supported.
+          example: VND
+        walletId:
+          type: string
+          format: uuid
+          description: Wallet to credit.
+          example: 01a11ad9-7eb8-7b3e-9d1f-2f3c6f1c2a10
+      required:
+      - amount
+      - currency
+      - walletId
+    DepositResponse:
+      type: object
+      description: A completed deposit.
+      properties:
+        amount:
+          type: string
+          description: "Amount credited, as a string holding a positive integer in\
+            \ the minor unit of the currency."
+          example: "500000"
+        createdAt:
+          type: string
+          format: date-time
+          description: When the deposit was committed.
+        currency:
+          type: string
+          description: ISO 4217 code of the currency.
+          example: VND
+        id:
+          type: string
+          format: uuid
+          description: Id of the deposit. Also the `transactionId` of the entry it
+            wrote to the wallet.
+          example: 01a11ad9-7f10-7459-a273-deb24dbb4296
+        status:
+          type: string
+          description: "Always `COMPLETED`: a deposit that exists has credited the\
+            \ wallet."
+          enum:
+          - COMPLETED
+        walletId:
+          type: string
+          format: uuid
+          description: Wallet that was credited.
+          example: 01a11ad9-7eb8-7b3e-9d1f-2f3c6f1c2a10
+    EntryPageResponse:
+      type: object
+      description: One page of the entries of a wallet.
+      properties:
+        items:
+          type: array
+          description: "The entries of this page, newest first. Empty when the wallet\
+            \ has no entries, or none older than `after`."
+          items:
+            $ref: "#/components/schemas/EntryResponse"
+        nextCursor:
+          type:
+          - string
+          - "null"
+          description: "Pass as `after` to read the next, older page. Null when this\
+            \ is the last page."
+          example: "1041"
+    EntryResponse:
+      type: object
+      description: "One ledger entry of a wallet: a single change of its balance."
+      properties:
+        amount:
+          type: string
+          description: "Change of the balance, as a string holding a signed integer\
+            \ in the minor unit of the currency: negative is money out, positive is\
+            \ money in. Never 0."
+          example: "-150000"
+        balanceAfter:
+          type: string
+          description: "Balance of the wallet right after this entry, in the same\
+            \ format as the balance of a wallet."
+          example: "350000"
+        createdAt:
+          type: string
+          format: date-time
+          description: When the entry was written.
+        currency:
+          type: string
+          description: ISO 4217 code of the wallet's currency.
+          example: VND
+        id:
+          type: string
+          description: "Id of the entry, an integer sent as a string. Newer entries\
+            \ have larger ids. Usable as `after` when paging."
+          example: "1042"
+        transactionId:
+          type: string
+          format: uuid
+          description: Id of the transfer or deposit that wrote the entry.
+          example: 01a11ad9-7f10-7459-a273-deb24dbb4296
+    OpenWalletRequest:
+      type: object
+      description: The wallet to open.
+      properties:
+        currency:
+          type: string
+          description: ISO 4217 code of the wallet's currency. Only VND is supported.
+          example: VND
+      required:
+      - currency
+    Problem:
+      type: object
+      description: "An error, as RFC 9457 Problem Details. Every error of the API\
+        \ has this shape. Tell errors apart by `type`, never by `title` or `detail`."
+      properties:
+        detail:
+          type: string
+          description: "What went wrong in this occurrence, for a human to read."
+          example: "Wallet 01a11ad9-7eb8-7b3e-9d1f-2f3c6f1c2a10 has 350000 VND, the\
+            \ transfer needs 9999999 VND"
+        errors:
+          type: array
+          description: "Only on `validation-error`, and only when the rejected inputs\
+            \ are known: one item per rejected input."
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+                description: "The JSON field, query parameter or header that was rejected."
+                example: amount
+              message:
+                type: string
+                description: Why it was rejected.
+                example: must be a positive integer of minor units with at most 18
+                  digits
+        instance:
+          type: string
+          description: Path of the request that failed.
+          example: /v1/transfers
+        status:
+          type: integer
+          format: int32
+          description: The HTTP status of the response.
+          example: 422
+        title:
+          type: string
+          description: "Short name of the kind of problem, the same for every occurrence."
+          example: Insufficient funds
+        type:
+          type: string
+          description: "Identifies the kind of problem. Stable: safe to branch on.\
+            \ Errors raised by the HTTP layer itself, such as an unknown path or a\
+            \ method that is not allowed, have no `type`."
+          enum:
+          - /problems/validation-error
+          - /problems/wallet-not-found
+          - /problems/transfer-not-found
+          - /problems/idempotency-in-progress
+          - /problems/idempotency-key-reused
+          - /problems/insufficient-funds
+          - /problems/same-account-transfer
+          - /problems/currency-mismatch
+          - /problems/unsupported-currency
+          - /problems/internal-error
+          - /problems/overloaded
+          example: /problems/insufficient-funds
+    TransferRequest:
+      type: object
+      description: The transfer to make.
+      properties:
+        amount:
+          type: string
+          description: "Amount to move, as a string holding a positive integer in\
+            \ the minor unit of the currency. No sign, no leading zeros, no decimals,\
+            \ at most 18 digits."
+          example: "150000"
+          pattern: "[1-9][0-9]{0,17}"
+        currency:
+          type: string
+          description: ISO 4217 code of the currency. Must be the currency of both
+            wallets. Only VND is supported.
+          example: VND
+        sourceWalletId:
+          type: string
+          format: uuid
+          description: Wallet the money leaves. It must hold at least the amount.
+          example: 01a11ad9-7eb8-7b3e-9d1f-2f3c6f1c2a10
+        targetWalletId:
+          type: string
+          format: uuid
+          description: Wallet the money goes to. Must differ from the source wallet.
+          example: 01a11ad9-7ec9-7c41-8e2a-5b7d9c0e4f21
+      required:
+      - amount
+      - currency
+      - sourceWalletId
+      - targetWalletId
+    TransferResponse:
+      type: object
+      description: A completed transfer.
+      properties:
+        amount:
+          type: string
+          description: "Amount moved, as a string holding a positive integer in the\
+            \ minor unit of the currency."
+          example: "150000"
+        createdAt:
+          type: string
+          format: date-time
+          description: When the transfer was committed.
+        currency:
+          type: string
+          description: ISO 4217 code of the currency.
+          example: VND
+        id:
+          type: string
+          format: uuid
+          description: Id of the transfer. Also the `transactionId` of the two entries
+            it wrote.
+          example: 01a11ad9-7f10-7459-a273-deb24dbb4296
+        sourceWalletId:
+          type: string
+          format: uuid
+          description: Wallet the money left.
+          example: 01a11ad9-7eb8-7b3e-9d1f-2f3c6f1c2a10
+        status:
+          type: string
+          description: "Always `COMPLETED`: a transfer that exists has moved the money."
+          enum:
+          - COMPLETED
+        targetWalletId:
+          type: string
+          format: uuid
+          description: Wallet the money went to.
+          example: 01a11ad9-7ec9-7c41-8e2a-5b7d9c0e4f21
+    WalletResponse:
+      type: object
+      description: A wallet and its current balance.
+      properties:
+        balance:
+          type: string
+          description: "Current balance, as a string holding a non-negative integer\
+            \ in the minor unit of the currency."
+          example: "350000"
+        createdAt:
+          type: string
+          format: date-time
+          description: When the wallet was opened.
+        currency:
+          type: string
+          description: ISO 4217 code of the wallet's currency.
+          example: VND
+        id:
+          type: string
+          format: uuid
+          description: Id of the wallet.
+          example: 01a11ad9-7eb8-7b3e-9d1f-2f3c6f1c2a10
