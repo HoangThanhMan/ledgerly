@@ -22,6 +22,8 @@ import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * Moves money between wallets, and into a wallet from the funding account.
@@ -57,8 +59,10 @@ public class TransferService {
     }
 
     /**
-     * Counts what the service decided. A request answered from its idempotency key never gets here, so a retry is
-     * not counted twice. A failure that throws is not counted: it shows up as a 5xx in the HTTP metrics.
+     * Counts what the service decided, once the transaction it decided in has committed. A decision that is rolled
+     * back afterwards, for example because the request lost its idempotency lease, changed nothing and is not
+     * counted. A request answered from its idempotency key never gets here, so a retry is not counted twice. A
+     * failure that throws is not counted either: it shows up as a 5xx in the HTTP metrics.
      */
     private void count(TransferResult result) {
         String outcome = switch (result) {
@@ -68,11 +72,16 @@ public class TransferService {
             case TransferResult.SameWallet same -> "same_wallet";
             case TransferResult.CurrencyMismatch mismatch -> "currency_mismatch";
         };
-        Counter.builder("ledgerly.transfers")
+        Counter counter = Counter.builder("ledgerly.transfers")
                 .description("Transfers the service decided, by outcome")
                 .tag("outcome", outcome)
-                .register(meters)
-                .increment();
+                .register(meters);
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                counter.increment();
+            }
+        });
     }
 
     private TransferResult decide(UUID sourceWalletId, UUID targetWalletId, Money amount) {
