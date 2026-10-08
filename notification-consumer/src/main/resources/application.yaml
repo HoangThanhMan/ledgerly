@@ -39,6 +39,7 @@ management:
       percentiles-histogram:
         # Buckets, so percentiles can be computed over any time range and summed across instances.
         http.server.requests: true
+        jdbc.query: true
 
 jdbc:
   # One span per SQL statement. No spans for connections and result sets, and never the parameter values.
