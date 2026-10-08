@@ -1,0 +1,11 @@
+{
+  "ledger_cpu_avg": 0.028743014802058917,
+  "ledger_cpu_max": 0.0910878112712975,
+  "server_p99_ms": 2317.691610053332,
+  "sql_p99_ms": 4.83796541074454,
+  "lock_wait_p99_ms": 10.769470702926824,
+  "hikari_pending_max": 376,
+  "hikari_active_max": 10,
+  "outbox_pending_max": 345,
+  "outbox_oldest_age_max_ms": 1890
+}

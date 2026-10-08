@@ -1,0 +1,54 @@
+
+
+  █ THRESHOLDS 
+
+    dropped_iterations
+    ✗ 'count==0' count=1052
+
+    http_req_duration{phase:measure,name:replay}
+    ✓ 'max>=0' max=6.06s
+
+    http_req_duration{phase:measure,name:transfer}
+    ✗ 'p(95)<150' p(95)=354.43ms
+    ✗ 'p(99)<200' p(99)=2.31s
+
+    http_req_failed{phase:measure}
+    ✓ 'rate<0.001' rate=0.00%
+
+    http_reqs{phase:measure}
+    ✓ 'count>0' count=88949
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 213900  591.739203/s
+    checks_succeeded...: 100.00% 213900 out of 213900
+    checks_failed......: 0.00%   0 out of 213900
+
+    ✓ status is 201
+    ✓ replay is marked as replayed
+
+    HTTP
+    http_req_duration...................: avg=70.73ms min=349.96µs med=2.19ms   p(90)=3.56ms   p(95)=105.55ms p(99)=2.11s max=6.23s
+      { expected_response:true }........: avg=70.73ms min=349.96µs med=2.19ms   p(90)=3.56ms   p(95)=105.55ms p(99)=2.11s max=6.23s
+      { phase:measure,name:replay }.....: avg=74.96ms min=353.6µs  med=481.09µs p(90)=779.72µs p(95)=141.91ms p(99)=2.19s max=6.06s
+      { phase:measure,name:transfer }...: avg=86.66ms min=1.83ms   med=2.22ms   p(90)=4.14ms   p(95)=354.43ms p(99)=2.31s max=6.23s
+    http_req_failed.....................: 0.00%  0 out of 108950
+      { phase:measure }.................: 0.00%  0 out of 88949
+    http_reqs...........................: 108950 301.40246/s
+      { phase:measure }.................: 88949  246.07111/s
+
+    EXECUTION
+    dropped_iterations..................: 1052   2.910284/s
+    iteration_duration..................: avg=72.17ms min=394.17µs med=2.28ms   p(90)=3.58ms   p(95)=119.4ms  p(99)=2.13s max=6.24s
+    iterations..........................: 106950 295.869601/s
+    vus.................................: 0      min=0           max=639
+    vus_max.............................: 853    min=400         max=853
+
+    NETWORK
+    data_received.......................: 46 MB  126 kB/s
+    data_sent...........................: 35 MB  98 kB/s
+
+
+
+time="2026-10-08T02:09:26Z" level=error msg="thresholds on metrics 'dropped_iterations, http_req_duration{phase:measure,name:transfer}' have been crossed"

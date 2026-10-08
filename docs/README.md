@@ -38,6 +38,10 @@
 
 Xem [adr/README.md](adr/README.md).
 
+## Số đo hiệu năng
+
+[benchmarks.md](benchmarks.md): baseline 300 request mỗi giây, môi trường đo, giới hạn của con số, và một lần đo hỏng được giữ lại. Dữ liệu từng request nằm trong `perf/results/`.
+
 ## Nhật ký và cách dùng AI
 
 - [journal/](journal/README.md): nhật ký tuần, ghi chú đọc, spike.

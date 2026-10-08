@@ -19,7 +19,7 @@ ADR ghi lại **một quyết định kiến trúc quan trọng**: bối cảnh,
 | [0004](0004-khoa-bi-quan-co-thu-tu.md) | Khóa bi quan có thứ tự ở READ COMMITTED | Accepted | 4 |
 | [0005](0005-idempotency-key-hai-pha-trong-postgresql.md) | Idempotency key trong PostgreSQL, thiết kế hai pha | Accepted | 5 |
 | [0006](0006-transactional-outbox-voi-polling-relay.md) | Transactional outbox với polling relay (không dùng dual-write hay Debezium) | Accepted | 6 |
-| 0007 | Observability: OpenTelemetry qua Boot starter + Grafana LGTM | *Dự kiến* | 7 |
+| [0007](0007-opentelemetry-qua-boot-starter-va-grafana-lgtm.md) | Observability bằng OpenTelemetry qua Boot starter và Grafana LGTM (không dùng Java agent hay Prometheus, Jaeger rời) | Accepted | 7 |
 | 0008 | Saga orchestration cho nạp/rút tiền | *Dự kiến* | 9 |
 | 0009 | Chống quá tải: `@ConcurrencyLimit` và kích thước connection pool | *Dự kiến* | 10 |
 | 0010 | Chiến lược cho hot account (theo kết quả benchmark) | *Dự kiến* | 11 |

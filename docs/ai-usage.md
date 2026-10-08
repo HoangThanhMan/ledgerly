@@ -14,6 +14,25 @@ Mỗi mục ghi: hỏi AI gì, AI gợi ý gì, mình quyết định gì (chấ
 
 ---
 
+### 2026-10-08: Tuần 7, observability, baseline k6 và ADR-0007 (W07-01 … W07-07)
+- Hỏi AI: "thực hiện task tiếp theo và kiểm tra cho kĩ mọi thứ đảm bảo phải đúng rồi push lên main".
+- AI gợi ý:
+  - Starter OpenTelemetry của Boot cho ba ứng dụng, mặc định không xuất gì, profile `observability` mới gửi đi. `traceparent` đi qua cột `headers` của outbox để một lần chuyển tiền là một trace từ HTTP tới consumer (PR #106).
+  - Counter `ledgerly.transfers{outcome}` (PR #107). Container `grafana/otel-lgtm` và dashboard 11 panel trong repo (PR #108).
+  - Kịch bản k6 vòng mở và script chạy ba lượt có kiểm tra bất biến sau mỗi lượt (PR #109). `docs/benchmarks.md`, ADR-0007 và tài liệu (PR #110).
+- Quyết định: AI tự quyết và ghi vào ADR-0007, mình **chưa duyệt** điểm nào:
+  - ADR-0007 được AI đặt trạng thái Accepted. So sánh với Java agent và với Prometheus, Jaeger rời là lập luận, chưa đo.
+  - Lấy mẫu trace 10%. Span SQL không có giá trị tham số. Log chưa gửi lên Loki.
+  - Thêm một thư viện ngoài BOM của Boot: `datasource-micrometer` 2.0.1.
+  - Baseline đo với `ledger-app` ghim vào 2 nhân. SLO trong script giữ nguyên theo kế hoạch (p95 dưới 150 ms, p99 dưới 200 ms).
+  - Lần đo hỏng được giữ trong repo (`perf/results/2026-10-08-attempt-1/`).
+- AI làm sai và tự sửa trong tuần này, ghi lại để mình biết chỗ nào cần soi kỹ:
+  - **Bài đo đầu tự làm nhiễu chính nó:** script chụp dashboard bằng Chrome giữa lượt đo, và ghi 400 MB output thô vào `/tmp` là RAM. Lượt 2 ra p99 746 ms. AI nhận ra khi đọc kết quả, sửa bài đo, đo lại.
+  - **Ghi đè một file kết quả** của lần đo đầu, vì lệnh đổi tên thư mục lỗi mà không được kiểm tra.
+  - **Counter đếm trước khi commit.** AI tìm ra khi đọc lại diff trong lúc chờ benchmark. Sửa, thêm test, rồi đo lại baseline trên code đã sửa.
+  - **Script chạy benchmark lỗi ngay lần chạy thật đầu tiên** (đường dẫn tương đối cho volume của Docker), vì trước đó nó mới được kiểm tra cú pháp.
+- Kiểm chứng: PR #106 đến #110. 237 test, hai lượt build sạch đều xanh, bảy đột biến đều bị test bắt. Baseline 300 request mỗi giây: p99 17,14 ms (trung vị ba lượt). Cả ngày 18 lượt đo, 2,27 triệu request, không request nào lỗi, hai script bất biến trả 0 dòng sau mọi lượt. **Còn mở:** những đợt server đứng 2 đến 12 giây chưa tìm ra nguyên nhân (issue #105), và chi phí của observation chưa có con số. Mình chưa đọc ADR-0007 và chưa tự chạy lại bài đo.
+
 ### 2026-10-07: Nghiên cứu và lập kế hoạch hướng AI Engineer
 - Hỏi AI: dự án cần điều chỉnh gì để hợp cả vị trí AI Engineer, rồi "hãy nghiên cứu cho kĩ và đưa hướng đó vào dự án".
 - AI gợi ý: sau khi tra tin tuyển dụng, spec MCP `2026-07-28`, hướng dẫn eval của Anthropic và OWASP Top 10 for Agentic Applications, đề xuất **một** tính năng: trợ lý ví gọi tool trên API thật. Ba tuần A1–A3 chen sau tuần 8: nền cho agent bằng Java (token theo scope, lệnh chờ xác nhận), service Python (MCP, agent, eval), rồi RAG, an toàn và so sánh model. Báo cáo có nguồn ở [research/huong-ai-engineer.md](research/huong-ai-engineer.md).

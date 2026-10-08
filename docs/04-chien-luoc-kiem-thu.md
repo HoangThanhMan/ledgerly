@@ -108,8 +108,11 @@ Bộ sinh tải vòng kín (closed-loop) chỉ gửi request tiếp theo sau khi
 3. Warm-up 60 giây (không tính), đo 5 phút, **chạy 3 lần**, báo cáo **trung vị**.
 4. Mỗi lần so sánh chỉ thay đổi **một biến**, trên **cùng một máy**.
 5. Sau mỗi lần chạy: `scripts/invariants.sql` phải sạch. Nếu không, kết quả bị hủy.
-6. Commit script, `summary.json`, dữ liệu thô và `env.md`.
+6. Commit script, `summary.json`, dữ liệu thô và `env.md`. Dữ liệu thô được rút còn **một dòng cho mỗi request** (`requests.csv.gz`, bằng `perf/compact-raw.py`): output gốc của k6 khoảng 400 MB cho một lượt, còn một dòng mỗi request là đủ để tính lại mọi phân vị.
 7. JMH chỉ dùng cho khẳng định ở mức micro, chạy trong module riêng, không chạy từ IDE.
+8. **Trong lúc đo, không chạy thêm gì trên máy**, kể cả công cụ của chính bài đo (chụp dashboard, nén file). Output thô của k6 phải được nén và không nằm trên `/tmp` kiểu tmpfs, vì đó là RAM. Mỗi lượt ghi lại thời gian các tiến trình bị nghẽn vì thiếu bộ nhớ (`/proc/pressure/memory`) để nhận ra lượt bị nhiễu. Lượt bị nhiễu thì **giữ lại và ghi rõ**, không xóa. Quy tắc này có từ lần đo hỏng ngày 08/10/2026, xem [benchmarks](benchmarks.md#lần-đo-hỏng-và-nguyên-nhân).
+
+Kết quả và cách chạy lại: [benchmarks.md](benchmarks.md). Script chạy cả ba lượt: `perf/run-baseline.sh`.
 
 ### 6.3 Mẫu `env.md`
 

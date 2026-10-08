@@ -1,6 +1,6 @@
 # 02. Cấu trúc thư mục và quy ước tổ chức code
 
-> Ký hiệu: **[T0]** là đã có từ lúc khởi tạo, **[Tn]** là được thêm ở tuần *n*.
+> Ký hiệu: **[T0]** là đã có từ lúc khởi tạo, **[Tn]** là được thêm ở tuần *n*, **[chưa có]** là có trong thiết kế nhưng chưa xếp vào tuần nào.
 
 ## 1. Cây thư mục đích của repo
 
@@ -9,7 +9,7 @@ ledgerly/
 ├── .github/
 │   ├── workflows/
 │   │   ├── ci.yml                         # build + test cho mọi push/PR              [T0]
-│   │   └── perf-smoke.yml                 # k6 smoke test trên nhánh main            [T7]
+│   │   └── perf-smoke.yml                 # k6 smoke test trên nhánh main            [chưa có]
 │   ├── ISSUE_TEMPLATE/                    # mẫu issue: task, bug                     [T1]
 │   ├── pull_request_template.md           # checklist tự review                      [T0]
 │   └── dependabot.yml                     # cập nhật dependency & actions           [T2]
@@ -83,22 +83,25 @@ ledgerly/
 │
 ├── perf/
 │   ├── k6/
-│   │   ├── lib/                           # hàm dùng chung: tạo ví, seed tiền
-│   │   ├── transfer-constant-rate.js      # kịch bản chính                            [T7]
+│   │   ├── transfer-constant-rate.js      # kịch bản chính, tự tạo ví và nạp tiền     [T7]
 │   │   └── hot-account.js                 # kịch bản tranh chấp                       [T11]
+│   ├── run-baseline.sh                    # chạy N lượt, lưu số liệu và kiểm tra sau mỗi lượt [T7]
+│   ├── compact-raw.py                     # rút output thô của k6 còn một dòng mỗi request [T7]
 │   └── results/
-│       └── 2026-11-20-baseline/           # env.md + summary.json + raw.json          [T7]
+│       └── 2026-10-08-baseline/           # env.md, và mỗi lượt: summary.json, requests.csv.gz, checks.txt [T7]
 │
 ├── infra/
 │   ├── postgres/init/01-create-databases.sql                                        [T0]
 │   ├── toxiproxy/toxiproxy.json                                                     [T10]
-│   └── grafana/dashboards/ledgerly.json                                             [T7]
+│   └── grafana/
+│       ├── dashboards/ledgerly.json       # dashboard, nạp bằng provisioning          [T7]
+│       └── dashboards-provisioning.yaml                                             [T7]
 │
 ├── scripts/
 │   ├── invariants.sql                     # truy vấn kiểm tra bất biến I1–I4          [T4]
 │   ├── invariants-events.sql              # bất biến I6, chạy tay                     [T6]
 │   ├── invariants-agent.sql               # bất biến I8, I9                           [A1]
-│   ├── seed.sh                            # tạo ví & nạp tiền cho demo                [T7]
+│   ├── seed.sh                            # tạo ví & nạp tiền cho demo                [chưa có]
 │   ├── chaos/                             # script chạy từng kịch bản chaos           [T10]
 │   ├── ci/coverage-summary.py             # bảng coverage cho job summary của CI      [T2]
 │   └── spikes/locking.sh                  # spike khóa dòng và deadlock               [T1]
@@ -110,6 +113,7 @@ ledgerly/
 │   ├── weeks/                             # kế hoạch chi tiết từng tuần
 │   ├── journal/                           # nhật ký tuần (tự viết mỗi Chủ nhật)       [T1]
 │   ├── benchmarks.md                      # phương pháp + bảng kết quả                [T7]
+│   ├── images/                            # ảnh chụp dashboard                        [T7]
 │   ├── evals.md                           # phương pháp eval + bảng so sánh model     [A3]
 │   ├── ai-usage.md                        # "Cách tôi dùng AI"                         [T1]
 │   └── research/                          # báo cáo chọn đề tài, báo cáo hướng AI Engineer

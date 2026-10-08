@@ -1,0 +1,56 @@
+time="2026-10-08T02:35:18Z" level=warning msg="Insufficient VUs, reached 1000 active VUs and cannot initialize more" executor=constant-arrival-rate scenario=warmup
+time="2026-10-08T02:35:43Z" level=warning msg="Insufficient VUs, reached 1000 active VUs and cannot initialize more" executor=constant-arrival-rate scenario=measure
+
+
+  █ THRESHOLDS 
+
+    dropped_iterations
+    ✗ 'count==0' count=63714
+
+    http_req_duration{phase:measure,name:replay}
+    ✓ 'max>=0' max=4.95s
+
+    http_req_duration{phase:measure,name:transfer}
+    ✗ 'p(95)<150' p(95)=1.72s
+    ✗ 'p(99)<200' p(99)=2.58s
+
+    http_req_failed{phase:measure}
+    ✓ 'rate<0.001' rate=0.00%
+
+    http_reqs{phase:measure}
+    ✓ 'count>0' count=186979
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 472572  3101.768392/s
+    checks_succeeded...: 100.00% 472572 out of 472572
+    checks_failed......: 0.00%   0 out of 472572
+
+    ✓ status is 201
+    ✓ replay is marked as replayed
+
+    HTTP
+    http_req_duration...................: avg=612.97ms min=604.91µs med=408.42ms p(90)=1.29s p(95)=1.68s p(99)=2.55s max=7.12s
+      { expected_response:true }........: avg=612.97ms min=604.91µs med=408.42ms p(90)=1.29s p(95)=1.68s p(99)=2.55s max=7.12s
+      { phase:measure,name:replay }.....: avg=614.05ms min=626.93µs med=410.97ms p(90)=1.29s p(95)=1.65s p(99)=2.46s max=4.95s
+      { phase:measure,name:transfer }...: avg=637.47ms min=3.01ms   med=460.89ms p(90)=1.33s p(95)=1.72s p(99)=2.58s max=7.12s
+    http_req_failed.....................: 0.00%  0 out of 238286
+      { phase:measure }.................: 0.00%  0 out of 186979
+    http_reqs...........................: 238286 1564.011374/s
+      { phase:measure }.................: 186979 1227.253312/s
+
+    EXECUTION
+    dropped_iterations..................: 63714  418.192511/s
+    iteration_duration..................: avg=618.27ms min=704.28µs med=414.81ms p(90)=1.3s  p(95)=1.68s p(99)=2.55s max=7.12s
+    iterations..........................: 236286 1550.884196/s
+    vus.................................: 699    min=0           max=1077
+    vus_max.............................: 2000   min=400         max=2000
+
+    NETWORK
+    data_received.......................: 100 MB 657 kB/s
+    data_sent...........................: 78 MB  513 kB/s
+
+
+
+time="2026-10-08T02:37:42Z" level=error msg="thresholds on metrics 'dropped_iterations, http_req_duration{phase:measure,name:transfer}' have been crossed"
