@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""Reduces the raw output of `k6 run --out json=raw.json` to one line per request.
+"""Reduces the raw output of `k6 run --out json=raw.json.gz` to one line per request.
 
 k6 writes a JSON line for every metric of every request, several hundred megabytes for a five minute run. What a
 reader needs to recompute the percentiles is one duration per request, so that is what gets committed:
 
-    python3 perf/compact-raw.py raw.json perf/results/<run>/requests.csv.gz
+    python3 perf/compact-raw.py raw.json.gz perf/results/<run>/requests.csv.gz
+
+Let k6 compress its output (a file name ending in .gz) and keep it off a memory-backed /tmp: uncompressed, a run
+takes memory or disk away from the system under test while it is being measured.
 
 Columns: seconds since the first request, phase, name, HTTP status, duration in milliseconds.
 """
@@ -18,7 +21,8 @@ from datetime import datetime
 
 def main(raw_path: str, out_path: str) -> None:
     rows = []
-    with open(raw_path, encoding="utf-8") as raw:
+    opener = gzip.open if raw_path.endswith(".gz") else open
+    with opener(raw_path, "rt", encoding="utf-8") as raw:
         for line in raw:
             point = json.loads(line)
             if point.get("type") != "Point" or point.get("metric") != "http_req_duration":
