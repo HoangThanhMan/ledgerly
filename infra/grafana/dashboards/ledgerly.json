@@ -189,7 +189,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(rate(http_server_requests_milliseconds_count{service_name=\"ledger-app\", status=~\"5..\"}[1m])) / sum(rate(http_server_requests_milliseconds_count{service_name=\"ledger-app\"}[1m]))",
+          "expr": "(sum(rate(http_server_requests_milliseconds_count{service_name=\"ledger-app\", status=~\"5..\"}[1m])) / sum(rate(http_server_requests_milliseconds_count{service_name=\"ledger-app\"}[1m]))) or vector(0)",
           "legendFormat": "5xx"
         }
       ]
