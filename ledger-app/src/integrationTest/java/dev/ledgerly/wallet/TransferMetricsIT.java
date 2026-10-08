@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.ledgerly.AbstractIntegrationTest;
 import dev.ledgerly.shared.Money;
+import dev.ledgerly.wallet.internal.application.TransferResult;
 import dev.ledgerly.wallet.internal.application.TransferService;
 import dev.ledgerly.wallet.internal.application.WalletService;
 import io.micrometer.core.instrument.Counter;
@@ -13,12 +14,14 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.web.servlet.client.RestTestClient;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /** {@code ledgerly.transfers} counts what became of each transfer the service decided, by outcome. */
 class TransferMetricsIT extends AbstractIntegrationTest {
 
     private final TransferService transfers;
     private final MeterRegistry meters;
+    private final TransactionTemplate transactions;
     private final ConcurrentTransfers support;
     private final WalletApiDriver api;
 
@@ -26,9 +29,11 @@ class TransferMetricsIT extends AbstractIntegrationTest {
             @Autowired WalletService wallets,
             @Autowired TransferService transfers,
             @Autowired MeterRegistry meters,
+            @Autowired TransactionTemplate transactions,
             @Autowired RestTestClient client) {
         this.transfers = transfers;
         this.meters = meters;
+        this.transactions = transactions;
         this.support = new ConcurrentTransfers(wallets, transfers);
         this.api = new WalletApiDriver(client);
     }
@@ -69,6 +74,21 @@ class TransferMetricsIT extends AbstractIntegrationTest {
         api.transfer(key, source, target, "10").expectStatus().isCreated();
 
         assertThat(count("completed") - completed).isEqualTo(1);
+    }
+
+    @Test
+    void transferThatIsRolledBackIsNotCounted() {
+        UUID source = support.openWallet(100);
+        UUID target = support.openWallet(0);
+        double completed = count("completed");
+
+        transactions.executeWithoutResult(status -> {
+            assertThat(support.transfer(source, target, 40)).isInstanceOf(TransferResult.Completed.class);
+            status.setRollbackOnly();
+        });
+
+        assertThat(count("completed") - completed).isZero();
+        assertThat(support.balanceOf(source)).isEqualTo(100);
     }
 
     @Test
