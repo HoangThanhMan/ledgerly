@@ -1,5 +1,6 @@
 # Infrastructure for local development.
-#   docker compose up -d        → PostgreSQL (:5433) + Kafka (:9092)
+#   docker compose up -d                            → PostgreSQL (:5433) + Kafka (:9092)
+#   docker compose --profile observability up -d    → the above + Grafana (:3000) with metrics and traces
 name: ledgerly
 
 services:
@@ -46,6 +47,20 @@ services:
       timeout: 10s
       retries: 12
       start_period: 15s
+
+  # OpenTelemetry collector, Prometheus, Tempo, Loki and Grafana in one container. For development only.
+  # The applications send to it when they run with SPRING_PROFILES_ACTIVE=observability.
+  lgtm:
+    image: grafana/otel-lgtm:0.35.0
+    profiles: [observability]
+    ports:
+      - "3000:3000"   # Grafana, user admin, password admin
+      - "4318:4318"   # OTLP over HTTP
+    environment:
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /otel-lgtm/grafana/conf/provisioning/dashboards/custom/ledgerly.json
+    volumes:
+      - ./infra/grafana/dashboards:/otel-lgtm/grafana/conf/provisioning/dashboards/custom:ro
+      - ./infra/grafana/dashboards-provisioning.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/custom.yaml:ro
 
 volumes:
   postgres-data:
