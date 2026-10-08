@@ -2,7 +2,7 @@
 
 # One image definition for all the applications of the repository. Pick the application with a build argument:
 #
-#   docker build --build-arg MODULE=ledger-app -t ledgerly/ledger-app .
+#   docker build --build-arg MODULE=ledger-app -t ledger-app .
 #
 # MODULE is the name of a Gradle module that builds a Spring Boot jar: ledger-app, notification-consumer or
 # mock-bank. compose.yaml builds the images of its "full" profile this way.
