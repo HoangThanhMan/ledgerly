@@ -69,7 +69,6 @@ services:
   # from Gradle instead, so they only start with the "full" profile.
   ledger-app:
     profiles: [full]
-    image: ledgerly/ledger-app
     build:
       context: .
       args:
@@ -93,7 +92,6 @@ services:
 
   notification-consumer:
     profiles: [full]
-    image: ledgerly/notification-consumer
     build:
       context: .
       args:
