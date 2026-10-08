@@ -1,6 +1,9 @@
-# Infrastructure for local development.
-#   docker compose up -d                            → PostgreSQL (:5433) + Kafka (:9092)
+# Infrastructure for local development, and the whole system in containers.
+#   docker compose up -d                            → PostgreSQL (:5433) + Kafka (:9092), for applications run from Gradle
 #   docker compose --profile observability up -d    → the above + Grafana (:3000) with metrics and traces
+#   docker compose --profile full up -d --wait      → PostgreSQL, Kafka and the applications, built from source:
+#                                                     ledger-app (:8080) and notification-consumer (:8082)
+# With both profiles, start the applications with LEDGERLY_PROFILES=compose,observability so they export to Grafana.
 name: ledgerly
 
 services:
@@ -61,6 +64,54 @@ services:
     volumes:
       - ./infra/grafana/dashboards:/otel-lgtm/grafana/conf/provisioning/dashboards/custom:ro
       - ./infra/grafana/dashboards-provisioning.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/custom.yaml:ro
+
+  # The applications, each built by the Dockerfile from the sources in this directory. In development they run
+  # from Gradle instead, so they only start with the "full" profile.
+  ledger-app:
+    profiles: [full]
+    build:
+      context: .
+      args:
+        MODULE: ledger-app
+    environment:
+      SPRING_PROFILES_ACTIVE: ${LEDGERLY_PROFILES:-compose}
+      JAVA_TOOL_OPTIONS: -Xmx512m
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:8080/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+
+  notification-consumer:
+    profiles: [full]
+    build:
+      context: .
+      args:
+        MODULE: notification-consumer
+    environment:
+      SPRING_PROFILES_ACTIVE: ${LEDGERLY_PROFILES:-compose}
+      JAVA_TOOL_OPTIONS: -Xmx256m
+    ports:
+      - "8082:8082"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:8082/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
 
 volumes:
   postgres-data:

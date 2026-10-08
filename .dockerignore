@@ -1,0 +1,19 @@
+# Everything the image build does not read. Keeping it out of the build context also keeps edits to it from
+# invalidating the build stage.
+.git
+.github
+.gradle
+.idea
+.vscode
+**/build
+**/bin
+**/.jqwik-database
+assets
+docs
+infra
+perf
+scripts
+*.md
+compose.yaml
+Dockerfile
+.dockerignore
