@@ -9,8 +9,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.ledgerly.AbstractIntegrationTest;
 import dev.ledgerly.ledger.LedgerApi;
+import dev.ledgerly.ledger.Posting;
+import dev.ledgerly.ledger.PostingRequest;
+import dev.ledgerly.ledger.PostingResult;
 import dev.ledgerly.ledger.SystemAccount;
+import dev.ledgerly.ledger.TransactionType;
+import dev.ledgerly.shared.Money;
 import java.util.ArrayList;
+import java.util.Currency;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -21,6 +27,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 class TransferApiIT extends AbstractIntegrationTest {
@@ -29,10 +36,59 @@ class TransferApiIT extends AbstractIntegrationTest {
     private final LedgerApi ledger;
     private final WalletApiDriver api;
 
-    TransferApiIT(@Autowired RestTestClient client, @Autowired LedgerApi ledger) {
+    private final JdbcClient jdbc;
+
+    TransferApiIT(@Autowired RestTestClient client, @Autowired LedgerApi ledger, @Autowired JdbcClient jdbc) {
         this.client = client;
         this.ledger = ledger;
+        this.jdbc = jdbc;
         this.api = new WalletApiDriver(client);
+    }
+
+    @Test
+    void transferThatWouldOverflowTheTargetBalanceIsRejectedAndMovesNothing() {
+        UUID source = api.openWalletWith(100);
+        UUID target = walletHolding(Long.MAX_VALUE - 10);
+
+        expectProblem(api.transfer(source, target, "11"), HttpStatus.UNPROCESSABLE_CONTENT, "balance-limit-exceeded")
+                .jsonPath("$.detail")
+                .isEqualTo("Wallet " + target + " cannot receive this amount: a balance would exceed the largest"
+                        + " value the ledger can hold");
+        assertThat(api.balanceOf(source)).isEqualTo("100");
+        assertThat(api.balanceOf(target)).isEqualTo(Long.toString(Long.MAX_VALUE - 10));
+        assertThat(api.entriesOf(source)).hasSize(1);
+
+        // Up to the limit is fine.
+        api.transfer(source, target, "10").expectStatus().isCreated();
+        assertThat(api.balanceOf(target)).isEqualTo(Long.toString(Long.MAX_VALUE));
+    }
+
+    @Test
+    void depositThatWouldOverflowTheBalanceIsRejected() {
+        UUID wallet = walletHolding(Long.MAX_VALUE - 10);
+
+        expectProblem(api.deposit(wallet, "11", "VND"), HttpStatus.UNPROCESSABLE_CONTENT, "balance-limit-exceeded");
+        assertThat(api.balanceOf(wallet)).isEqualTo(Long.toString(Long.MAX_VALUE - 10));
+    }
+
+    /**
+     * A wallet with a balance no real deposit could build up. The money comes from a system account made for this
+     * test: taking it from the shared funding account would leave that account unable to fund the other tests.
+     */
+    private UUID walletHolding(long balance) {
+        UUID wallet = api.openWallet();
+        UUID source = jdbc.sql("INSERT INTO accounts (type, code, currency, allow_negative)"
+                        + " VALUES ('SYSTEM', :code, 'VND', TRUE) RETURNING id")
+                .param("code", "test:" + UUID.randomUUID())
+                .query(UUID.class)
+                .single();
+        Money amount = Money.of(balance, Currency.getInstance("VND"));
+        PostingResult result = ledger.post(new PostingRequest(
+                TransactionType.DEPOSIT,
+                null,
+                List.of(new Posting(source, amount.negate()), new Posting(wallet, amount))));
+        assertThat(result).isInstanceOf(PostingResult.Posted.class);
+        return wallet;
     }
 
     @Test

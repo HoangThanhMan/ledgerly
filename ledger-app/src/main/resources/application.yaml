@@ -60,6 +60,21 @@ jdbc:
   # One span per SQL statement. No spans for connections and result sets, and never the parameter values.
   includes: query
 
+logging:
+  level:
+    # springdoc warns at every start that the document and Swagger UI are being served. Here that is intended.
+    org.springdoc.core.events.SpringDocAppInitializer: ERROR
+
+# The OpenAPI document is served at /v3/api-docs (.yaml for YAML), Swagger UI at /swagger-ui.html.
+springdoc:
+  # A stable order of keys, so the copy of the document kept in the repository only changes when the API does.
+  writer-with-order-by-keys: true
+  # What an endpoint answers when its handler does not say otherwise.
+  default-produces-media-type: application/json
+  swagger-ui:
+    operations-sorter: alpha
+    tags-sorter: alpha
+
 ledgerly:
   ledger:
     # How long a posting waits for the row locks on its accounts before it gives up with 503.

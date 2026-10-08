@@ -66,6 +66,7 @@ class LedgerModelProperties extends AbstractIntegrationTest {
         INSUFFICIENT_FUNDS,
         WALLET_NOT_FOUND,
         SAME_WALLET,
+        BALANCE_LIMIT_EXCEEDED,
         CURRENCY_MISMATCH
     }
 
@@ -155,6 +156,7 @@ class LedgerModelProperties extends AbstractIntegrationTest {
                 switch (transfers.deposit(ids.get(wallet), Money.of(amount, VND))) {
                     case DepositResult.Completed completed -> Outcome.COMPLETED;
                     case DepositResult.WalletNotFound notFound -> Outcome.WALLET_NOT_FOUND;
+                    case DepositResult.BalanceLimitExceeded exceeded -> Outcome.BALANCE_LIMIT_EXCEEDED;
                     case DepositResult.CurrencyMismatch mismatch -> Outcome.CURRENCY_MISMATCH;
                 };
             case Transfer(int source, int target, long amount) ->
@@ -163,6 +165,7 @@ class LedgerModelProperties extends AbstractIntegrationTest {
                     case TransferResult.InsufficientFunds funds -> Outcome.INSUFFICIENT_FUNDS;
                     case TransferResult.WalletNotFound notFound -> Outcome.WALLET_NOT_FOUND;
                     case TransferResult.SameWallet same -> Outcome.SAME_WALLET;
+                    case TransferResult.BalanceLimitExceeded exceeded -> Outcome.BALANCE_LIMIT_EXCEEDED;
                     case TransferResult.CurrencyMismatch mismatch -> Outcome.CURRENCY_MISMATCH;
                 };
         };

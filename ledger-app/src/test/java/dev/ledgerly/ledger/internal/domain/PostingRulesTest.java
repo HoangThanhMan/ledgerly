@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import dev.ledgerly.ledger.Posting;
 import dev.ledgerly.ledger.PostingResult.AccountNotFound;
+import dev.ledgerly.ledger.PostingResult.BalanceLimitExceeded;
 import dev.ledgerly.ledger.PostingResult.CurrencyMismatch;
 import dev.ledgerly.ledger.PostingResult.InsufficientFunds;
 import dev.ledgerly.ledger.internal.domain.PostingDecision.Accepted;
@@ -125,11 +126,21 @@ class PostingRulesTest {
     }
 
     @Test
-    void balanceOverflowThrowsInsteadOfWrappingAround() {
+    void creditThatWouldOverflowTheBalanceIsRejected() {
         Account full = new Account(UUID.randomUUID(), vnd(Long.MAX_VALUE), false);
 
-        assertThatThrownBy(() -> PostingRules.apply(List.of(source, full), transfer(source, full, 1)))
-                .isInstanceOf(ArithmeticException.class);
+        PostingDecision decision = PostingRules.apply(List.of(source, full), transfer(source, full, 1));
+
+        assertThat(decision).isEqualTo(new Rejected(new BalanceLimitExceeded(full.id())));
+    }
+
+    @Test
+    void debitThatWouldUnderflowAnAccountAllowedToGoNegativeIsRejected() {
+        Account overdrawn = new Account(UUID.randomUUID(), vnd(Long.MIN_VALUE), true);
+
+        PostingDecision decision = PostingRules.apply(List.of(overdrawn, target), transfer(overdrawn, target, 1));
+
+        assertThat(decision).isEqualTo(new Rejected(new BalanceLimitExceeded(overdrawn.id())));
     }
 
     private static Account wallet(long balance) {

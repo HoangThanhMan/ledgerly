@@ -15,6 +15,9 @@ public sealed interface TransferResult {
 
     record SameWallet(UUID walletId) implements TransferResult {}
 
+    /** The target wallet cannot hold the amount on top of what it has. */
+    record BalanceLimitExceeded(UUID walletId) implements TransferResult {}
+
     record CurrencyMismatch(UUID walletId, Currency walletCurrency, Currency requestedCurrency)
             implements TransferResult {}
 }

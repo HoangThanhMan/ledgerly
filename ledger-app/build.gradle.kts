@@ -4,11 +4,19 @@ plugins {
 
 description = "Main application: e-wallet on a double-entry ledger (modular monolith)"
 
-// -Pledgerly.test.seed=<n> replays the transfers of a failed concurrency run. The other two resize the runs.
+// -Pledgerly.test.seed=<n> replays the transfers of a failed concurrency run. The next two resize the runs.
+// -Pledgerly.openapi.update=true rewrites openapi.yaml from what the application serves.
 tasks.named<Test>("integrationTest") {
-    listOf("ledgerly.test.seed", "ledgerly.test.concurrentTransfers", "ledgerly.test.deadlockPairs").forEach { name ->
+    listOf(
+        "ledgerly.test.seed",
+        "ledgerly.test.concurrentTransfers",
+        "ledgerly.test.deadlockPairs",
+        "ledgerly.openapi.update",
+    ).forEach { name ->
         providers.gradleProperty(name).orNull?.let { systemProperty(name, it) }
     }
+    // The test that compares openapi.yaml with the served document must rerun when the file changes.
+    inputs.files(layout.projectDirectory.files("openapi.yaml")).withPathSensitivity(PathSensitivity.RELATIVE)
 }
 
 dependencies {
@@ -22,6 +30,7 @@ dependencies {
     implementation(libs.spring.boot.starter.kafka)
     implementation(libs.spring.boot.starter.validation)
     implementation(libs.spring.boot.starter.webmvc)
+    implementation(libs.springdoc.openapi.starter.webmvc.ui)
     implementation(libs.flyway.database.postgresql)
     runtimeOnly(libs.postgresql)
 
