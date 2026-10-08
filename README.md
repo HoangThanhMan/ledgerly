@@ -132,20 +132,34 @@ The money rules do not live only in Java. If the code has a bug, PostgreSQL stil
 
 | What | Notes |
 |---|---|
-| Docker Engine and Docker Compose v2 | Runs PostgreSQL, Kafka and Grafana. The integration tests need Docker too (Testcontainers) |
-| JDK 17 or later | Only to run Gradle. Gradle downloads the JDK 25 used for compilation if the machine does not have it |
-| `curl`, `jq`, `uuidgen` | Only for the example commands under [Usage](#usage) |
+| Docker Engine and Docker Compose v2 | All that the container quick start needs. The integration tests need Docker too (Testcontainers) |
+| JDK 17 or later | Only to run the applications or the tests from Gradle. Gradle downloads the JDK 25 used for compilation if the machine does not have it |
+| `curl`, `jq`, `uuidgen` | Only for the example commands under [Usage](#usage) and for the smoke test |
 | Free ports | 8080, 8082, 5433, 9092, plus 3000 and 4318 when Grafana is on |
 
-Gradle does not need to be installed: the repository ships the Gradle wrapper (`./gradlew`).
-
-### Steps
+### Quick start: everything in containers
 
 ```bash
 git clone https://github.com/HoangThanhMan/ledgerly.git
 cd ledgerly
 
-# 1. Infrastructure: PostgreSQL on port 5433, Kafka on port 9092
+# PostgreSQL, Kafka, ledger-app (:8080) and notification-consumer (:8082). Returns when all four are healthy
+docker compose --profile full up -d --wait
+
+# Optional: a deposit, a transfer, its retry, the notification and the ledger invariants, checked end to end
+scripts/smoke-test.sh
+```
+
+The first run builds the two application images from source inside Docker. On the development machine that took about 3 minutes, most of it Gradle downloading dependencies. Once the images exist, the system is up in about 12 seconds.
+
+Then open http://localhost:8080/swagger-ui.html to try the API in the browser, or continue with [Usage](#usage).
+
+To stop: `docker compose --profile full down` (add `-v` to delete the data as well).
+
+### For development: applications from Gradle
+
+```bash
+# 1. Infrastructure only: PostgreSQL on port 5433, Kafka on port 9092
 docker compose up -d --wait
 
 # 2. The two applications, one terminal each. Flyway creates the schema at startup
@@ -160,6 +174,14 @@ curl -s localhost:8082/actuator/health
 To try the API without compose, `./gradlew :ledger-app:bootTestRun` starts PostgreSQL and Kafka through Testcontainers.
 
 To stop and clean up: `Ctrl+C` in both terminals, then `docker compose down` (add `-v` to delete the data as well).
+
+### The container images
+
+One [`Dockerfile`](Dockerfile) builds the image of any application (`--build-arg MODULE=ledger-app`):
+
+- **Layered jar.** The dependencies (92 MB, rarely changed) and the application's own classes (under 200 kB, changed by every commit) are separate image layers, so a rebuild or a pull after a code change does not move the dependencies again.
+- **Unprivileged user.** The process runs as uid 1001, not as root.
+- **AOT cache (Java 25).** A training run during the image build records the classes the application loads and links at startup. Startup of `ledger-app` in its container: **2.07 s with the cache, 4.09 s without** (median of 5 starts each, alternating). `notification-consumer`: 1.48 s against 2.73 s (median of 3). The price is 114 MB more in the `ledger-app` image (622 MB in total), a layer that is rebuilt on every code change.
 
 ## Usage
 
@@ -232,11 +254,17 @@ SPRING_PROFILES_ACTIVE=observability ./gradlew :ledger-app:bootRun
 SPRING_PROFILES_ACTIVE=observability ./gradlew :notification-consumer:bootRun
 ```
 
+With the applications in containers, one command does the same:
+
+```bash
+LEDGERLY_PROFILES=compose,observability docker compose --profile full --profile observability up -d --wait
+```
+
 Open http://localhost:3000 (user `admin`, password `admin`): the Ledgerly dashboard is the home page. In Explore, pick the Tempo data source to see traces. One transfer is one trace across both services: the HTTP request, 12 SQL statements, `outbox publish`, the send to Kafka, then the processing in the consumer.
 
 ## Configuration
 
-The defaults live in each application's `application.yaml` and work as they are with `compose.yaml`. Override them with environment variables following the Spring Boot convention, for example `SERVER_PORT=9080` or `LEDGERLY_OUTBOX_RELAY_ENABLED=false`.
+The defaults live in each application's `application.yaml` and suit applications run from Gradle next to `compose.yaml`. In containers the `compose` profile replaces the host names (`application-compose.yaml`). Override them with environment variables following the Spring Boot convention, for example `SERVER_PORT=9080` or `LEDGERLY_OUTBOX_RELAY_ENABLED=false`.
 
 | Property | Default | Meaning |
 |---|---|---|
@@ -260,6 +288,8 @@ The defaults live in each application's `application.yaml` and work as they are 
 | `POST` | `/v1/transfers` | Transfer between two wallets | Required |
 | `GET` | `/v1/transfers/{id}` | Details of a transfer | |
 | `POST` | `/v1/admin/deposits` | Deposit into a wallet from a system account, for development and tests | Required |
+
+The full reference is the OpenAPI document: Swagger UI at http://localhost:8080/swagger-ui.html, the document itself at `/v3/api-docs`, and a copy in [`ledger-app/openapi.yaml`](ledger-app/openapi.yaml) that a test keeps equal to what the application serves. It describes every parameter and, for each operation, every problem it can answer with.
 
 Amounts are integer strings in the minor unit (`"amount": "150000"`), so a JavaScript client cannot lose precision. Errors follow RFC 9457 Problem Details:
 
@@ -295,6 +325,7 @@ A key is kept for at least 24 hours.
 - **No H2, no mocked database.** Persistence tests run on real PostgreSQL, the same version the application runs on.
 - **Concurrency tests check invariants, not just the absence of errors.** After each run, `InvariantChecker` executes the very statements in [`scripts/invariants.sql`](scripts/invariants.sql). Randomised tests log their seed, and `-Pledgerly.test.seed=<n>` replays a failed run.
 - **Failures are injected on purpose.** Tests simulate a process dying at the hardest points: after the money moved but before the key is marked complete, and after the relay sent to Kafka but before it committed.
+- **The packaged system is tested too.** CI builds the container images, starts the whole system with `docker compose --profile full` and runs [`scripts/smoke-test.sh`](scripts/smoke-test.sh) against it.
 - **Quality gates in CI:** a formatting difference, a null error (NullAway in JSpecify mode) or an Error Prone error fails the build. Line coverage of the `internal.domain` packages must be at least 80%.
 
 | Invariant | Statement |
@@ -321,6 +352,8 @@ These numbers come from **one laptop running everything, over loopback, with a s
 
 Two things did not go well and are kept in the open. The first batch of runs is unusable: the benchmark script took a dashboard screenshot in the middle of a run and wrote its raw output to a RAM-backed directory. That batch is still in the repository, labelled as such. And in 4 of 11 runs at 300 requests per second the server stalled for 0.5 to 6 seconds. The cause has not been found ([#105](https://github.com/HoangThanhMan/ledgerly/issues/105)), so the honest summary is a p99 of about 17 ms with an unexplained risk of a stall of a few seconds.
 
+The packaged system was checked with the same scenario: one run at 300 requests per second against the containers, `ledger-app` limited to 2 CPUs, gave p50 2.12 ms, p95 3.67 ms, p99 15.28 ms and no errors, with 102,598 transfers, events and notifications at the end. It is a single run on a different network path, so it confirms the baseline rather than replacing it.
+
 ![Grafana dashboard during the ramp test](assets/dashboard-ramp-test.png)
 
 *The `Ledgerly` dashboard during a ramp test in four steps: 600, 1,000, 1,500 and 2,000 requests per second.*
@@ -332,8 +365,8 @@ docker compose --profile observability up -d --wait
 ./gradlew :ledger-app:bootJar :notification-consumer:bootJar
 export SPRING_PROFILES_ACTIVE=observability
 export MANAGEMENT_TRACING_SAMPLING_PROBABILITY=0.1   # the profile traces every request, the baseline traced 10%
-taskset -c 0,1 java -Xmx512m -jar ledger-app/build/libs/ledger-app-0.1.0-SNAPSHOT.jar &
-java -Xmx256m -jar notification-consumer/build/libs/notification-consumer-0.1.0-SNAPSHOT.jar &
+taskset -c 0,1 java -Xmx512m -jar ledger-app/build/libs/ledger-app-1.0.0.jar &
+java -Xmx256m -jar notification-consumer/build/libs/notification-consumer-1.0.0.jar &
 
 # Three runs at 300 requests per second, results in perf/results/<name>/
 perf/run-baseline.sh "$(date +%F)-baseline" 300 3
@@ -353,6 +386,7 @@ perf/run-baseline.sh "$(date +%F)-baseline" 300 3
 | What if the request holding a key is slow, not dead | A lease with a fencing token that the completing `UPDATE` must match | A lease with an unconditional completing `UPDATE`: the slow request could still commit after a retry took the key over, giving two transfers for one key (measured) |
 | How to publish events | A transactional outbox, drained by a polling relay with `FOR UPDATE SKIP LOCKED` | Writing to the database and then to Kafka loses the event if the process dies in between. Kafka transactions do not cover PostgreSQL. Debezium adds Kafka Connect and a replication slot to operate, and is much harder to run in tests |
 | How to instrument | The Spring Boot OpenTelemetry starter, with Grafana LGTM in one container for development | The OpenTelemetry Java agent rewrites bytecode at runtime and lives outside the build, so it is hard to test in `./gradlew build`. Separate Prometheus, Jaeger and Grafana mean three services to wire together |
+| What to do when a balance would overflow 64 bits | Reject the posting like any other business rule (`422`) | Letting the arithmetic exception surface: correct for the ledger, since nothing is written, but the client gets a `500` for a request it could have been told about (found by testing) |
 | How to follow a request through the outbox | Store the request's `traceparent` on the outbox row and restore it when the relay sends | A separate trace for the relay with a span link back: correct, but harder to read |
 
 ## Tech stack
@@ -366,6 +400,8 @@ perf/run-baseline.sh "$(date +%F)-baseline" 300 3
 | Testing | JUnit 5, AssertJ, Testcontainers, ArchUnit, jqwik (property-based) |
 | Quality | Spotless (Palantir Java Format), Error Prone, NullAway, JaCoCo |
 | Observability | OpenTelemetry through the Spring Boot starter, Grafana LGTM |
+| API reference | OpenAPI through springdoc, Swagger UI |
+| Packaging | Docker multi-stage build, layered jar, Java 25 AOT cache, Docker Compose |
 | Performance | k6 |
 | Build, CI | Gradle 9 (Kotlin DSL, version catalog, convention plugins), GitHub Actions |
 
@@ -378,9 +414,10 @@ perf/run-baseline.sh "$(date +%F)-baseline" 300 3
 | [`ledger-contracts`](ledger-contracts) | Event definitions shared by producer and consumer |
 | [`mock-bank`](mock-bank) | Skeleton of a simulated bank, no business logic yet |
 | [`build-logic`](build-logic) | Gradle convention plugins: Java setup, quality gates, the `integrationTest` source set |
+| [`Dockerfile`](Dockerfile), [`compose.yaml`](compose.yaml) | The container image of the applications, and the services to run them with |
 | [`infra`](infra) | PostgreSQL init script, Grafana dashboard definition |
 | [`perf`](perf) | k6 scenario, the script that runs the benchmark, raw results of every run |
-| [`scripts`](scripts) | Queries that check the ledger invariants |
+| [`scripts`](scripts) | Queries that check the ledger invariants, the end-to-end smoke test |
 
 Good places to start reading the code:
 
@@ -396,7 +433,9 @@ Good places to start reading the code:
 - **No authentication or authorisation.** Whoever can reach the API can act on every wallet. Do not run it outside a development environment.
 - **One currency.** Wallets can only be opened in VND.
 - **No overload protection.** Past the ceiling, requests queue up instead of being rejected early: at 2,000 requests per second some waited 7 seconds and still got a `201`.
-- **Not packaged for deployment.** The applications have no Dockerfile, and every measurement comes from one development machine.
+- **A dead database is noticed slowly.** With PostgreSQL stopped, a request waits 30 seconds for a connection and is then answered with `500`, not with a quick `503`. The application recovers by itself about 5 seconds after the database is back.
+- **A killed consumer delays notifications.** After `kill -9` on `notification-consumer`, the restarted consumer got its partitions back only when the broker's 45-second session timeout had passed: 43 seconds in the test, against under 3 seconds after a graceful stop. Nothing is lost or duplicated, it is only late.
+- **Not deployed anywhere.** There are container images and a one-command compose setup, but no hosted demo and no images in a registry: they are built locally from source. Every measurement comes from one development machine.
 
 ## Contributing
 
@@ -405,6 +444,8 @@ This is a personal project, but questions, bug reports and suggestions are welco
 - `./gradlew build` must pass. Run `./gradlew spotlessApply` before committing to fix formatting.
 - The PR title follows [Conventional Commits](https://www.conventionalcommits.org/), for example `fix(outbox): ...`.
 - A change in behaviour needs a test.
+
+Releases are described in the [changelog](CHANGELOG.md).
 
 ## Author
 
