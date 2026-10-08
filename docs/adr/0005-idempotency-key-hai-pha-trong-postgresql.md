@@ -147,6 +147,6 @@ Số client nhận 409 ít nhất một lần là 28 ở một ca và 43 ở ca 
 
 **B7. Thử phá code.** 18 cách sửa hỏng code (bỏ từng điều kiện trong SQL, bỏ `@Transactional` của Tx2, không thả key, không lưu lời từ chối, bỏ từng thành phần của hash, ...) đều làm ít nhất một test đỏ. Bảng đầy đủ ở [nhật ký tuần 5](../journal/2026-W45.md#thí-nghiệm-phá-code-để-thử-test).
 
-**B5. Trước và sau, gọi bằng `curl` trên app thật.** Trước tuần 5 (commit `4e73b95`): gửi hai lần cùng key `…-tr1`, ví nguồn từ 350.000 xuống 200.000. Sau tuần 5 (`bootTestRun`): gửi ba lần cùng key, lần ba đổi thứ tự trường và thêm khoảng trắng, ví nguồn vẫn 350.000 và hai lần sau có `Idempotent-Replayed: true`. Output ở [README](../../README.md#retry-an-toàn-như-thế-nào).
+**B5. Trước và sau, gọi bằng `curl` trên app thật.** Trước tuần 5 (commit `4e73b95`): gửi hai lần cùng key `…-tr1`, ví nguồn từ 350.000 xuống 200.000. Sau tuần 5 (`bootTestRun`): gửi ba lần cùng key, lần ba đổi thứ tự trường và thêm khoảng trắng, ví nguồn vẫn 350.000 và hai lần sau có `Idempotent-Replayed: true`. Output ở [README](../../README.md#how-retries-stay-safe).
 
 **B6. Tài liệu.** Stripe, *Designing robust and predictable APIs with idempotency* và tài liệu API *Idempotent requests*, đã ghi chú ở [notes-stripe-idempotency](../journal/notes-stripe-idempotency.md). Khác Stripe ở hai điểm: không lưu lỗi 5xx, và key tối đa 64 ký tự.

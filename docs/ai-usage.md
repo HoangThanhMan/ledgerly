@@ -14,6 +14,12 @@ Mỗi mục ghi: hỏi AI gì, AI gợi ý gì, mình quyết định gì (chấ
 
 ---
 
+### 2026-10-08: Viết lại README bằng tiếng Anh
+- Hỏi AI: viết lại README cho gọn, không trình bày tiến độ, để người đọc biết dự án làm gì, chạy thế nào, kiến trúc ra sao. Sau đó: đối chiếu với chuẩn README, kiểm chứng lại, rồi viết bằng tiếng Anh.
+- AI gợi ý: bố cục theo Standard Readme và hướng dẫn README của GitHub (mô tả ngắn, mục lục, Install, Usage, Configuration, API, Contributing, License), thêm bảng "bài toán, cách giải, bằng chứng", ba sơ đồ kiến trúc và mục giới hạn hiện tại. Bỏ khối trạng thái theo tuần và những phần chưa có code (nạp/rút qua ngân hàng, đối soát).
+- Quyết định: AI viết toàn bộ. Mình chọn chỉ giữ bản tiếng Anh. Ba điểm AI tự quyết, mình **chưa duyệt**: "Bài toán" và "Kiến trúc" đứng trước "Install" (lệch thứ tự của Standard Readme), README có link tới file này, và mục License ghi là chưa có giấy phép.
+- Kiểm chứng: chạy thật trên một compose project riêng ngày 08/10: `docker compose up -d --wait`, `./gradlew :ledger-app:bootRun`, luồng `curl` (mở ví, nạp, chuyển, gửi lại cùng key), đọc topic Kafka, bảng `notifications`, `scripts/invariants.sql` trả 0 dòng, Grafana (`admin`/`admin`, trang chủ là dashboard Ledgerly), một trace gồm 12 câu SQL đi qua cả hai service. Chưa chạy lại: `./gradlew build` (dựa vào CI), `bootTestRun`, và `notification-consumer` qua `bootRun` (đã chạy bằng file jar). Mọi link và anchor trong README được kiểm bằng script.
+
 ### 2026-10-08: Tuần 7, observability, baseline k6 và ADR-0007 (W07-01 … W07-07)
 - Hỏi AI: "thực hiện task tiếp theo và kiểm tra cho kĩ mọi thứ đảm bảo phải đúng rồi push lên main".
 - AI gợi ý:
@@ -76,7 +82,7 @@ Mỗi mục ghi: hỏi AI gì, AI gợi ý gì, mình quyết định gì (chấ
   - ADR-0005 được AI đặt `Accepted`. Phần so sánh với Redis và với thiết kế một transaction là lập luận, chưa đo.
   - AI tự chỉ ra một điểm yếu của kế hoạch: lý do "hai pha để gọi mạng" chưa được dùng tới, vì action chạy trong Tx2. Mình cần đọc phần Hệ quả của ADR-0005 và quyết định có giữ hai pha không.
   - `FaultInjector` là điểm móc chỉ để test nhưng nằm trong code chính.
-- Kiểm chứng: `./gradlew build` 174/174 xanh (52 test mới). Test của #91–#93 viết trước và đã thấy đỏ (lỗi compile, rồi 7/11 test HTTP đỏ khi endpoint chưa nối). Test của #95 viết sau code, nên kiểm bằng cách sửa tạm: bỏ điều kiện `lease_token` thì hai test zombie đỏ. Chạy `bootTestRun` và gọi bằng `curl`: gửi ba lần cùng key, số dư chỉ đổi một lần (output ở [README](../README.md#retry-an-toàn-như-thế-nào)). Trước tuần 5, cùng thao tác đó chuyển tiền hai lần.
+- Kiểm chứng: `./gradlew build` 174/174 xanh (52 test mới). Test của #91–#93 viết trước và đã thấy đỏ (lỗi compile, rồi 7/11 test HTTP đỏ khi endpoint chưa nối). Test của #95 viết sau code, nên kiểm bằng cách sửa tạm: bỏ điều kiện `lease_token` thì hai test zombie đỏ. Chạy `bootTestRun` và gọi bằng `curl`: gửi ba lần cùng key, số dư chỉ đổi một lần (output ở [README](../README.md#how-retries-stay-safe)). Trước tuần 5, cùng thao tác đó chuyển tiền hai lần.
 
 ### 2026-10-07: VS Code tự build khi mở dự án
 - Hỏi AI: vì sao bấm vào VS Code của dự án thì có thứ gì đó tự build, rồi nhờ xử lý.

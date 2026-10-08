@@ -70,7 +70,7 @@ Thêm ca **zombie**: làm Tx2 của request đầu chậm hơn `locked_until`, �
 - [x] Toàn bộ test xanh (`./gradlew build --rerun-tasks --no-build-cache` 176/176 trên máy dev ngày 07/10/2026, CI của từng PR)
 - [x] Metric `ledgerly.idempotency.replays` tăng đúng (`IdempotencyApiIT`, `IdempotencyIT`, và đúng 49 trong `IdempotencyConcurrencyIT`)
 - [x] ADR-0005 Accepted (do AI soạn và đặt trạng thái, merge theo yêu cầu của tác giả ngày 07/10/2026)
-- [x] README có đoạn ngắn ["Retry an toàn như thế nào"](../../README.md#retry-an-toàn-như-thế-nào) kèm ví dụ `curl`
+- [x] README có đoạn ngắn ["Retry an toàn như thế nào"](../../README.md#how-retries-stay-safe) kèm ví dụ `curl`
 
 ## Ghi chú khi thực hiện (07/10/2026)
 
