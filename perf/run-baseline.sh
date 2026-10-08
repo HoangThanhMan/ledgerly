@@ -9,10 +9,11 @@
 # both with SPRING_PROFILES_ACTIVE=observability and the "metrics" actuator endpoint exposed.
 #
 # Environment: COMPOSE_PROJECT (ledgerly), K6_IMAGE (grafana/k6:2.3.0), WORK (build/k6-raw, holds the raw k6
-# output, about 15 MB per run, deleted run by run), WARMUP (1m), DURATION (5m), WALLETS (1000).
+# output, about 15 MB per run, deleted run by run), WARMUP (1m), DURATION (5m), WALLETS (1000), FIRST_RUN (1,
+# set it to add runs to a results directory without overwriting the ones it has).
 #
 # Start nothing else on the machine while this runs. A run records how long processes were stalled waiting
-# for memory, so that a disturbed run can be recognised afterwards. Method: docs/benchmarks.md.
+# for memory, CPU and disk, so that a disturbed run can be recognised afterwards. Method: docs/benchmarks.md.
 set -u
 
 NAME=${1:?usage: perf/run-baseline.sh <results-name> [rate] [runs]}
@@ -23,6 +24,7 @@ K6_IMAGE=${K6_IMAGE:-grafana/k6:2.3.0}
 WARMUP=${WARMUP:-1m}
 DURATION=${DURATION:-5m}
 WALLETS=${WALLETS:-1000}
+FIRST_RUN=${FIRST_RUN:-1}
 WORK=${WORK:-build/k6-raw}
 OUT=perf/results/$NAME
 GRAFANA=http://admin:admin@localhost:3000
@@ -50,30 +52,35 @@ actuator_metric() {
     | python3 -I -c 'import json,sys; print(json.load(sys.stdin)["measurements"][0]["value"])'
 }
 
-# Microseconds during which at least one process was stalled waiting for memory, since boot.
-memory_stall_us() {
-  awk '/^some/ { split($5, total, "="); print total[2] }' /proc/pressure/memory
+# Microseconds since boot during which at least one process was stalled waiting for the resource:
+# memory, cpu or io.
+stall_us() {
+  awk '/^some/ { split($5, total, "="); print total[2] }' "/proc/pressure/$1"
 }
 
 swap_used_mb() {
   free -m | awk 'NR==3 { print $3 }'
 }
 
-for run in $(seq 1 "$RUNS"); do
+for run in $(seq "$FIRST_RUN" "$((FIRST_RUN + RUNS - 1))"); do
   R=$OUT/run-$run
   mkdir -p "$R"
   rm -f "$WORK/raw-$run.json.gz"
-  stall_before=$(memory_stall_us)
+  memory_before=$(stall_us memory)
+  cpu_before=$(stall_us cpu)
+  io_before=$(stall_us io)
   swap_before=$(swap_used_mb)
-  echo "$(date +%T) run $run of $RUNS at $RATE requests per second"
+  echo "$(date +%T) run $run at $RATE requests per second"
 
   docker run --rm --network host --user "$(id -u):$(id -g)" -v "$PWD/perf:/perf:ro" -v "$WORK:/out" \
     -e RATE="$RATE" -e WARMUP="$WARMUP" -e DURATION="$DURATION" -e WALLETS="$WALLETS" \
-    -e RUN_ID="$NAME-$run" \
+    -e RUN_ID="$(date +%s)-$run" \
     "$K6_IMAGE" run --no-usage-report --quiet --summary-export "/out/summary-$run.json" \
     --out "json=/out/raw-$run.json.gz" /perf/k6/transfer-constant-rate.js > "$R/k6-summary.txt" 2>&1
   k6_exit=$?
-  stall_after=$(memory_stall_us)
+  memory_stall=$(( ($(stall_us memory) - memory_before) / 1000 ))
+  cpu_stall=$(( ($(stall_us cpu) - cpu_before) / 1000 ))
+  io_stall=$(( ($(stall_us io) - io_before) / 1000 ))
   if [ ! -f "$WORK/summary-$run.json" ]; then
     echo "k6 wrote no summary (exit code $k6_exit), see $R/k6-summary.txt" >&2
     exit 1
@@ -96,12 +103,19 @@ for run in $(seq 1 "$RUNS"); do
     echo "}"
   } > "$R/server-metrics.json"
 
-  # Wait for the relay to drain before counting, for at most two minutes.
+  # Wait for the relay to drain and then for the consumer to catch up before counting, for at most two
+  # minutes each. After an overloaded run both are behind, and counting early looks like lost events.
   pending=unknown
   for _ in $(seq 1 60); do
     pending=$(actuator_metric localhost:8080 ledgerly.outbox.pending)
     [ "$pending" = "0.0" ] && break
     sleep 2
+  done
+  consumer_wait=0
+  while [ "$consumer_wait" -lt 120 ] \
+    && [ "$(psql_count notification "select count(*) from notifications")" != "$(psql_count ledger "select count(*) from outbox_events")" ]; do
+    sleep 2
+    consumer_wait=$((consumer_wait + 2))
   done
   sleep 5
 
@@ -110,12 +124,14 @@ for run in $(seq 1 "$RUNS"); do
     echo "outbox pending after the run: $pending"
     echo "transfers in ledger: $(psql_count ledger "select count(*) from ledger_transactions where type='TRANSFER'")"
     echo "outbox events: $(psql_count ledger "select count(*) from outbox_events") unpublished: $(psql_count ledger "select count(*) from outbox_events where published_at is null")"
-    echo "notifications: $(psql_count notification "select count(*) from notifications")"
+    echo "notifications: $(psql_count notification "select count(*) from notifications") (waited $consumer_wait s for the consumer)"
     echo "duplicates counted by consumer: $(actuator_metric localhost:8082 notification.duplicates 2>/dev/null)"
     echo "invariants.sql violating rows: $(violations scripts/invariants.sql)"
     echo "invariants-events.sql violating rows: $(violations scripts/invariants-events.sql)"
     echo "ledger database size: $(psql_count ledger "select pg_size_pretty(pg_database_size('ledger'))")"
-    echo "memory stall during k6: $(( (stall_after - stall_before) / 1000 )) ms"
+    echo "memory stall during k6: $memory_stall ms"
+    echo "cpu stall during k6: $cpu_stall ms"
+    echo "io stall during k6: $io_stall ms"
     echo "swap used before and after: $swap_before MB, $(swap_used_mb) MB"
   } > "$R/checks.txt"
 

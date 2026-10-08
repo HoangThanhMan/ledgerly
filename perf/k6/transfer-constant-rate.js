@@ -4,7 +4,8 @@
 //     --summary-export /perf/results/<run>/summary.json /perf/k6/transfer-constant-rate.js
 //
 // Environment: BASE_URL (http://localhost:8080), RATE (300 per second), WARMUP (1m), DURATION (5m),
-// WALLETS (1000), RUN_ID (a string that makes this run's idempotency keys unique).
+// WALLETS (1000), RUN_ID (a string that makes this run's idempotency keys unique, at most 22 characters:
+// the longest key is RUN_ID, "-seed-" and a wallet id, and a key may be 64 characters long).
 //
 // The executor is open-loop: requests are started on schedule whether or not earlier ones have returned. A
 // closed-loop generator waits for each response and so sends fewer requests exactly when the server is slow,
