@@ -49,3 +49,20 @@ jobs:
           name: coverage-reports
           path: "**/build/reports/jacoco/"
           retention-days: 7
+
+  images:
+    name: Container images
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build the images and start the whole system
+        run: docker compose --profile full up -d --build --wait --wait-timeout 180
+
+      - name: Smoke test (deposit, transfer, retry, notification, invariants)
+        run: scripts/smoke-test.sh
+
+      - name: Container logs
+        if: failure()
+        run: docker compose --profile full logs --no-color --tail 300
