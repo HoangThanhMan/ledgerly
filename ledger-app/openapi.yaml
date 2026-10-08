@@ -124,6 +124,14 @@ paths:
           content:
             application/problem+json:
               examples:
+                balance-limit-exceeded:
+                  description: The amount would take a balance past the largest value
+                    the ledger can hold. No money moved.
+                  summary: Balance limit exceeded
+                  value:
+                    status: 422
+                    title: Balance limit exceeded
+                    type: /problems/balance-limit-exceeded
                 currency-mismatch:
                   description: The currency of the request is not the currency of
                     a wallet it names.
@@ -143,7 +151,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
           description: "Idempotency-Key was already used with a different request,\
-            \ or: Currency does not match the wallet"
+            \ or: Currency does not match the wallet, or: Balance limit exceeded"
         "500":
           content:
             application/problem+json:
@@ -294,6 +302,14 @@ paths:
           content:
             application/problem+json:
               examples:
+                balance-limit-exceeded:
+                  description: The amount would take a balance past the largest value
+                    the ledger can hold. No money moved.
+                  summary: Balance limit exceeded
+                  value:
+                    status: 422
+                    title: Balance limit exceeded
+                    type: /problems/balance-limit-exceeded
                 currency-mismatch:
                   description: The currency of the request is not the currency of
                     a wallet it names.
@@ -331,7 +347,7 @@ paths:
                 $ref: "#/components/schemas/Problem"
           description: "Idempotency-Key was already used with a different request,\
             \ or: Insufficient funds, or: Source and target wallet are the same, or:\
-            \ Currency does not match the wallet"
+            \ Currency does not match the wallet, or: Balance limit exceeded"
         "500":
           content:
             application/problem+json:
@@ -855,6 +871,7 @@ components:
           - /problems/insufficient-funds
           - /problems/same-account-transfer
           - /problems/currency-mismatch
+          - /problems/balance-limit-exceeded
           - /problems/unsupported-currency
           - /problems/internal-error
           - /problems/overloaded

@@ -2,6 +2,7 @@ package dev.ledgerly.wallet.internal.web;
 
 import dev.ledgerly.shared.problem.ProblemResponses;
 import dev.ledgerly.shared.problem.ProblemType;
+import dev.ledgerly.wallet.internal.application.DepositResult.BalanceLimitExceeded;
 import dev.ledgerly.wallet.internal.application.DepositResult.Completed;
 import dev.ledgerly.wallet.internal.application.DepositResult.CurrencyMismatch;
 import dev.ledgerly.wallet.internal.application.DepositResult.WalletNotFound;
@@ -64,6 +65,7 @@ class DepositController {
         ProblemType.IDEMPOTENCY_IN_PROGRESS,
         ProblemType.IDEMPOTENCY_KEY_REUSED,
         ProblemType.CURRENCY_MISMATCH,
+        ProblemType.BALANCE_LIMIT_EXCEEDED,
         ProblemType.OVERLOADED
     })
     @PostMapping
@@ -82,6 +84,8 @@ class DepositController {
             case Completed completed ->
                 new Reply.Created(completed.deposit().id(), DepositResponse.from(completed.deposit()));
             case WalletNotFound notFound -> new Reply.Rejected(WalletProblems.walletNotFound(notFound.walletId()));
+            case BalanceLimitExceeded exceeded ->
+                new Reply.Rejected(WalletProblems.balanceLimitExceeded(exceeded.walletId()));
             case CurrencyMismatch mismatch ->
                 new Reply.Rejected(WalletProblems.currencyMismatch(
                         mismatch.walletId(), mismatch.walletCurrency(), mismatch.requestedCurrency()));

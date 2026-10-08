@@ -70,6 +70,7 @@ public class TransferService {
             case TransferResult.InsufficientFunds funds -> "insufficient_funds";
             case TransferResult.WalletNotFound notFound -> "wallet_not_found";
             case TransferResult.SameWallet same -> "same_wallet";
+            case TransferResult.BalanceLimitExceeded exceeded -> "balance_limit_exceeded";
             case TransferResult.CurrencyMismatch mismatch -> "currency_mismatch";
         };
         Counter counter = Counter.builder("ledgerly.transfers")
@@ -125,6 +126,8 @@ public class TransferService {
             case PostingResult.CurrencyMismatch mismatch ->
                 new TransferResult.CurrencyMismatch(
                         mismatch.accountId(), mismatch.accountCurrency(), mismatch.postingCurrency());
+            case PostingResult.BalanceLimitExceeded exceeded ->
+                new TransferResult.BalanceLimitExceeded(exceeded.accountId());
         };
     }
 
@@ -151,6 +154,8 @@ public class TransferService {
             case PostingResult.CurrencyMismatch mismatch ->
                 new DepositResult.CurrencyMismatch(
                         mismatch.accountId(), mismatch.accountCurrency(), mismatch.postingCurrency());
+            // Either account can be the one at its limit. The client only knows the wallet.
+            case PostingResult.BalanceLimitExceeded exceeded -> new DepositResult.BalanceLimitExceeded(walletId);
             case PostingResult.InsufficientFunds funds ->
                 throw new IllegalStateException(
                         "the funding account may go negative, yet the ledger reported " + funds);

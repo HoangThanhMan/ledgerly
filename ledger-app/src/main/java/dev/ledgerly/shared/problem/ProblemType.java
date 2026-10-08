@@ -51,6 +51,11 @@ public enum ProblemType {
             "currency-mismatch",
             "Currency does not match the wallet",
             "The currency of the request is not the currency of a wallet it names."),
+    BALANCE_LIMIT_EXCEEDED(
+            HttpStatus.UNPROCESSABLE_CONTENT,
+            "balance-limit-exceeded",
+            "Balance limit exceeded",
+            "The amount would take a balance past the largest value the ledger can hold. No money moved."),
     UNSUPPORTED_CURRENCY(
             HttpStatus.UNPROCESSABLE_CONTENT,
             "unsupported-currency",

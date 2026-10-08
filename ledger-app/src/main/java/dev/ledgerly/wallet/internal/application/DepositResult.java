@@ -10,6 +10,9 @@ public sealed interface DepositResult {
 
     record WalletNotFound(UUID walletId) implements DepositResult {}
 
+    /** The wallet, or the funding account that pays for the deposit, cannot take the amount. */
+    record BalanceLimitExceeded(UUID walletId) implements DepositResult {}
+
     record CurrencyMismatch(UUID walletId, Currency walletCurrency, Currency requestedCurrency)
             implements DepositResult {}
 }
