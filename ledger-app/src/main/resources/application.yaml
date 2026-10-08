@@ -14,6 +14,9 @@ spring:
       ddl-auto: validate
   kafka:
     bootstrap-servers: localhost:9092
+    template:
+      # A span for every send, and the trace context in the record's headers.
+      observation-enabled: true
     producer:
       # The broker confirms a record only when all in-sync replicas have it.
       acks: all
@@ -35,7 +38,25 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics
+  tracing:
+    sampling:
+      # Share of requests that are traced. The observability profile below traces all of them.
+      probability: 0.1
+  otlp:
+    metrics:
+      export:
+        # Nothing is exported unless the observability profile is on: there may be no collector to send to.
+        enabled: false
+  metrics:
+    distribution:
+      percentiles-histogram:
+        # Buckets, so percentiles can be computed over any time range and summed across instances.
+        http.server.requests: true
+
+jdbc:
+  # One span per SQL statement. No spans for connections and result sets, and never the parameter values.
+  includes: query
 
 ledgerly:
   ledger:
@@ -60,3 +81,28 @@ ledgerly:
       backoff:
         initial: 200ms
         max: 30s
+
+---
+# Sends metrics and traces to an OpenTelemetry collector. Start one with:
+#   docker compose --profile observability up -d
+# then run the application with SPRING_PROFILES_ACTIVE=observability.
+spring:
+  config:
+    activate:
+      on-profile: observability
+
+management:
+  tracing:
+    sampling:
+      probability: 1.0
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: http://localhost:4318/v1/traces
+  otlp:
+    metrics:
+      export:
+        enabled: true
+        url: http://localhost:4318/v1/metrics
+        step: 10s

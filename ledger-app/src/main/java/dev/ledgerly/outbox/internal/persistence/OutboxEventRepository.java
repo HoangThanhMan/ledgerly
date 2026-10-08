@@ -14,7 +14,10 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class OutboxEventRepository {
 
-    /** An event waiting to be published. The payload is JSON text. */
+    /**
+     * An event waiting to be published. The payload is JSON text, and so are the headers: a JSON object of strings
+     * that carries the trace context of whoever wrote the event.
+     */
     public record OutboxRow(
             UUID id,
             String topic,
@@ -23,6 +26,7 @@ public class OutboxEventRepository {
             String eventType,
             int eventVersion,
             String payload,
+            String headers,
             Instant createdAt) {}
 
     private final JdbcClient jdbc;
@@ -33,10 +37,18 @@ public class OutboxEventRepository {
 
     /** Writes one unpublished event and returns its id. */
     public UUID insert(
-            String topic, String aggregateType, UUID aggregateId, String eventType, int eventVersion, String payload) {
+            String topic,
+            String aggregateType,
+            UUID aggregateId,
+            String eventType,
+            int eventVersion,
+            String payload,
+            String headers) {
         return jdbc.sql("""
-                        INSERT INTO outbox_events (topic, aggregate_type, aggregate_id, event_type, event_version, payload)
-                        VALUES (:topic, :aggregateType, :aggregateId, :eventType, :eventVersion, CAST(:payload AS jsonb))
+                        INSERT INTO outbox_events
+                            (topic, aggregate_type, aggregate_id, event_type, event_version, payload, headers)
+                        VALUES (:topic, :aggregateType, :aggregateId, :eventType, :eventVersion,
+                            CAST(:payload AS jsonb), CAST(:headers AS jsonb))
                         RETURNING id
                         """)
                 .param("topic", topic)
@@ -45,6 +57,7 @@ public class OutboxEventRepository {
                 .param("eventType", eventType)
                 .param("eventVersion", eventVersion)
                 .param("payload", payload)
+                .param("headers", headers)
                 .query(UUID.class)
                 .single();
     }
@@ -61,7 +74,8 @@ public class OutboxEventRepository {
      */
     public List<OutboxRow> lockNextBatch(int limit) {
         return jdbc.sql("""
-                        SELECT id, topic, aggregate_type, aggregate_id, event_type, event_version, payload, created_at
+                        SELECT id, topic, aggregate_type, aggregate_id, event_type, event_version, payload, headers,
+                            created_at
                         FROM outbox_events
                         WHERE published_at IS NULL
                         ORDER BY created_at, id
@@ -112,6 +126,7 @@ public class OutboxEventRepository {
                 rs.getString("event_type"),
                 rs.getInt("event_version"),
                 rs.getString("payload"),
+                rs.getString("headers"),
                 rs.getObject("created_at", OffsetDateTime.class).toInstant());
     }
 }

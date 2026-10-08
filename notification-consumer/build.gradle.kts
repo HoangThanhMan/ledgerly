@@ -8,6 +8,8 @@ dependencies {
     implementation(project(":ledger-contracts"))
 
     implementation(libs.spring.boot.starter.actuator)
+    implementation(libs.spring.boot.starter.opentelemetry)
+    implementation(libs.datasource.micrometer.spring.boot)
     implementation(libs.spring.boot.starter.flyway)
     implementation(libs.spring.boot.starter.jdbc)
     implementation(libs.spring.boot.starter.kafka)
@@ -16,6 +18,7 @@ dependencies {
     runtimeOnly(libs.postgresql)
 
     testImplementation(libs.spring.boot.starter.actuator.test)
+    testImplementation(libs.opentelemetry.sdk.testing)
     testImplementation(libs.spring.boot.starter.flyway.test)
     testImplementation(libs.spring.boot.starter.jdbc.test)
     testImplementation(libs.spring.boot.starter.kafka.test)
