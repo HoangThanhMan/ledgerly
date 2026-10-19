@@ -2,7 +2,7 @@
 
 All notable changes to this project are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.0.0] - 2026-10-19
 
 The first release: wallets, deposits and transfers on a double-entry ledger, safe under concurrency and retries, with events delivered through an outbox to an idempotent consumer.
 
@@ -61,3 +61,5 @@ The first release: wallets, deposits and transfers on a double-entry ledger, saf
 - A k6 constant-arrival-rate scenario and a driver that checks the ledger after every run
 - An end-to-end smoke test of the containerised system, run in CI
 - CI with a coverage summary and weekly dependency updates
+
+[1.0.0]: https://github.com/HoangThanhMan/ledgerly/releases/tag/v1.0.0
