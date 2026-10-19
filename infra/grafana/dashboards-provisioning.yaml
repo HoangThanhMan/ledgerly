@@ -1,0 +1,9 @@
+# Tells Grafana in the lgtm container to load every dashboard JSON in the mounted directory.
+apiVersion: 1
+
+providers:
+  - name: "Ledgerly"
+    type: file
+    options:
+      path: /otel-lgtm/grafana/conf/provisioning/dashboards/custom
+      foldersFromFilesStructure: false

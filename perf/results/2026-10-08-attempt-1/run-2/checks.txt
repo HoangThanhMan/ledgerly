@@ -1,0 +1,8 @@
+outbox pending after the run: 0.0
+transfers in ledger: 204938
+outbox events: 204938 unpublished: 0
+notifications: 204938
+duplicates counted by consumer: 0.0
+invariants.sql violating rows: 0
+invariants-events.sql violating rows: 0
+ledger database size: 339 MB

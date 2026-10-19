@@ -1,0 +1,25 @@
+name: Task
+description: A change to make
+title: ""
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What to change and why.
+    validations:
+      required: true
+  - type: input
+    id: output
+    attributes:
+      label: Outcome
+      description: The file, test or link that exists once it is done
+      placeholder: ConcurrentTransferIT
+  - type: checkboxes
+    id: dod
+    attributes:
+      label: Definition of Done
+      options:
+        - label: Code and tests, CI green
+        - label: No `TODO` left without an issue
+        - label: README updated if the change affects it

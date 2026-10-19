@@ -1,0 +1,61 @@
+name: Bug
+description: Wrong behaviour, a failing test or a broken invariant
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: Description
+      description: What happened, in a sentence or two.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The exact commands, requests or test. Say so if it only happens sometimes (flaky).
+      placeholder: |
+        1. docker compose up -d
+        2. ./gradlew :ledger-app:integrationTest --tests ConcurrentTransferIT
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual
+    validations:
+      required: true
+  - type: dropdown
+    id: invariants
+    attributes:
+      label: Broken invariants
+      description: Invariants I1–I7 are listed in the README, under Testing
+      multiple: true
+      options:
+        - None
+        - I1 Balanced transactions
+        - I2 No negative balance
+        - I3 Balance matches history
+        - I4 Conservation
+        - I5 Idempotency
+        - I6 Complete outbox
+        - I7 Processed once
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or stack trace
+      render: text
+  - type: input
+    id: commit
+    attributes:
+      label: Commit
+      description: Output of git rev-parse --short HEAD

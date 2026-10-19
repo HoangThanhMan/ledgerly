@@ -1,0 +1,6 @@
+# Only for the training run that records the AOT cache while the container image is built (see the Dockerfile).
+# No database exists at that point, so the migration that would connect to one during startup is turned off.
+# An application started with this profile cannot serve requests.
+spring:
+  flyway:
+    enabled: false

@@ -1,0 +1,54 @@
+
+
+  █ THRESHOLDS 
+
+    dropped_iterations
+    ✗ 'count==0' count=200
+
+    http_req_duration{phase:measure,name:replay}
+    ✓ 'max>=0' max=662.36ms
+
+    http_req_duration{phase:measure,name:transfer}
+    ✓ 'p(95)<150' p(95)=27.69ms
+    ✓ 'p(99)<200' p(99)=143.52ms
+
+    http_req_failed{phase:measure}
+    ✓ 'rate<0.001' rate=0.00%
+
+    http_reqs{phase:measure}
+    ✓ 'count>0' count=119801
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 299604  1976.509063/s
+    checks_succeeded...: 100.00% 299604 out of 299604
+    checks_failed......: 0.00%   0 out of 299604
+
+    ✓ status is 201
+    ✓ replay is marked as replayed
+
+    HTTP
+    http_req_duration...................: avg=7.9ms  min=355.29µs med=3.03ms   p(90)=10.05ms p(95)=21.52ms p(99)=120.69ms max=736.7ms 
+      { expected_response:true }........: avg=7.9ms  min=355.29µs med=3.03ms   p(90)=10.05ms p(95)=21.52ms p(99)=120.69ms max=736.7ms 
+      { phase:measure,name:replay }.....: avg=5.64ms min=355.29µs med=619.96µs p(90)=3.82ms  p(95)=16.09ms p(99)=130.95ms max=662.36ms
+      { phase:measure,name:transfer }...: avg=9.2ms  min=1.83ms   med=3.11ms   p(90)=12.51ms p(95)=27.69ms p(99)=143.52ms max=736.7ms 
+    http_req_failed.....................: 0.00%  0 out of 151802
+      { phase:measure }.................: 0.00%  0 out of 119801
+    http_reqs...........................: 151802 1001.448675/s
+      { phase:measure }.................: 119801 790.335784/s
+
+    EXECUTION
+    dropped_iterations..................: 200    1.319414/s
+    iteration_duration..................: avg=8.07ms min=406.72µs med=3.16ms   p(90)=10.23ms p(95)=21.84ms p(99)=122.13ms max=736.8ms 
+    iterations..........................: 149802 988.254532/s
+    vus.................................: 3      min=0           max=137
+    vus_max.............................: 556    min=400         max=556
+
+    NETWORK
+    data_received.......................: 64 MB  421 kB/s
+    data_sent...........................: 50 MB  328 kB/s
+
+
+
+time="2026-10-08T02:31:54Z" level=error msg="thresholds on metrics 'dropped_iterations' have been crossed"

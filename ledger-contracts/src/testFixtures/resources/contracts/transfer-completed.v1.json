@@ -1,0 +1,14 @@
+{
+  "eventId": "0199a7d0-1111-7aaa-8bbb-000000000001",
+  "eventType": "TransferCompleted",
+  "eventVersion": 1,
+  "occurredAt": "2026-10-20T09:15:02.123456Z",
+  "aggregateType": "LedgerTransaction",
+  "aggregateId": "0199a7d0-2222-7aaa-8bbb-000000000002",
+  "payload": {
+    "sourceWalletId": "0199a7c2-3333-7aaa-8bbb-000000000003",
+    "targetWalletId": "0199a7c2-4444-7aaa-8bbb-000000000004",
+    "amount": "150000",
+    "currency": "VND"
+  }
+}

@@ -1,0 +1,125 @@
+spring:
+  application:
+    name: ledger-app
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: jdbc:postgresql://localhost:5433/ledger
+    username: ledgerly
+    password: ledgerly
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  kafka:
+    bootstrap-servers: localhost:9092
+    template:
+      # A span for every send, and the trace context in the record's headers.
+      observation-enabled: true
+    producer:
+      # The broker confirms a record only when all in-sync replicas have it.
+      acks: all
+      properties:
+        # Retries inside the producer cannot write a record twice or out of order.
+        enable.idempotence: true
+        # The relay waits for each record's acknowledgement before it sends the next, so holding a record
+        # back to fill a batch (5 ms by default) would only add that wait to every event.
+        linger.ms: 0
+        # Fail fast when the broker is unreachable: the relay holds a database transaction while it waits.
+        max.block.ms: 5000
+        request.timeout.ms: 5000
+        delivery.timeout.ms: 10000
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  tracing:
+    sampling:
+      # Share of requests that are traced. The observability profile below traces all of them.
+      probability: 0.1
+  otlp:
+    metrics:
+      export:
+        # Nothing is exported unless the observability profile is on: there may be no collector to send to.
+        enabled: false
+  metrics:
+    distribution:
+      percentiles-histogram:
+        # Buckets, so percentiles can be computed over any time range and summed across instances.
+        http.server.requests: true
+        ledgerly.posting.lock.wait: true
+        jdbc.query: true
+
+jdbc:
+  # One span per SQL statement. No spans for connections and result sets, and never the parameter values.
+  includes: query
+
+logging:
+  level:
+    # springdoc warns at every start that the document and Swagger UI are being served. Here that is intended.
+    org.springdoc.core.events.SpringDocAppInitializer: ERROR
+
+# The OpenAPI document is served at /v3/api-docs (.yaml for YAML), Swagger UI at /swagger-ui.html.
+springdoc:
+  # A stable order of keys, so the copy of the document kept in the repository only changes when the API does.
+  writer-with-order-by-keys: true
+  # What an endpoint answers when its handler does not say otherwise.
+  default-produces-media-type: application/json
+  swagger-ui:
+    operations-sorter: alpha
+    tags-sorter: alpha
+
+ledgerly:
+  ledger:
+    # How long a posting waits for the row locks on its accounts before it gives up with 503.
+    lock-timeout: 2s
+  idempotency:
+    # How long the request that claimed a key may hold it. After that a retry with the same key takes it over.
+    lease: 30s
+    # How long a key and its stored response are kept at least. The same key replays the response until then.
+    ttl: 24h
+    # Retry-After of the 409 a request gets while another request with the same key is still running.
+    retry-after: 1s
+  outbox:
+    relay:
+      # false: this instance serves the API only and leaves publishing to other instances.
+      enabled: true
+      poll-interval: 200ms
+      batch-size: 100
+      # How long one event may wait for the broker's acknowledgement before the batch is rolled back.
+      send-timeout: 5s
+      # Pause after a failed round. It doubles with every further failure, up to the maximum.
+      backoff:
+        initial: 200ms
+        max: 30s
+
+---
+# Sends metrics and traces to an OpenTelemetry collector. Start one with:
+#   docker compose --profile observability up -d
+# then run the application with SPRING_PROFILES_ACTIVE=observability.
+spring:
+  config:
+    activate:
+      on-profile: observability
+
+management:
+  tracing:
+    sampling:
+      probability: 1.0
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: http://localhost:4318/v1/traces
+  otlp:
+    metrics:
+      export:
+        enabled: true
+        url: http://localhost:4318/v1/metrics
+        step: 10s

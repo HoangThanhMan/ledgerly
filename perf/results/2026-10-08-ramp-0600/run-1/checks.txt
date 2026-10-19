@@ -1,0 +1,13 @@
+k6 exit code: 99
+outbox pending after the run: 0.0
+transfers in ledger: 698061
+outbox events: 698061 unpublished: 0
+notifications: 698061
+duplicates counted by consumer: 0.0
+invariants.sql violating rows: 0
+invariants-events.sql violating rows: 0
+ledger database size: 1113 MB
+memory stall during k6: 26 ms
+cpu stall during k6: 10109 ms
+io stall during k6: 3852 ms
+swap used before and after: 1496 MB, 1498 MB

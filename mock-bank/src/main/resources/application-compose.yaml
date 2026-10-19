@@ -1,0 +1,23 @@
+# For running as a service of compose.yaml (the "full" profile): the other services are reached by their service
+# names on the compose network, not through the ports published on the host.
+spring:
+  datasource:
+    url: jdbc:postgresql://postgres:5432/mockbank
+
+---
+# Together with the observability profile: the collector is the lgtm service.
+spring:
+  config:
+    activate:
+      on-profile: observability
+
+management:
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: http://lgtm:4318/v1/traces
+  otlp:
+    metrics:
+      export:
+        url: http://lgtm:4318/v1/metrics
