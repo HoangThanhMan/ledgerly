@@ -3,14 +3,14 @@
 
 [versions]
 java = "25"
-spring-boot = "4.1.1"
+spring-boot = "4.1.2"
 spring-dependency-management = "1.1.7"
 # Build quality tooling. Verified with JDK 25 and Gradle 9.7.1.
 spotless = "8.10.4"
 palantir-java-format = "2.100.0"
 errorprone-gradle-plugin = "5.1.1"
-errorprone = "2.50.0"
-nullaway = "0.14.2"
+errorprone = "2.51.0"
+nullaway = "0.14.3"
 jacoco = "0.8.15"
 jspecify = "1.0.1"
 archunit = "1.5.1"
