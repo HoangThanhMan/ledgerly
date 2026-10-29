@@ -41,10 +41,7 @@ class ArchitectureTest {
             "ledger", Set.of("shared"),
             "idempotency", Set.of("shared"),
             "outbox", Set.of("shared", "contracts"),
-            "bankgateway", Set.of("shared"),
-            "wallet", Set.of("shared", "contracts", "ledger", "idempotency", "outbox"),
-            "topup", Set.of("shared", "ledger", "idempotency", "outbox", "bankgateway"),
-            "reconciliation", Set.of("shared", "ledger", "bankgateway", "topup"));
+            "wallet", Set.of("shared", "contracts", "ledger", "idempotency", "outbox"));
 
     @ArchTest
     static final ArchRule modulesAreFreeOfCycles =

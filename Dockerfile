@@ -4,8 +4,8 @@
 #
 #   docker build --build-arg MODULE=ledger-app -t ledger-app .
 #
-# MODULE is the name of a Gradle module that builds a Spring Boot jar: ledger-app, notification-consumer or
-# mock-bank. compose.yaml builds the images of its "full" profile this way.
+# MODULE is the name of a Gradle module that builds a Spring Boot jar: ledger-app or notification-consumer.
+# compose.yaml builds the images of its "full" profile this way.
 
 # ---- build: compiles every application once. The images of all modules share this stage and its cache.
 FROM eclipse-temurin:25-jdk AS build
