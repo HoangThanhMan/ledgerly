@@ -40,6 +40,8 @@ The business scope is small on purpose. The project is about the places where a 
 | **Client retries** when it cannot tell whether the money moved | An `Idempotency-Key` header, a two-phase design with a lease and a fencing token, stored in PostgreSQL | `IdempotencyConcurrencyIT`: 50 concurrent requests with one key produce 1 transaction and 50 identical responses. `IdempotencyCrashRecoveryIT`: a failure after the money moved rolls the whole transfer back |
 | **The database is written but the event is not published** (dual write) | Transactional outbox: the event is written in the same transaction as the entries, and a relay reads the outbox table and sends to Kafka | `OutboxAtomicityIT`, `RelayCrashDuplicateIT`. Run by hand: `kill -9` on the application while it drained 3,000 events ended with 3,050 transactions and 3,050 notifications |
 | **Messages delivered more than once** | The consumer deduplicates by `eventId` in the same transaction that writes the notification | `ConsumerDedupIT`. In the `kill -9` run above, 22 duplicates were dropped |
+| **Selling more tickets than there are** when hundreds of buyers want the last ones | One conditional `UPDATE ... SET remaining = remaining - q WHERE remaining >= q`: checking and taking the tickets is one atomic statement. A `CHECK` constraint keeps `remaining` between 0 and the class size | `ConcurrentPurchaseIT`: 500 buyers, 100 tickets, exactly 100 orders. `scripts/spikes/overselling.sh` measures it against `SELECT ... FOR UPDATE`, optimistic locking and an unlocked read-then-write, which lost all but 800 of 39,709 decrements |
+| **Tickets taken but not paid for, or paid for but not taken** | The tickets, the payment, the order and its event are one database transaction. A buyer who cannot pay gets the tickets put back in the same transaction, so the refusal can still be stored under the idempotency key | `InsufficientFundsPurchaseIT`, `PurchaseIdempotencyIT`, `PurchaseAndTransferIT`, and two more ledger invariants: tickets sold equal tickets ordered, and every order was paid with exactly its amount |
 | **Acting on someone else's wallet** | Users sign in for a JWT. A wallet belongs to the user who opened it: only they can read it or spend from it, and to anyone else it answers `404` exactly like a wallet that does not exist. Idempotency keys are scoped to the user | `WalletOwnershipIT`, `SecurityIT`, `IdempotencyScopeIT` |
 | **Module boundaries eroding** over time | Each module has a public API and an `internal` package. ArchUnit checks the dependency matrix on every build | `ArchitectureTest` |
 | **Not knowing where the time goes** | OpenTelemetry: one transfer is one trace from HTTP through every SQL statement, the outbox and Kafka to the consumer | `TracePropagationIT`, `TraceContinuationIT`, a Grafana dashboard in the repository |
@@ -76,12 +78,17 @@ flowchart LR
 flowchart TB
     wallet["<b>wallet</b><br/>REST API, open wallet / deposit / transfer"]
     identity["<b>identity</b><br/>users, sign-up and sign-in, JWT<br/>Spring Security"]
+    ticketing["<b>ticketing</b><br/>events, ticket classes, orders<br/>buying tickets from a wallet"]
     idem["<b>idempotency</b><br/>claims keys, stores and replays responses"]
     ledger["<b>ledger</b><br/>double-entry ledger: accounts, transactions, entries<br/>ordered locking"]
     outbox["<b>outbox</b><br/>writes events inside the transaction<br/>relay sends them to Kafka"]
     shared["<b>shared</b><br/>Money, Problem Details"]
 
     wallet --> identity
+    ticketing --> identity
+    ticketing --> idem
+    ticketing --> ledger
+    ticketing --> outbox
     wallet --> idem
     wallet --> ledger
     wallet --> outbox
@@ -235,6 +242,23 @@ $ curl -s -H "$AUTH" localhost:8080/v1/wallets/$A
 {"id":"01a11ad9-7eb8-...","currency":"VND","balance":"350000","createdAt":"2026-10-08T09:30:23.800096Z"}
 ```
 
+### Buy a ticket
+
+```bash
+# The demo event, seeded when the application runs in containers. From Gradle, add --ledgerly.demo.seed=true
+EVENT=$(curl -s localhost:8080/v1/events | jq -r '.items[] | select(.name == "Ledgerly Live") | .id')
+CLASS=$(curl -s localhost:8080/v1/events/$EVENT | jq -r '.ticketClasses[] | select(.name == "B") | .id')
+
+# One ticket of class B, paid from wallet A. Sending it again with the same key buys nothing more
+curl -si -X POST localhost:8080/v1/orders -H "$AUTH" -H 'Content-Type: application/json' \
+  -H "Idempotency-Key: $(uuidgen)" \
+  -d "{\"ticketClassId\":\"$CLASS\",\"walletId\":\"$A\",\"quantity\":1}"
+
+# The tickets left in each class, and my orders
+curl -s localhost:8080/v1/events/$EVENT | jq '.ticketClasses[] | {name, remaining}'
+curl -s -H "$AUTH" localhost:8080/v1/orders
+```
+
 ### See the event and check the ledger
 
 ```bash
@@ -286,6 +310,7 @@ The defaults live in each application's `application.yaml` and suit applications
 | `ledgerly.security.jwt.ttl` | `1h` | How long an access token is valid |
 | `ledgerly.security.password.bcrypt-strength` | `10` | Cost of the BCrypt password hashes |
 | `ledgerly.demo.seed` | `false` (`true` in containers) | Sign up a demo organizer, `organizer@ledgerly.dev` with password `organizer-demo`, with one event, unless it has one already |
+| `ledgerly.ticketing.lock-timeout` | `2s` | Longest wait of a purchase for the row lock of its ticket class. After that the answer is `503` with `Retry-After` |
 | `ledgerly.ledger.lock-timeout` | `2s` | Longest wait for the account locks. After that the answer is `503` with `Retry-After` |
 | `ledgerly.idempotency.lease` | `30s` | How long a request may hold a key. After that a retry with the same key takes it over |
 | `ledgerly.idempotency.ttl` | `24h` | Minimum time a key and its response are kept |
@@ -308,6 +333,9 @@ The defaults live in each application's `application.yaml` and suit applications
 | `POST` | `/v1/admin/deposits` | Deposit into a wallet from a system account, for development and tests. A user deposits into their own wallets, an organizer into any | Required |
 | `GET` | `/v1/events` | Upcoming events, soonest first (`?page=&size=`). No sign-in needed | |
 | `GET` | `/v1/events/{id}` | An event with its ticket classes and the tickets left in each. No sign-in needed | |
+| `POST` | `/v1/orders` | Buy 1 to 4 tickets of one class, paid from one of my wallets | Required |
+| `GET` | `/v1/orders` | My orders, newest first (`?page=&size=`) | |
+| `GET` | `/v1/orders/{id}` | One of my orders | |
 | `POST` | `/v1/events` | Create an event with its ticket classes. Organizers only | |
 | `PATCH` | `/v1/events/{id}` | Rename or reschedule one of my events | |
 
@@ -410,6 +438,8 @@ perf/run-baseline.sh "$(date +%F)-baseline" 300 3
 | What if the request holding a key is slow, not dead | A lease with a fencing token that the completing `UPDATE` must match | A lease with an unconditional completing `UPDATE`: the slow request could still commit after a retry took the key over, giving two transfers for one key (measured) |
 | How to publish events | A transactional outbox, drained by a polling relay with `FOR UPDATE SKIP LOCKED` | Writing to the database and then to Kafka loses the event if the process dies in between. Kafka transactions do not cover PostgreSQL. Debezium adds Kafka Connect and a replication slot to operate, and is much harder to run in tests |
 | How to instrument | The Spring Boot OpenTelemetry starter, with Grafana LGTM in one container for development | The OpenTelemetry Java agent rewrites bytecode at runtime and lives outside the build, so it is hard to test in `./gradlew build`. Separate Prometheus, Jaeger and Grafana mean three services to wire together |
+| Where ticket sales live | A module of the same application, so the tickets, the payment and the order commit in one local transaction | A separate ticketing service: every purchase becomes a saga with held tickets, expiry, compensating entries and deduplication on both sides |
+| How to stop overselling | A conditional `UPDATE` at `READ COMMITTED`: a sale that waited for the row lock re-checks `remaining >= q` against the newest version of the row | `SELECT ... FOR UPDATE` then `UPDATE`: also correct, one more round trip, about 2% fewer purchases per second and a 15% higher p99 (measured). Optimistic locking: 94% of attempts failed under contention and would have to retry (measured) |
 | How to authenticate | JWTs (HS256) that the application issues itself at sign-in, valid for one hour | Keycloak: a second heavy service in compose, CI and the tests, for features this API does not use. Session cookies: server-side state, and CSRF protection on every write |
 | What to answer for someone else's wallet | `404`, the same as for a wallet that does not exist | `403`: tells the caller that the id belongs to a wallet, so ids could be probed |
 | What to do when a balance would overflow 64 bits | Reject the posting like any other business rule (`422`) | Letting the arithmetic exception surface: correct for the ledger, since nothing is written, but the client gets a `500` for a request it could have been told about (found by testing) |
@@ -436,7 +466,7 @@ perf/run-baseline.sh "$(date +%F)-baseline" 300 3
 
 | Directory | Contents |
 |---|---|
-| [`ledger-app`](ledger-app) | The main application: modules `identity`, `wallet`, `ledger`, `idempotency`, `outbox`, `shared` |
+| [`ledger-app`](ledger-app) | The main application: modules `identity`, `ticketing`, `wallet`, `ledger`, `idempotency`, `outbox`, `shared` |
 | [`notification-consumer`](notification-consumer) | Idempotent Kafka consumer with its own database |
 | [`ledger-contracts`](ledger-contracts) | Event definitions shared by producer and consumer |
 | [`build-logic`](build-logic) | Gradle convention plugins: Java setup, quality gates, the `integrationTest` source set |
