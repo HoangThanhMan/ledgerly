@@ -42,6 +42,7 @@ The business scope is small on purpose. The project is about the places where a 
 | **Messages delivered more than once** | The consumer deduplicates by `eventId` in the same transaction that writes the notification | `ConsumerDedupIT`. In the `kill -9` run above, 22 duplicates were dropped |
 | **Selling more tickets than there are** when hundreds of buyers want the last ones | One conditional `UPDATE ... SET remaining = remaining - q WHERE remaining >= q`: checking and taking the tickets is one atomic statement. A `CHECK` constraint keeps `remaining` between 0 and the class size | `ConcurrentPurchaseIT`: 500 buyers, 100 tickets, exactly 100 orders. `scripts/spikes/overselling.sh` measures it against `SELECT ... FOR UPDATE`, optimistic locking and an unlocked read-then-write, which lost all but 800 of 39,709 decrements |
 | **Tickets taken but not paid for, or paid for but not taken** | The tickets, the payment, the order and its event are one database transaction. A buyer who cannot pay gets the tickets put back in the same transaction, so the refusal can still be stored under the idempotency key | `InsufficientFundsPurchaseIT`, `PurchaseIdempotencyIT`, `PurchaseAndTransferIT`, and two more ledger invariants: tickets sold equal tickets ordered, and every order was paid with exactly its amount |
+| **A few clients flooding a sale**, or **Redis failing** | Each user may send 10 orders a minute, counted in Redis by one Lua script, so a counter never outlives its window. Event reads are cached in Redis, except the tickets left. Redis only makes things faster: when it fails or hangs, each command gives up after 200 ms and the request goes on without it | `OrderRateLimitIT`, `EventCacheIT`, `RedisDownIT`: with the Redis container paused, a purchase still succeeds in 0.26 s and events can still be browsed |
 | **Acting on someone else's wallet** | Users sign in for a JWT. A wallet belongs to the user who opened it: only they can read it or spend from it, and to anyone else it answers `404` exactly like a wallet that does not exist. Idempotency keys are scoped to the user | `WalletOwnershipIT`, `SecurityIT`, `IdempotencyScopeIT` |
 | **Module boundaries eroding** over time | Each module has a public API and an `internal` package. ArchUnit checks the dependency matrix on every build | `ArchitectureTest` |
 | **Not knowing where the time goes** | OpenTelemetry: one transfer is one trace from HTTP through every SQL statement, the outbox and Kafka to the consumer | `TracePropagationIT`, `TraceContinuationIT`, a Grafana dashboard in the repository |
@@ -59,10 +60,12 @@ flowchart LR
     consumer["<b>notification-consumer</b><br/>idempotent Kafka listener"]
     pg[("<b>PostgreSQL 18</b><br/>one database per service")]
     kafka[["<b>Kafka</b><br/>KRaft"]]
+    redis[("<b>Redis</b><br/>cache · rate limit")]
     lgtm["<b>Grafana LGTM</b><br/>metrics · traces"]
 
     client -->|"REST + Idempotency-Key"| app
     app -->|JDBC| pg
+    app -.->|"optional"| redis
     app -->|"outbox relay"| kafka
     kafka --> consumer
     consumer -->|JDBC| pg
@@ -154,7 +157,7 @@ The money rules do not live only in Java. If the code has a bug, PostgreSQL stil
 git clone https://github.com/HoangThanhMan/ledgerly.git
 cd ledgerly
 
-# PostgreSQL, Kafka, ledger-app (:8080) and notification-consumer (:8082). Returns when all four are healthy
+# PostgreSQL, Kafka, Redis, ledger-app (:8080) and notification-consumer (:8082). Returns when all five are healthy
 docker compose --profile full up -d --wait
 
 # Optional: a deposit, a transfer, its retry, the notification and the ledger invariants, checked end to end
@@ -170,7 +173,7 @@ To stop: `docker compose --profile full down` (add `-v` to delete the data as we
 ### For development: applications from Gradle
 
 ```bash
-# 1. Infrastructure only: PostgreSQL on port 5433, Kafka on port 9092
+# 1. Infrastructure only: PostgreSQL on port 5433, Kafka on port 9092, Redis on port 6379
 docker compose up -d --wait
 
 # 2. The two applications, one terminal each. Flyway creates the schema at startup
@@ -182,7 +185,7 @@ curl -s localhost:8080/actuator/health
 curl -s localhost:8082/actuator/health
 ```
 
-To try the API without compose, `./gradlew :ledger-app:bootTestRun` starts PostgreSQL and Kafka through Testcontainers.
+To try the API without compose, `./gradlew :ledger-app:bootTestRun` starts PostgreSQL, Kafka and Redis through Testcontainers.
 
 To stop and clean up: `Ctrl+C` in both terminals, then `docker compose down` (add `-v` to delete the data as well).
 
@@ -311,6 +314,8 @@ The defaults live in each application's `application.yaml` and suit applications
 | `ledgerly.security.password.bcrypt-strength` | `10` | Cost of the BCrypt password hashes |
 | `ledgerly.demo.seed` | `false` (`true` in containers) | Sign up a demo organizer, `organizer@ledgerly.dev` with password `organizer-demo`, with one event, unless it has one already |
 | `ledgerly.ticketing.lock-timeout` | `2s` | Longest wait of a purchase for the row lock of its ticket class. After that the answer is `503` with `Retry-After` |
+| `ledgerly.ticketing.rate-limit.per-minute` | `10` | Orders one user may send in a minute. More are answered `429` with `Retry-After` |
+| `spring.data.redis.host`, `port` | `localhost`, `6379` | Redis for the event cache and the order rate limit. Optional: without it the application serves everything from PostgreSQL |
 | `ledgerly.ledger.lock-timeout` | `2s` | Longest wait for the account locks. After that the answer is `503` with `Retry-After` |
 | `ledgerly.idempotency.lease` | `30s` | How long a request may hold a key. After that a retry with the same key takes it over |
 | `ledgerly.idempotency.ttl` | `24h` | Minimum time a key and its response are kept |
@@ -440,6 +445,7 @@ perf/run-baseline.sh "$(date +%F)-baseline" 300 3
 | How to instrument | The Spring Boot OpenTelemetry starter, with Grafana LGTM in one container for development | The OpenTelemetry Java agent rewrites bytecode at runtime and lives outside the build, so it is hard to test in `./gradlew build`. Separate Prometheus, Jaeger and Grafana mean three services to wire together |
 | Where ticket sales live | A module of the same application, so the tickets, the payment and the order commit in one local transaction | A separate ticketing service: every purchase becomes a saga with held tickets, expiry, compensating entries and deduplication on both sides |
 | How to stop overselling | A conditional `UPDATE` at `READ COMMITTED`: a sale that waited for the row lock re-checks `remaining >= q` against the newest version of the row | `SELECT ... FOR UPDATE` then `UPDATE`: also correct, one more round trip, about 2% fewer purchases per second and a 15% higher p99 (measured). Optimistic locking: 94% of attempts failed under contention and would have to retry (measured) |
+| What Redis is for, and what happens when it fails | Only a cache of event reads (30 seconds, never the tickets left) and the order rate limit. Both fail open: a Redis error is logged and the request goes on without it, after at most 200 ms | Failing closed: a component that only saves work would stop ticket sales. Idempotency keys in Redis: the same commit gap as above. A rate limit in the JVM: with several instances each would count on its own |
 | How to authenticate | JWTs (HS256) that the application issues itself at sign-in, valid for one hour | Keycloak: a second heavy service in compose, CI and the tests, for features this API does not use. Session cookies: server-side state, and CSRF protection on every write |
 | What to answer for someone else's wallet | `404`, the same as for a wallet that does not exist | `403`: tells the caller that the id belongs to a wallet, so ids could be probed |
 | What to do when a balance would overflow 64 bits | Reject the posting like any other business rule (`422`) | Letting the arithmetic exception surface: correct for the ledger, since nothing is written, but the client gets a `500` for a request it could have been told about (found by testing) |
@@ -493,6 +499,8 @@ Good places to start reading the code:
 - **No overload protection.** Past the ceiling, requests queue up instead of being rejected early: at 2,000 requests per second some waited 7 seconds and still got a `201`.
 - **A dead database is noticed slowly.** With PostgreSQL stopped, a request waits 30 seconds for a connection and is then answered with `500`, not with a quick `503`. The application recovers by itself about 5 seconds after the database is back. Tracked in [#1](https://github.com/HoangThanhMan/ledgerly/issues/1).
 - **A killed consumer delays notifications.** After `kill -9` on `notification-consumer`, the restarted consumer got its partitions back only when the broker's 45-second session timeout had passed: 43 seconds in the test, against under 3 seconds after a graceful stop. Nothing is lost or duplicated, it is only late.
+- **No circuit breaker in front of Redis.** While Redis hangs, every request that uses it waits for the 200 ms timeout again, and orders go through without a rate limit (counted in `ledgerly.ratelimit.bypassed`).
+- **Event reads can lag.** The list is cached for 30 seconds, so an event can stay listed for up to 30 seconds after it started. An edit made while Redis did not answer shows up only when the cached copy expires, at most 30 seconds later. Purchases always check the start time in the database.
 - **Not deployed anywhere.** There are container images and a one-command compose setup, but no hosted demo and no images in a registry: they are built locally from source. Every measurement comes from one development machine.
 
 ## Contributing
