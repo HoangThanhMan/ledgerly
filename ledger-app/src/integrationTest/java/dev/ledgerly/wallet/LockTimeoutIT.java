@@ -4,6 +4,7 @@ import static dev.ledgerly.wallet.WalletApiDriver.expectProblem;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.ledgerly.AbstractIntegrationTest;
+import dev.ledgerly.identity.AuthDriver;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import java.sql.Connection;
@@ -34,7 +35,7 @@ class LockTimeoutIT extends AbstractIntegrationTest {
     LockTimeoutIT(@Autowired RestTestClient client, @Autowired DataSource dataSource, @Autowired MeterRegistry meters) {
         this.dataSource = dataSource;
         this.meters = meters;
-        this.api = new WalletApiDriver(client);
+        this.api = new WalletApiDriver(AuthDriver.signedIn(client));
     }
 
     @Test

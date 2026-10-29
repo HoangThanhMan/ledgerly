@@ -3,6 +3,7 @@ package dev.ledgerly.wallet;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.ledgerly.AbstractIntegrationTest;
+import dev.ledgerly.identity.AuthDriver;
 import dev.ledgerly.ledger.InvariantChecker;
 import dev.ledgerly.wallet.RetryingClient.Answer;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -39,7 +40,7 @@ class IdempotencyConcurrencyIT extends AbstractIntegrationTest {
 
     IdempotencyConcurrencyIT(
             @Autowired RestTestClient client, @Autowired JdbcClient jdbc, @Autowired MeterRegistry meters) {
-        this.api = new WalletApiDriver(client);
+        this.api = new WalletApiDriver(AuthDriver.signedIn(client));
         this.clients = new RetryingClient(api, jdbc);
         this.invariants = new InvariantChecker(jdbc);
         this.meters = meters;

@@ -8,6 +8,7 @@ import static org.awaitility.Awaitility.await;
 
 import dev.ledgerly.AbstractIntegrationTest;
 import dev.ledgerly.idempotency.internal.application.FaultInjector;
+import dev.ledgerly.identity.AuthDriver;
 import dev.ledgerly.ledger.InvariantChecker;
 import dev.ledgerly.wallet.RetryingClient.Answer;
 import java.time.Duration;
@@ -116,7 +117,7 @@ class IdempotencyCrashRecoveryIT extends AbstractIntegrationTest {
             @Autowired RestTestClient restClient, @Autowired ScriptedFaults faults, @Autowired JdbcClient jdbc) {
         this.faults = faults;
         this.jdbc = jdbc;
-        this.api = new WalletApiDriver(restClient);
+        this.api = new WalletApiDriver(AuthDriver.signedIn(restClient));
         this.client = new RetryingClient(api, jdbc);
         this.invariants = new InvariantChecker(jdbc);
     }

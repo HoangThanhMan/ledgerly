@@ -61,6 +61,7 @@ class DepositController {
                             description = ApiDocumentation.REPLAYED,
                             schema = @Schema(type = "string", allowableValues = "true")))
     @ProblemResponses({
+        ProblemType.UNAUTHENTICATED,
         ProblemType.WALLET_NOT_FOUND,
         ProblemType.IDEMPOTENCY_IN_PROGRESS,
         ProblemType.IDEMPOTENCY_KEY_REUSED,

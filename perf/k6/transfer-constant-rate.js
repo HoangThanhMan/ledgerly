@@ -63,6 +63,21 @@ export const options = {
 http.setResponseCallback(http.expectedStatuses(201));
 
 export function setup() {
+  // One organizer owns every wallet of the run and sends every request. Organizers may deposit into any wallet.
+  const email = `k6-${RUN_ID}@perf.ledgerly.dev`;
+  const password = 'k6-baseline-password';
+  const signUp = http.post(`${BASE_URL}/v1/auth/register`, JSON.stringify({ email, password, role: 'ORGANIZER' }), {
+    headers: JSON_HEADERS,
+    tags: { name: 'setup' },
+  });
+  const signIn = http.post(`${BASE_URL}/v1/auth/login`, JSON.stringify({ email, password }), {
+    headers: JSON_HEADERS,
+    tags: { name: 'setup' },
+  });
+  if (signUp.status !== 201 || signIn.status !== 200) {
+    exec.test.abort('signing up the organizer failed');
+  }
+  const headers = Object.assign({ Authorization: `Bearer ${signIn.json('accessToken')}` }, JSON_HEADERS);
   const wallets = [];
   const batchSize = 50;
   for (let offset = 0; offset < WALLETS; offset += batchSize) {
@@ -72,7 +87,7 @@ export function setup() {
         method: 'POST',
         url: `${BASE_URL}/v1/wallets`,
         body: JSON.stringify({ currency: 'VND' }),
-        params: { headers: JSON_HEADERS, tags: { name: 'setup' } },
+        params: { headers, tags: { name: 'setup' } },
       })),
     );
     const ids = opened.map((response) => response.json('id'));
@@ -82,7 +97,7 @@ export function setup() {
         url: `${BASE_URL}/v1/admin/deposits`,
         body: JSON.stringify({ walletId: id, amount: `${INITIAL_BALANCE}`, currency: 'VND' }),
         params: {
-          headers: Object.assign({ 'Idempotency-Key': `${RUN_ID}-seed-${id}` }, JSON_HEADERS),
+          headers: Object.assign({ 'Idempotency-Key': `${RUN_ID}-seed-${id}` }, headers),
           tags: { name: 'setup' },
         },
       })),
@@ -92,7 +107,7 @@ export function setup() {
     }
     wallets.push(...ids);
   }
-  return { wallets: wallets };
+  return { wallets: wallets, headers: headers };
 }
 
 // The previous request of this virtual user. Each virtual user runs in its own JavaScript runtime.
@@ -102,7 +117,7 @@ export default function (data) {
   const replay = previous !== null && Math.random() < REPLAY_SHARE;
   const request = replay ? previous : newTransfer(data.wallets);
   const response = http.post(`${BASE_URL}/v1/transfers`, request.body, {
-    headers: Object.assign({ 'Idempotency-Key': request.key }, JSON_HEADERS),
+    headers: Object.assign({ 'Idempotency-Key': request.key }, data.headers),
     tags: { name: replay ? 'replay' : 'transfer' },
   });
   check(response, {

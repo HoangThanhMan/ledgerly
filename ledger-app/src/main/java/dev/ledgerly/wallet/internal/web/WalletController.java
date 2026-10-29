@@ -54,7 +54,7 @@ class WalletController {
                                     @Schema(
                                             type = "string",
                                             example = "/v1/wallets/01a11ad9-7eb8-7b3e-9d1f-2f3c6f1c2a10")))
-    @ProblemResponses(ProblemType.UNSUPPORTED_CURRENCY)
+    @ProblemResponses({ProblemType.UNAUTHENTICATED, ProblemType.UNSUPPORTED_CURRENCY})
     @PostMapping
     ResponseEntity<WalletResponse> open(@Valid @RequestBody OpenWalletRequest request) {
         return switch (wallets.open(request.currency())) {
@@ -73,7 +73,7 @@ class WalletController {
             Returns the wallet with its current balance. The balance always equals the sum of the wallet's entries \
             and is never negative. System accounts are not wallets: the id of one answers `wallet-not-found`.""")
     @ApiResponse(responseCode = "200", description = "The wallet.")
-    @ProblemResponses(ProblemType.WALLET_NOT_FOUND)
+    @ProblemResponses({ProblemType.UNAUTHENTICATED, ProblemType.WALLET_NOT_FOUND})
     @GetMapping("/{id}")
     WalletResponse get(@Parameter(description = ApiDocumentation.WALLET_ID) @PathVariable UUID id) {
         return wallets.find(id).map(WalletResponse::from).orElseThrow(() -> WalletProblems.walletNotFound(id));
@@ -89,7 +89,7 @@ class WalletController {
             the next, older page. `nextCursor` is null on the last page. Entries written while you page only \
             appear in front of the first page, so no page repeats or skips an entry.""")
     @ApiResponse(responseCode = "200", description = "One page of entries, newest first.")
-    @ProblemResponses(ProblemType.WALLET_NOT_FOUND)
+    @ProblemResponses({ProblemType.UNAUTHENTICATED, ProblemType.WALLET_NOT_FOUND})
     @GetMapping("/{id}/entries")
     EntryPageResponse entries(
             @Parameter(description = ApiDocumentation.WALLET_ID) @PathVariable UUID id,

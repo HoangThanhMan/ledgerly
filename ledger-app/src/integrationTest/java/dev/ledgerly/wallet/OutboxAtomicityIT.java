@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import dev.ledgerly.AbstractIntegrationTest;
 import dev.ledgerly.contracts.Topics;
+import dev.ledgerly.identity.AuthDriver;
 import dev.ledgerly.outbox.OutboxEvent;
 import dev.ledgerly.outbox.OutboxWriter;
 import dev.ledgerly.wallet.ConcurrentTransfers.Outcome;
@@ -55,7 +56,7 @@ class OutboxAtomicityIT extends AbstractIntegrationTest {
         this.jdbc = jdbc;
         this.transaction = transaction;
         this.support = new ConcurrentTransfers(wallets, transfers);
-        this.api = new WalletApiDriver(client);
+        this.api = new WalletApiDriver(AuthDriver.signedIn(client));
     }
 
     @Test

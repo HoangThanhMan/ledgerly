@@ -8,6 +8,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
 import dev.ledgerly.AbstractIntegrationTest;
+import dev.ledgerly.identity.AuthDriver;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -39,11 +40,11 @@ class IdempotencyIT extends AbstractIntegrationTest {
             @Autowired DataSource dataSource,
             @Autowired JdbcClient jdbc,
             @Autowired MeterRegistry meters) {
-        this.client = client;
+        this.client = AuthDriver.signedIn(client);
         this.dataSource = dataSource;
         this.jdbc = jdbc;
         this.meters = meters;
-        this.api = new WalletApiDriver(client);
+        this.api = new WalletApiDriver(this.client);
     }
 
     @Test

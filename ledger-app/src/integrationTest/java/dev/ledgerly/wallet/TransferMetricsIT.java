@@ -3,6 +3,7 @@ package dev.ledgerly.wallet;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.ledgerly.AbstractIntegrationTest;
+import dev.ledgerly.identity.AuthDriver;
 import dev.ledgerly.shared.Money;
 import dev.ledgerly.wallet.internal.application.TransferResult;
 import dev.ledgerly.wallet.internal.application.TransferService;
@@ -35,7 +36,7 @@ class TransferMetricsIT extends AbstractIntegrationTest {
         this.meters = meters;
         this.transactions = transactions;
         this.support = new ConcurrentTransfers(wallets, transfers);
-        this.api = new WalletApiDriver(client);
+        this.api = new WalletApiDriver(AuthDriver.signedIn(client));
     }
 
     @Test

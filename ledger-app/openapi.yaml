@@ -9,7 +9,7 @@ info:
     - **Ids** of wallets and transfers are UUIDs.
     - **Requests that move money** need an `Idempotency-Key` header. Retrying with the same key never moves money twice.
     - **Errors** are RFC 9457 Problem Details with the media type `application/problem+json`. The `type` member tells them apart.
-    - **There is no authentication.** Whoever can reach the API can act on every wallet.
+    - **Authentication:** sign up at `/v1/auth/register`, sign in at `/v1/auth/login`, and send the access token as `Authorization: Bearer <token>` with every other request.
   title: Ledgerly API
   version: "1"
 servers:
@@ -85,6 +85,22 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
           description: Request is not valid
+        "401":
+          content:
+            application/problem+json:
+              examples:
+                unauthenticated:
+                  description: "The request has no access token, or its token is expired\
+                    \ or invalid. Sign in at /v1/auth/login and send the token as\
+                    \ Authorization: Bearer <token>."
+                  summary: Authentication required
+                  value:
+                    status: 401
+                    title: Authentication required
+                    type: /problems/unauthenticated
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Authentication required
         "404":
           content:
             application/problem+json:
@@ -193,6 +209,8 @@ paths:
                 type: integer
                 format: int32
                 example: 1
+      security:
+      - bearerAuth: []
       summary: Deposit money into a wallet
       tags:
       - Deposits
@@ -400,6 +418,22 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
           description: Request is not valid
+        "401":
+          content:
+            application/problem+json:
+              examples:
+                unauthenticated:
+                  description: "The request has no access token, or its token is expired\
+                    \ or invalid. Sign in at /v1/auth/login and send the token as\
+                    \ Authorization: Bearer <token>."
+                  summary: Authentication required
+                  value:
+                    status: 401
+                    title: Authentication required
+                    type: /problems/unauthenticated
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Authentication required
         "404":
           content:
             application/problem+json:
@@ -526,6 +560,8 @@ paths:
                 type: integer
                 format: int32
                 example: 1
+      security:
+      - bearerAuth: []
       summary: Transfer money between two wallets
       tags:
       - Transfers
@@ -565,6 +601,22 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
           description: Request is not valid
+        "401":
+          content:
+            application/problem+json:
+              examples:
+                unauthenticated:
+                  description: "The request has no access token, or its token is expired\
+                    \ or invalid. Sign in at /v1/auth/login and send the token as\
+                    \ Authorization: Bearer <token>."
+                  summary: Authentication required
+                  value:
+                    status: 401
+                    title: Authentication required
+                    type: /problems/unauthenticated
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Authentication required
         "404":
           content:
             application/problem+json:
@@ -596,6 +648,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
           description: Internal error
+      security:
+      - bearerAuth: []
       summary: Read a transfer
       tags:
       - Transfers
@@ -641,6 +695,22 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
           description: Request is not valid
+        "401":
+          content:
+            application/problem+json:
+              examples:
+                unauthenticated:
+                  description: "The request has no access token, or its token is expired\
+                    \ or invalid. Sign in at /v1/auth/login and send the token as\
+                    \ Authorization: Bearer <token>."
+                  summary: Authentication required
+                  value:
+                    status: 401
+                    title: Authentication required
+                    type: /problems/unauthenticated
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Authentication required
         "422":
           content:
             application/problem+json:
@@ -672,6 +742,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
           description: Internal error
+      security:
+      - bearerAuth: []
       summary: Open a wallet
       tags:
       - Wallets
@@ -712,6 +784,22 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
           description: Request is not valid
+        "401":
+          content:
+            application/problem+json:
+              examples:
+                unauthenticated:
+                  description: "The request has no access token, or its token is expired\
+                    \ or invalid. Sign in at /v1/auth/login and send the token as\
+                    \ Authorization: Bearer <token>."
+                  summary: Authentication required
+                  value:
+                    status: 401
+                    title: Authentication required
+                    type: /problems/unauthenticated
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Authentication required
         "404":
           content:
             application/problem+json:
@@ -742,6 +830,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
           description: Internal error
+      security:
+      - bearerAuth: []
       summary: Read a wallet
       tags:
       - Wallets
@@ -803,6 +893,22 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
           description: Request is not valid
+        "401":
+          content:
+            application/problem+json:
+              examples:
+                unauthenticated:
+                  description: "The request has no access token, or its token is expired\
+                    \ or invalid. Sign in at /v1/auth/login and send the token as\
+                    \ Authorization: Bearer <token>."
+                  summary: Authentication required
+                  value:
+                    status: 401
+                    title: Authentication required
+                    type: /problems/unauthenticated
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Authentication required
         "404":
           content:
             application/problem+json:
@@ -833,6 +939,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
           description: Internal error
+      security:
+      - bearerAuth: []
       summary: List the entries of a wallet
       tags:
       - Wallets
@@ -1023,6 +1131,7 @@ components:
           - /problems/transfer-not-found
           - /problems/idempotency-in-progress
           - /problems/idempotency-key-reused
+          - /problems/unauthenticated
           - /problems/invalid-credentials
           - /problems/email-taken
           - /problems/insufficient-funds
@@ -1188,3 +1297,9 @@ components:
           format: uuid
           description: Id of the wallet.
           example: 01a11ad9-7eb8-7b3e-9d1f-2f3c6f1c2a10
+  securitySchemes:
+    bearerAuth:
+      bearerFormat: JWT
+      description: Access token from /v1/auth/login.
+      scheme: bearer
+      type: http

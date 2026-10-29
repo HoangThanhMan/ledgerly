@@ -5,6 +5,7 @@ import static org.awaitility.Awaitility.await;
 
 import dev.ledgerly.AbstractIntegrationTest;
 import dev.ledgerly.contracts.Topics;
+import dev.ledgerly.identity.AuthDriver;
 import dev.ledgerly.shared.Money;
 import dev.ledgerly.wallet.internal.application.OpenWalletResult;
 import dev.ledgerly.wallet.internal.application.TransferResult;
@@ -71,7 +72,7 @@ class TracePropagationIT extends AbstractIntegrationTest {
             @Autowired ConsumerFactory<String, String> consumers,
             @Autowired JdbcClient jdbc,
             @Autowired InMemorySpanExporter spans) {
-        this.client = client;
+        this.client = AuthDriver.signedIn(client);
         this.relay = relay;
         this.wallets = wallets;
         this.transfers = transfers;

@@ -79,6 +79,7 @@ class TransferController {
                         schema = @Schema(type = "string", allowableValues = "true"))
             })
     @ProblemResponses({
+        ProblemType.UNAUTHENTICATED,
         ProblemType.WALLET_NOT_FOUND,
         ProblemType.IDEMPOTENCY_IN_PROGRESS,
         ProblemType.IDEMPOTENCY_KEY_REUSED,
@@ -124,7 +125,7 @@ class TransferController {
             Returns a completed transfer. Only transfers have an address here: the id of a deposit answers \
             `transfer-not-found`.""")
     @ApiResponse(responseCode = "200", description = "The transfer.")
-    @ProblemResponses(ProblemType.TRANSFER_NOT_FOUND)
+    @ProblemResponses({ProblemType.UNAUTHENTICATED, ProblemType.TRANSFER_NOT_FOUND})
     @GetMapping("/{id}")
     TransferResponse get(
             @Parameter(description = "Id of the transfer, as returned when it was made.") @PathVariable UUID id) {
