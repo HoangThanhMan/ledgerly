@@ -66,6 +66,37 @@ public final class TicketingApiDriver {
                 .exchange();
     }
 
+    /** Buys tickets under a new Idempotency-Key. */
+    public RestTestClient.ResponseSpec purchase(UUID ticketClass, UUID wallet, int quantity) {
+        return purchase(UUID.randomUUID().toString(), ticketClass, wallet, quantity);
+    }
+
+    /** Buys tickets under the given key: sending it again with the same key is a retry of the same purchase. */
+    public RestTestClient.ResponseSpec purchase(String key, UUID ticketClass, UUID wallet, int quantity) {
+        return client.post()
+                .uri("/v1/orders")
+                .header("Idempotency-Key", key)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("ticketClassId", ticketClass, "walletId", wallet, "quantity", quantity))
+                .exchange();
+    }
+
+    /** Tickets left in a class, as the public event API shows them. */
+    @SuppressWarnings("unchecked")
+    public int remaining(UUID event, UUID ticketClass) {
+        Map<String, Object> details = body(client.get()
+                .uri("/v1/events/{id}", event)
+                .exchange()
+                .expectStatus()
+                .isOk());
+        return ((List<Map<String, Object>>) requireNonNull(details.get("ticketClasses")))
+                .stream()
+                        .filter(item -> ticketClass.toString().equals(item.get("id")))
+                        .map(item -> (Integer) requireNonNull(item.get("remaining")))
+                        .findFirst()
+                        .orElseThrow();
+    }
+
     public static UUID idOf(Map<String, Object> resource) {
         return UUID.fromString((String) requireNonNull(resource.get("id")));
     }
