@@ -19,6 +19,5 @@ rootProject.name = "ledgerly"
 include(
     "ledger-contracts",
     "ledger-app",
-    "mock-bank",
     "notification-consumer",
 )

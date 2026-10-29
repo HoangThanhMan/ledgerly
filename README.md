@@ -412,7 +412,6 @@ perf/run-baseline.sh "$(date +%F)-baseline" 300 3
 | [`ledger-app`](ledger-app) | The main application: modules `wallet`, `ledger`, `idempotency`, `outbox`, `shared` |
 | [`notification-consumer`](notification-consumer) | Idempotent Kafka consumer with its own database |
 | [`ledger-contracts`](ledger-contracts) | Event definitions shared by producer and consumer |
-| [`mock-bank`](mock-bank) | Skeleton of a simulated bank, no business logic yet |
 | [`build-logic`](build-logic) | Gradle convention plugins: Java setup, quality gates, the `integrationTest` source set |
 | [`Dockerfile`](Dockerfile), [`compose.yaml`](compose.yaml) | The container image of the applications, and the services to run them with |
 | [`infra`](infra) | PostgreSQL init script, Grafana dashboard definition |
@@ -429,7 +428,7 @@ Good places to start reading the code:
 
 ## Current limitations
 
-- **Money stays inside the system.** Top-ups and withdrawals through a bank, and statement reconciliation, are planned but not implemented. `mock-bank` is only an application skeleton.
+- **Money stays inside the system.** There are no top-ups or withdrawals through a bank: money enters a wallet only through the development deposit endpoint.
 - **No authentication or authorisation.** Whoever can reach the API can act on every wallet. Do not run it outside a development environment.
 - **One currency.** Wallets can only be opened in VND.
 - **No overload protection.** Past the ceiling, requests queue up instead of being rejected early: at 2,000 requests per second some waited 7 seconds and still got a `201`.
