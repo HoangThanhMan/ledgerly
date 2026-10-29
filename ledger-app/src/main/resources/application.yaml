@@ -93,6 +93,9 @@ ledgerly:
   ledger:
     # How long a posting waits for the row locks on its accounts before it gives up with 503.
     lock-timeout: 2s
+  ticketing:
+    # How long a purchase waits for the row lock of its ticket class before it gives up with 503.
+    lock-timeout: 2s
   idempotency:
     # How long the request that claimed a key may hold it. After that a retry with the same key takes it over.
     lease: 30s

@@ -94,9 +94,12 @@ class EventQueryIT extends AbstractIntegrationTest {
     @Test
     void detailShowsLiveRemaining() {
         Map<String, Object> created = organizer.created(newEvent(payoutWallet, List.of(ticketClass("A", 1_000, 10))));
-        jdbc.sql("UPDATE ticket_classes SET remaining = 6 WHERE id = :id")
-                .param("id", classId(created, "A"))
-                .update();
+        RestTestClient buyer = AuthDriver.signedIn(anonymous, Role.USER);
+        UUID wallet = new WalletApiDriver(buyer).openWalletWith(10_000);
+        new TicketingApiDriver(buyer)
+                .purchase(classId(created, "A"), wallet, 4)
+                .expectStatus()
+                .isCreated();
 
         Map<String, Object> event = body(anonymous
                 .get()

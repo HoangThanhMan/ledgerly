@@ -106,9 +106,12 @@ class EventManagementIT extends AbstractIntegrationTest {
     void editingEventDuringSalesKeepsRemaining() {
         Map<String, Object> event = organizer.created(newEvent(payoutWallet, List.of(ticketClass("A", 1_000, 10))));
         UUID ticketClass = classId(event, "A");
-        jdbc.sql("UPDATE ticket_classes SET remaining = remaining - 3 WHERE id = :id")
-                .param("id", ticketClass)
-                .update();
+        RestTestClient buyer = AuthDriver.signedIn(anonymous, Role.USER);
+        UUID wallet = new WalletApiDriver(buyer).openWalletWith(10_000);
+        new TicketingApiDriver(buyer)
+                .purchase(ticketClass, wallet, 3)
+                .expectStatus()
+                .isCreated();
 
         organizer
                 .updateEvent(idOf(event), "Renamed", Instant.now().plus(Duration.ofDays(9)))

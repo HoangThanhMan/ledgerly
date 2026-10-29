@@ -28,6 +28,19 @@ public enum ProblemType {
             "event-not-found",
             "Event not found",
             "No event has this id. When editing, an event of another organizer is reported the same way."),
+    TICKET_CLASS_NOT_FOUND(
+            HttpStatus.NOT_FOUND, "ticket-class-not-found", "Ticket class not found", "No ticket class has this id."),
+    SOLD_OUT(
+            HttpStatus.CONFLICT,
+            "sold-out",
+            "Not enough tickets left",
+            "The ticket class has fewer tickets left than were asked for. Nothing was bought and no money moved."
+                    + " The refusal is stored under the Idempotency-Key, so a new attempt needs a new key."),
+    ORDER_NOT_FOUND(
+            HttpStatus.NOT_FOUND,
+            "order-not-found",
+            "Order not found",
+            "No order has this id, or it is an order of another user. The two are not told apart."),
     IDEMPOTENCY_IN_PROGRESS(
             HttpStatus.CONFLICT,
             "idempotency-in-progress",
@@ -87,6 +100,16 @@ public enum ProblemType {
             "payout-wallet-invalid",
             "Payout wallet is not yours",
             "The wallet that should receive the money of the tickets is not one of the caller's wallets."),
+    QUANTITY_OUT_OF_RANGE(
+            HttpStatus.UNPROCESSABLE_CONTENT,
+            "quantity-out-of-range",
+            "Quantity out of range",
+            "An order buys 1 to 4 tickets."),
+    SALES_CLOSED(
+            HttpStatus.UNPROCESSABLE_CONTENT,
+            "sales-closed",
+            "Sales have closed",
+            "The event has started, so its tickets are no longer for sale."),
     UNSUPPORTED_CURRENCY(
             HttpStatus.UNPROCESSABLE_CONTENT,
             "unsupported-currency",

@@ -1,0 +1,20 @@
+{
+  "eventId": "0199a7d0-5555-7aaa-8bbb-000000000005",
+  "eventType": "TicketPurchased",
+  "eventVersion": 1,
+  "occurredAt": "2026-10-29T10:00:00.654321Z",
+  "aggregateType": "TicketOrder",
+  "aggregateId": "0199a7d0-6666-7aaa-8bbb-000000000006",
+  "payload": {
+    "orderId": "0199a7d0-6666-7aaa-8bbb-000000000006",
+    "eventId": "0199a7c2-7777-7aaa-8bbb-000000000007",
+    "eventName": "Ledgerly Live",
+    "ticketClassId": "0199a7c2-8888-7aaa-8bbb-000000000008",
+    "ticketClassName": "A",
+    "quantity": 2,
+    "amount": "1000000",
+    "currency": "VND",
+    "buyerId": "0199a7c2-9999-7aaa-8bbb-000000000009",
+    "buyerWalletId": "0199a7c2-aaaa-7aaa-8bbb-00000000000a"
+  }
+}

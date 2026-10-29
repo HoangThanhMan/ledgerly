@@ -1,5 +1,5 @@
--- Event invariant I6: every transfer has exactly one event, and every event is
--- published in the end.
+-- Event invariants I6 and I10: every transfer and every ticket order has exactly one event, and every
+-- event is published in the end.
 --
 -- Every query lists violations, so a sound system returns no rows from any of them.
 -- Run by hand once the outbox has drained, after a load test or a chaos scenario:
@@ -27,3 +27,16 @@ WHERE o.aggregate_type = 'LedgerTransaction' AND t.id IS NULL;
 SELECT id AS event_id, created_at, attempts
 FROM outbox_events
 WHERE published_at IS NULL AND created_at < now() - interval '1 minute';
+
+-- I10a: every ticket order has exactly one TicketPurchased event
+SELECT o.id AS order_id, count(e.id) AS events
+FROM ticket_orders o
+LEFT JOIN outbox_events e ON e.aggregate_id = o.id AND e.event_type = 'TicketPurchased'
+GROUP BY o.id
+HAVING count(e.id) <> 1;
+
+-- I10b: no TicketPurchased event reports an order that does not exist
+SELECT e.id AS event_id, e.aggregate_id
+FROM outbox_events e
+LEFT JOIN ticket_orders o ON o.id = e.aggregate_id
+WHERE e.aggregate_type = 'TicketOrder' AND o.id IS NULL;
