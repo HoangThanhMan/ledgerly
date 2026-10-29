@@ -18,4 +18,10 @@ class OutboxTopics {
     NewTopic transfersTopic() {
         return TopicBuilder.name(Topics.TRANSFERS).partitions(3).replicas(1).build();
     }
+
+    /** Three partitions, like the transfers: the events of one order share one. */
+    @Bean
+    NewTopic ticketsTopic() {
+        return TopicBuilder.name(Topics.TICKETS).partitions(3).replicas(1).build();
+    }
 }

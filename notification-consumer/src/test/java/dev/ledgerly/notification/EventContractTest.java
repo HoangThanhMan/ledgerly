@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import dev.ledgerly.contracts.EventEnvelope;
+import dev.ledgerly.contracts.TicketPurchased;
 import dev.ledgerly.contracts.TransferCompleted;
 import java.io.IOException;
 import java.io.InputStream;
@@ -106,5 +107,35 @@ class EventContractTest {
                 requireNonNull(EventContractTest.class.getResourceAsStream("/contracts/transfer-completed.v1.json"))) {
             return new String(in.readAllBytes(), StandardCharsets.UTF_8);
         }
+    }
+
+    /** The ticket event of the contract maps onto its type field for field, so no field is lost or misnamed. */
+    @Test
+    void ticketPurchasedSampleMapsOntoTheContractType() throws IOException {
+        JsonMapper json = JsonMapper.builder().build();
+        String sample;
+        try (InputStream in =
+                requireNonNull(EventContractTest.class.getResourceAsStream("/contracts/ticket-purchased.v1.json"))) {
+            sample = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        }
+
+        EventEnvelope<TicketPurchased> event = json.readValue(
+                sample, json.getTypeFactory().constructParametricType(EventEnvelope.class, TicketPurchased.class));
+
+        assertThat(event.eventType()).isEqualTo(TicketPurchased.EVENT_TYPE);
+        assertThat(event.aggregateType()).isEqualTo(TicketPurchased.AGGREGATE_TYPE);
+        assertThat(event.payload())
+                .isEqualTo(new TicketPurchased(
+                        UUID.fromString("0199a7d0-6666-7aaa-8bbb-000000000006"),
+                        UUID.fromString("0199a7c2-7777-7aaa-8bbb-000000000007"),
+                        "Ledgerly Live",
+                        UUID.fromString("0199a7c2-8888-7aaa-8bbb-000000000008"),
+                        "A",
+                        2,
+                        "1000000",
+                        "VND",
+                        UUID.fromString("0199a7c2-9999-7aaa-8bbb-000000000009"),
+                        UUID.fromString("0199a7c2-aaaa-7aaa-8bbb-00000000000a")));
+        assertThat(event.aggregateId()).isEqualTo(event.payload().orderId());
     }
 }
