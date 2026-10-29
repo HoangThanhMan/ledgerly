@@ -356,6 +356,73 @@ paths:
       tags:
       - Authentication
   /v1/events:
+    get:
+      description: "Returns the events that have not started yet, soonest first, one\
+        \ page at a time. Each event shows the price of its cheapest ticket. No sign-in\
+        \ needed."
+      operationId: listEvents
+      parameters:
+      - description: "Number of the page, from 0."
+        in: query
+        name: page
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 0
+          minimum: 0
+      - description: "Largest number of events in the page, from 1 to 50."
+        in: query
+        name: size
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 20
+          maximum: 50
+          minimum: 1
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventPageResponse"
+          description: One page of events.
+        "400":
+          content:
+            application/problem+json:
+              examples:
+                validation-error:
+                  description: "The body, a parameter or a header is missing or malformed.\
+                    \ Nothing was done, and an Idempotency-Key sent with the request\
+                    \ was not used up."
+                  summary: Request is not valid
+                  value:
+                    status: 400
+                    title: Request is not valid
+                    type: /problems/validation-error
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Request is not valid
+        "500":
+          content:
+            application/problem+json:
+              examples:
+                internal-error:
+                  description: "Something unexpected failed. The cause is in the server\
+                    \ log, not in the response. A request that moves money was rolled\
+                    \ back and may be retried with the same Idempotency-Key."
+                  summary: Internal error
+                  value:
+                    status: 500
+                    title: Internal error
+                    type: /problems/internal-error
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal error
+      summary: List upcoming events
+      tags:
+      - Events
     post:
       description: |-
         Creates an event with its ticket classes. Only organizers create events, and the money of every \
@@ -466,6 +533,76 @@ paths:
       tags:
       - Events
   /v1/events/{id}:
+    get:
+      description: "Returns an event with its ticket classes and the tickets left\
+        \ in each, read at the time of the request. Events that have started can still\
+        \ be read. No sign-in needed."
+      operationId: getEvent
+      parameters:
+      - description: Id of the event.
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventResponse"
+          description: The event.
+        "400":
+          content:
+            application/problem+json:
+              examples:
+                validation-error:
+                  description: "The body, a parameter or a header is missing or malformed.\
+                    \ Nothing was done, and an Idempotency-Key sent with the request\
+                    \ was not used up."
+                  summary: Request is not valid
+                  value:
+                    status: 400
+                    title: Request is not valid
+                    type: /problems/validation-error
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Request is not valid
+        "404":
+          content:
+            application/problem+json:
+              examples:
+                event-not-found:
+                  description: "No event has this id. When editing, an event of another\
+                    \ organizer is reported the same way."
+                  summary: Event not found
+                  value:
+                    status: 404
+                    title: Event not found
+                    type: /problems/event-not-found
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Event not found
+        "500":
+          content:
+            application/problem+json:
+              examples:
+                internal-error:
+                  description: "Something unexpected failed. The cause is in the server\
+                    \ log, not in the response. A request that moves money was rolled\
+                    \ back and may be retried with the same Idempotency-Key."
+                  summary: Internal error
+                  value:
+                    status: 500
+                    title: Internal error
+                    type: /problems/internal-error
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal error
+      summary: Read an event
+      tags:
+      - Events
     patch:
       description: |-
         Changes the name and the start of one of the caller's events. Ticket classes, prices and the payout \
@@ -1367,6 +1504,30 @@ components:
           format: uuid
           description: Id of the transfer or deposit that wrote the entry.
           example: 01a11ad9-7f10-7459-a273-deb24dbb4296
+    EventPageResponse:
+      type: object
+      description: "One page of the events that have not started yet, soonest first."
+      properties:
+        items:
+          type: array
+          description: The events of this page.
+          items:
+            $ref: "#/components/schemas/EventSummaryResponse"
+        page:
+          type: integer
+          format: int32
+          description: "Number of this page, from 0."
+          example: 0
+        size:
+          type: integer
+          format: int32
+          description: Largest number of events in a page.
+          example: 20
+        totalItems:
+          type: integer
+          format: int64
+          description: Number of events on all pages together.
+          example: 42
     EventResponse:
       type: object
       description: An event with its ticket classes and the tickets left in each.
@@ -1394,6 +1555,27 @@ components:
           description: "The ticket classes, cheapest first."
           items:
             $ref: "#/components/schemas/TicketClassResponse"
+    EventSummaryResponse:
+      type: object
+      description: An event in the event list.
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Id of the event.
+        minPrice:
+          type: string
+          description: "Price of the cheapest ticket, as a string of VND."
+          example: "300000"
+        name:
+          type: string
+          description: Name of the event.
+          example: Ledgerly Live
+        startsAt:
+          type: string
+          format: date-time
+          description: When the event starts.
+          example: 2027-03-01T12:00:00Z
     LoginRequest:
       type: object
       description: Credentials of a registered user.

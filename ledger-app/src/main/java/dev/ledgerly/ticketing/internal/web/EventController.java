@@ -15,17 +15,21 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import java.net.URI;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "Events", description = "Events and their ticket classes.")
@@ -70,6 +74,32 @@ class EventController {
                         ProblemType.PAYOUT_WALLET_INVALID,
                         "Wallet " + invalid.walletId() + " is not one of your wallets");
         };
+    }
+
+    @Operation(operationId = "listEvents", summary = "List upcoming events", description = """
+            Returns the events that have not started yet, soonest first, one page at a time. Each event shows the \
+            price of its cheapest ticket. No sign-in needed.""")
+    @ApiResponse(responseCode = "200", description = "One page of events.")
+    @GetMapping
+    EventPageResponse list(
+            @Parameter(description = "Number of the page, from 0.") @RequestParam(defaultValue = "0") @Min(0) int page,
+            @Parameter(description = "Largest number of events in the page, from 1 to 50.")
+                    @RequestParam(defaultValue = "20")
+                    @Min(1) @Max(50) int size) {
+        return EventPageResponse.from(events.upcoming(page, size));
+    }
+
+    @Operation(operationId = "getEvent", summary = "Read an event", description = """
+            Returns an event with its ticket classes and the tickets left in each, read at the time of the \
+            request. Events that have started can still be read. No sign-in needed.""")
+    @ApiResponse(responseCode = "200", description = "The event.")
+    @ProblemResponses(ProblemType.EVENT_NOT_FOUND)
+    @GetMapping("/{id}")
+    EventResponse get(@Parameter(description = "Id of the event.") @PathVariable UUID id) {
+        return events.find(id)
+                .map(EventResponse::from)
+                .orElseThrow(
+                        () -> new ProblemException(ProblemType.EVENT_NOT_FOUND, "Event " + id + " does not exist"));
     }
 
     @Operation(operationId = "updateEvent", summary = "Rename or reschedule an event", description = """

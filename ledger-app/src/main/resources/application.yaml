@@ -86,6 +86,10 @@ ledgerly:
     password:
       # Cost factor of the BCrypt password hashes: each step doubles the time to hash and to check a password.
       bcrypt-strength: 10
+  demo:
+    # true: at startup, sign up a demo organizer (organizer@ledgerly.dev, password organizer-demo) with one
+    # event, unless it has one already. On in the compose profile.
+    seed: false
   ledger:
     # How long a posting waits for the row locks on its accounts before it gives up with 503.
     lock-timeout: 2s

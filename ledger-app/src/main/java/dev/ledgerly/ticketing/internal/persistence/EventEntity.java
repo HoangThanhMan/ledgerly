@@ -13,6 +13,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.UuidGenerator;
 import org.jspecify.annotations.Nullable;
 
@@ -37,8 +38,10 @@ public class EventEntity {
     @Column(name = "starts_at", nullable = false)
     private Instant startsAt;
 
+    // A page of events loads the classes of all its events in one more query, instead of one query per event.
     @OneToMany(mappedBy = "event", cascade = CascadeType.PERSIST)
     @OrderBy("price, name")
+    @BatchSize(size = 50)
     private List<TicketClassEntity> ticketClasses = new ArrayList<>();
 
     @SuppressWarnings("NullAway.Init") // for JPA, which sets the fields

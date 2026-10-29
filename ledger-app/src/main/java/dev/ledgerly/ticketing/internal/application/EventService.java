@@ -9,7 +9,10 @@ import dev.ledgerly.ticketing.internal.persistence.TicketClassEntity;
 import dev.ledgerly.ticketing.internal.persistence.TicketInventory;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -68,6 +71,29 @@ public class EventService {
                     return new UpdateEventResult.Updated(details(event));
                 })
                 .orElseGet(UpdateEventResult.NotFound::new);
+    }
+
+    /** A page of the events that have not started yet, soonest first. */
+    @Transactional(readOnly = true)
+    public EventPage upcoming(int page, int size) {
+        Page<EventEntity> found =
+                events.findByStartsAtAfterOrderByStartsAtAscIdAsc(Instant.now(), PageRequest.of(page, size));
+        List<EventSummary> items = found.stream().map(EventService::summary).toList();
+        return new EventPage(items, page, size, found.getTotalElements());
+    }
+
+    /** The event with the tickets left in each class, started or not. */
+    @Transactional(readOnly = true)
+    public Optional<EventDetails> find(UUID eventId) {
+        return events.findById(eventId).map(this::details);
+    }
+
+    private static EventSummary summary(EventEntity event) {
+        long minPrice = event.ticketClasses().stream()
+                .mapToLong(TicketClassEntity::price)
+                .min()
+                .orElseThrow(() -> new IllegalStateException("event " + event.id() + " has no ticket classes"));
+        return new EventSummary(event.id(), event.name(), event.startsAt(), minPrice);
     }
 
     private EventDetails details(EventEntity event) {
