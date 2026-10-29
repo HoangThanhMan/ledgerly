@@ -40,6 +40,7 @@ The business scope is small on purpose. The project is about the places where a 
 | **Client retries** when it cannot tell whether the money moved | An `Idempotency-Key` header, a two-phase design with a lease and a fencing token, stored in PostgreSQL | `IdempotencyConcurrencyIT`: 50 concurrent requests with one key produce 1 transaction and 50 identical responses. `IdempotencyCrashRecoveryIT`: a failure after the money moved rolls the whole transfer back |
 | **The database is written but the event is not published** (dual write) | Transactional outbox: the event is written in the same transaction as the entries, and a relay reads the outbox table and sends to Kafka | `OutboxAtomicityIT`, `RelayCrashDuplicateIT`. Run by hand: `kill -9` on the application while it drained 3,000 events ended with 3,050 transactions and 3,050 notifications |
 | **Messages delivered more than once** | The consumer deduplicates by `eventId` in the same transaction that writes the notification | `ConsumerDedupIT`. In the `kill -9` run above, 22 duplicates were dropped |
+| **Acting on someone else's wallet** | Users sign in for a JWT. A wallet belongs to the user who opened it: only they can read it or spend from it, and to anyone else it answers `404` exactly like a wallet that does not exist. Idempotency keys are scoped to the user | `WalletOwnershipIT`, `SecurityIT`, `IdempotencyScopeIT` |
 | **Module boundaries eroding** over time | Each module has a public API and an `internal` package. ArchUnit checks the dependency matrix on every build | `ArchitectureTest` |
 | **Not knowing where the time goes** | OpenTelemetry: one transfer is one trace from HTTP through every SQL statement, the outbox and Kafka to the consumer | `TracePropagationIT`, `TraceContinuationIT`, a Grafana dashboard in the repository |
 
@@ -74,14 +75,17 @@ flowchart LR
 ```mermaid
 flowchart TB
     wallet["<b>wallet</b><br/>REST API, open wallet / deposit / transfer"]
+    identity["<b>identity</b><br/>users, sign-up and sign-in, JWT<br/>Spring Security"]
     idem["<b>idempotency</b><br/>claims keys, stores and replays responses"]
     ledger["<b>ledger</b><br/>double-entry ledger: accounts, transactions, entries<br/>ordered locking"]
     outbox["<b>outbox</b><br/>writes events inside the transaction<br/>relay sends them to Kafka"]
     shared["<b>shared</b><br/>Money, Problem Details"]
 
+    wallet --> identity
     wallet --> idem
     wallet --> ledger
     wallet --> outbox
+    identity --> shared
     idem --> shared
     ledger --> shared
     outbox --> shared
@@ -188,24 +192,31 @@ One [`Dockerfile`](Dockerfile) builds the image of any application (`--build-arg
 ### A first transfer
 
 ```bash
+# Sign up and sign in. Every other request carries the access token
+curl -s -X POST localhost:8080/v1/auth/register -H 'Content-Type: application/json' \
+  -d '{"email":"an@example.com","password":"correct-horse-battery"}'
+TOKEN=$(curl -s -X POST localhost:8080/v1/auth/login -H 'Content-Type: application/json' \
+  -d '{"email":"an@example.com","password":"correct-horse-battery"}' | jq -r .accessToken)
+AUTH="Authorization: Bearer $TOKEN"
+
 # Open two wallets
-A=$(curl -s -X POST localhost:8080/v1/wallets -H 'Content-Type: application/json' -d '{"currency":"VND"}' | jq -r .id)
-B=$(curl -s -X POST localhost:8080/v1/wallets -H 'Content-Type: application/json' -d '{"currency":"VND"}' | jq -r .id)
+A=$(curl -s -X POST localhost:8080/v1/wallets -H "$AUTH" -H 'Content-Type: application/json' -d '{"currency":"VND"}' | jq -r .id)
+B=$(curl -s -X POST localhost:8080/v1/wallets -H "$AUTH" -H 'Content-Type: application/json' -d '{"currency":"VND"}' | jq -r .id)
 
 # Deposit 500,000 into wallet A
-curl -s -X POST localhost:8080/v1/admin/deposits -H 'Content-Type: application/json' \
+curl -s -X POST localhost:8080/v1/admin/deposits -H "$AUTH" -H 'Content-Type: application/json' \
   -H "Idempotency-Key: $(uuidgen)" \
   -d "{\"walletId\":\"$A\",\"amount\":\"500000\",\"currency\":\"VND\"}"
 
 # Transfer 150,000 from A to B. Run this curl command TWICE with the same key
 KEY=$(uuidgen)
-curl -si -X POST localhost:8080/v1/transfers -H 'Content-Type: application/json' \
+curl -si -X POST localhost:8080/v1/transfers -H "$AUTH" -H 'Content-Type: application/json' \
   -H "Idempotency-Key: $KEY" \
   -d "{\"sourceWalletId\":\"$A\",\"targetWalletId\":\"$B\",\"amount\":\"150000\",\"currency\":\"VND\"}"
 
 # Balance and entry history of wallet A
-curl -s localhost:8080/v1/wallets/$A
-curl -s "localhost:8080/v1/wallets/$A/entries?limit=5"
+curl -s -H "$AUTH" localhost:8080/v1/wallets/$A
+curl -s -H "$AUTH" "localhost:8080/v1/wallets/$A/entries?limit=5"
 ```
 
 The second send returns the response of the first, adds the header `Idempotent-Replayed: true`, and does not move the money again:
@@ -220,7 +231,7 @@ Content-Type: application/json
 ```
 
 ```console
-$ curl -s localhost:8080/v1/wallets/$A
+$ curl -s -H "$AUTH" localhost:8080/v1/wallets/$A
 {"id":"01a11ad9-7eb8-...","currency":"VND","balance":"350000","createdAt":"2026-10-08T09:30:23.800096Z"}
 ```
 
@@ -271,6 +282,9 @@ The defaults live in each application's `application.yaml` and suit applications
 | `server.port` | `8080` (`ledger-app`), `8082` (`notification-consumer`) | HTTP port |
 | `spring.datasource.url` | `jdbc:postgresql://localhost:5433/ledger` | Database of `ledger-app`. The consumer uses the `notification` database |
 | `spring.kafka.bootstrap-servers` | `localhost:9092` | Kafka |
+| `ledgerly.security.jwt.secret` | a development key | Base64 of at least 32 bytes that signs the access tokens. **Set `LEDGERLY_SECURITY_JWT_SECRET` anywhere but a development machine**, for example to the output of `openssl rand -base64 32` |
+| `ledgerly.security.jwt.ttl` | `1h` | How long an access token is valid |
+| `ledgerly.security.password.bcrypt-strength` | `10` | Cost of the BCrypt password hashes |
 | `ledgerly.ledger.lock-timeout` | `2s` | Longest wait for the account locks. After that the answer is `503` with `Retry-After` |
 | `ledgerly.idempotency.lease` | `30s` | How long a request may hold a key. After that a retry with the same key takes it over |
 | `ledgerly.idempotency.ttl` | `24h` | Minimum time a key and its response are kept |
@@ -282,12 +296,17 @@ The defaults live in each application's `application.yaml` and suit applications
 
 | Method | Path | Description | `Idempotency-Key` |
 |---|---|---|:-:|
+| `POST` | `/v1/auth/register` | Sign up as `USER` (the default) or `ORGANIZER` | |
+| `POST` | `/v1/auth/login` | Sign in for an access token, valid for one hour | |
 | `POST` | `/v1/wallets` | Open a wallet | |
+| `GET` | `/v1/wallets` | My wallets | |
 | `GET` | `/v1/wallets/{id}` | Balance and details of a wallet | |
 | `GET` | `/v1/wallets/{id}/entries` | Entry history, keyset pagination (`?after=&limit=`) | |
 | `POST` | `/v1/transfers` | Transfer between two wallets | Required |
 | `GET` | `/v1/transfers/{id}` | Details of a transfer | |
-| `POST` | `/v1/admin/deposits` | Deposit into a wallet from a system account, for development and tests | Required |
+| `POST` | `/v1/admin/deposits` | Deposit into a wallet from a system account, for development and tests. A user deposits into their own wallets, an organizer into any | Required |
+
+Every request but signing up and in needs `Authorization: Bearer <accessToken>`, or it is answered with `401`. Wallets and transfers are visible to their owners only: anyone else gets `404`, as if they did not exist. Money can be transferred into anyone's wallet.
 
 The full reference is the OpenAPI document: Swagger UI at http://localhost:8080/swagger-ui.html, the document itself at `/v3/api-docs`, and a copy in [`ledger-app/openapi.yaml`](ledger-app/openapi.yaml) that a test keeps equal to what the application serves. It describes every parameter and, for each operation, every problem it can answer with.
 
@@ -386,6 +405,8 @@ perf/run-baseline.sh "$(date +%F)-baseline" 300 3
 | What if the request holding a key is slow, not dead | A lease with a fencing token that the completing `UPDATE` must match | A lease with an unconditional completing `UPDATE`: the slow request could still commit after a retry took the key over, giving two transfers for one key (measured) |
 | How to publish events | A transactional outbox, drained by a polling relay with `FOR UPDATE SKIP LOCKED` | Writing to the database and then to Kafka loses the event if the process dies in between. Kafka transactions do not cover PostgreSQL. Debezium adds Kafka Connect and a replication slot to operate, and is much harder to run in tests |
 | How to instrument | The Spring Boot OpenTelemetry starter, with Grafana LGTM in one container for development | The OpenTelemetry Java agent rewrites bytecode at runtime and lives outside the build, so it is hard to test in `./gradlew build`. Separate Prometheus, Jaeger and Grafana mean three services to wire together |
+| How to authenticate | JWTs (HS256) that the application issues itself at sign-in, valid for one hour | Keycloak: a second heavy service in compose, CI and the tests, for features this API does not use. Session cookies: server-side state, and CSRF protection on every write |
+| What to answer for someone else's wallet | `404`, the same as for a wallet that does not exist | `403`: tells the caller that the id belongs to a wallet, so ids could be probed |
 | What to do when a balance would overflow 64 bits | Reject the posting like any other business rule (`422`) | Letting the arithmetic exception surface: correct for the ledger, since nothing is written, but the client gets a `500` for a request it could have been told about (found by testing) |
 | How to follow a request through the outbox | Store the request's `traceparent` on the outbox row and restore it when the relay sends | A separate trace for the relay with a span link back: correct, but harder to read |
 
@@ -397,6 +418,7 @@ perf/run-baseline.sh "$(date +%F)-baseline" 300 3
 | Framework | Spring Boot 4.1, Spring Framework 7 |
 | Data | PostgreSQL 18, Flyway, explicit SQL through `JdbcClient` on the money path |
 | Messaging | Kafka 4 (KRaft), producer with `acks=all` and idempotence |
+| Security | Spring Security as an OAuth2 resource server, HS256 JWTs issued by the application, BCrypt |
 | Testing | JUnit 5, AssertJ, Testcontainers, ArchUnit, jqwik (property-based) |
 | Quality | Spotless (Palantir Java Format), Error Prone, NullAway, JaCoCo |
 | Observability | OpenTelemetry through the Spring Boot starter, Grafana LGTM |
@@ -409,7 +431,7 @@ perf/run-baseline.sh "$(date +%F)-baseline" 300 3
 
 | Directory | Contents |
 |---|---|
-| [`ledger-app`](ledger-app) | The main application: modules `wallet`, `ledger`, `idempotency`, `outbox`, `shared` |
+| [`ledger-app`](ledger-app) | The main application: modules `identity`, `wallet`, `ledger`, `idempotency`, `outbox`, `shared` |
 | [`notification-consumer`](notification-consumer) | Idempotent Kafka consumer with its own database |
 | [`ledger-contracts`](ledger-contracts) | Event definitions shared by producer and consumer |
 | [`build-logic`](build-logic) | Gradle convention plugins: Java setup, quality gates, the `integrationTest` source set |
@@ -429,7 +451,9 @@ Good places to start reading the code:
 ## Current limitations
 
 - **Money stays inside the system.** There are no top-ups or withdrawals through a bank: money enters a wallet only through the development deposit endpoint.
-- **No authentication or authorisation.** Whoever can reach the API can act on every wallet. Do not run it outside a development environment.
+- **Anyone can create money.** The development deposit endpoint lets every user deposit into their own wallets, and anyone can sign up as an organizer, who may deposit into any wallet. Fine for a demo, not for real money.
+- **Access tokens cannot be revoked.** A leaked token works until it expires, at most one hour later. Changing the signing key logs everybody out.
+- **The default signing key is public.** It is in `application.yaml` for development. Set `LEDGERLY_SECURITY_JWT_SECRET` before running anywhere else.
 - **One currency.** Wallets can only be opened in VND.
 - **No overload protection.** Past the ceiling, requests queue up instead of being rejected early: at 2,000 requests per second some waited 7 seconds and still got a `201`.
 - **A dead database is noticed slowly.** With PostgreSQL stopped, a request waits 30 seconds for a connection and is then answered with `500`, not with a quick `503`. The application recovers by itself about 5 seconds after the database is back. Tracked in [#1](https://github.com/HoangThanhMan/ledgerly/issues/1).
