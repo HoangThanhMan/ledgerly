@@ -5,6 +5,7 @@ import static dev.ledgerly.wallet.WalletApiDriver.expectProblem;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.ledgerly.AbstractIntegrationTest;
+import dev.ledgerly.identity.AuthDriver;
 import dev.ledgerly.ledger.LedgerApi;
 import dev.ledgerly.ledger.SystemAccount;
 import java.time.Instant;
@@ -25,9 +26,9 @@ class WalletApiIT extends AbstractIntegrationTest {
     private final WalletApiDriver api;
 
     WalletApiIT(@Autowired RestTestClient client, @Autowired LedgerApi ledger) {
-        this.client = client;
+        this.client = AuthDriver.signedIn(client);
         this.ledger = ledger;
-        this.api = new WalletApiDriver(client);
+        this.api = new WalletApiDriver(this.client);
     }
 
     @Test

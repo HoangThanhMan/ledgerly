@@ -3,6 +3,7 @@ package dev.ledgerly.wallet;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.ledgerly.AbstractIntegrationTest;
+import dev.ledgerly.identity.AuthDriver;
 import dev.ledgerly.shared.Money;
 import dev.ledgerly.wallet.internal.application.TransferResult;
 import dev.ledgerly.wallet.internal.application.TransferService;
@@ -13,6 +14,7 @@ import java.util.Currency;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.web.servlet.client.RestTestClient;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -30,12 +32,13 @@ class TransferMetricsIT extends AbstractIntegrationTest {
             @Autowired TransferService transfers,
             @Autowired MeterRegistry meters,
             @Autowired TransactionTemplate transactions,
-            @Autowired RestTestClient client) {
+            @Autowired RestTestClient client,
+            @Autowired JdbcClient jdbc) {
         this.transfers = transfers;
         this.meters = meters;
         this.transactions = transactions;
-        this.support = new ConcurrentTransfers(wallets, transfers);
-        this.api = new WalletApiDriver(client);
+        this.support = new ConcurrentTransfers(wallets, transfers, jdbc);
+        this.api = new WalletApiDriver(AuthDriver.signedIn(client));
     }
 
     @Test
@@ -53,7 +56,7 @@ class TransferMetricsIT extends AbstractIntegrationTest {
         support.transfer(source, target, 500);
         support.transfer(source, source, 1);
         support.transfer(source, UUID.randomUUID(), 1);
-        transfers.transfer(source, target, Money.of(1, Currency.getInstance("USD")));
+        transfers.transfer(support.owner().userId(), source, target, Money.of(1, Currency.getInstance("USD")));
 
         assertThat(count("completed") - completed).isEqualTo(2);
         assertThat(count("insufficient_funds") - insufficientFunds).isEqualTo(1);

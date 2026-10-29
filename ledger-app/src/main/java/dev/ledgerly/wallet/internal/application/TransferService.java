@@ -2,6 +2,7 @@ package dev.ledgerly.wallet.internal.application;
 
 import dev.ledgerly.contracts.Topics;
 import dev.ledgerly.contracts.TransferCompleted;
+import dev.ledgerly.identity.Caller;
 import dev.ledgerly.ledger.AccountView;
 import dev.ledgerly.ledger.EntryView;
 import dev.ledgerly.ledger.LedgerApi;
@@ -28,6 +29,9 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 /**
  * Moves money between wallets, and into a wallet from the funding account.
  *
+ * <p>Money leaves a wallet only at the request of its owner, but may be paid into anyone's wallet. A user deposits
+ * into their own wallets only, an organizer into any. A wallet the caller may not use is reported as not found.
+ *
  * <p>Both parties are checked to be user wallets before posting: the ledger itself would let a system account that
  * may go negative pay out without limit. Whether the source can afford the amount is left to the ledger, which
  * decides and writes in one database transaction.
@@ -52,8 +56,8 @@ public class TransferService {
 
     /** Transactional so that the ledger entries and the event commit together, whoever the caller is. */
     @Transactional
-    public TransferResult transfer(UUID sourceWalletId, UUID targetWalletId, Money amount) {
-        TransferResult result = decide(sourceWalletId, targetWalletId, amount);
+    public TransferResult transfer(UUID callerId, UUID sourceWalletId, UUID targetWalletId, Money amount) {
+        TransferResult result = decide(callerId, sourceWalletId, targetWalletId, amount);
         count(result);
         return result;
     }
@@ -85,12 +89,13 @@ public class TransferService {
         });
     }
 
-    private TransferResult decide(UUID sourceWalletId, UUID targetWalletId, Money amount) {
+    private TransferResult decide(UUID callerId, UUID sourceWalletId, UUID targetWalletId, Money amount) {
         if (sourceWalletId.equals(targetWalletId)) {
             return new TransferResult.SameWallet(sourceWalletId);
         }
         for (UUID walletId : List.of(sourceWalletId, targetWalletId)) {
-            Optional<AccountView> wallet = wallets.find(walletId);
+            Optional<AccountView> wallet =
+                    walletId.equals(sourceWalletId) ? wallets.findOwned(walletId, callerId) : wallets.find(walletId);
             if (wallet.isEmpty()) {
                 return new TransferResult.WalletNotFound(walletId);
             }
@@ -131,8 +136,9 @@ public class TransferService {
         };
     }
 
-    public DepositResult deposit(UUID walletId, Money amount) {
-        Optional<AccountView> wallet = wallets.find(walletId);
+    public DepositResult deposit(Caller caller, UUID walletId, Money amount) {
+        Optional<AccountView> wallet =
+                caller.isOrganizer() ? wallets.find(walletId) : wallets.findOwned(walletId, caller.userId());
         if (wallet.isEmpty()) {
             return new DepositResult.WalletNotFound(walletId);
         }
@@ -162,11 +168,18 @@ public class TransferService {
         };
     }
 
-    /** The transfer with this id, or empty if there is none or the ledger transaction is of another type. */
-    public Optional<TransferView> find(UUID transferId) {
+    /**
+     * The transfer with this id, or empty if there is none, the ledger transaction is of another type, or the caller
+     * owns neither of its wallets.
+     */
+    public Optional<TransferView> find(UUID transferId, UUID callerId) {
         return ledger.findTransaction(transferId)
                 .filter(transaction -> transaction.type() == TransactionType.TRANSFER)
-                .map(TransferService::toTransfer);
+                .map(TransferService::toTransfer)
+                .filter(transfer ->
+                        wallets.findOwned(transfer.sourceWalletId(), callerId).isPresent()
+                                || wallets.findOwned(transfer.targetWalletId(), callerId)
+                                        .isPresent());
     }
 
     private static TransferView toTransfer(TransactionView transaction) {

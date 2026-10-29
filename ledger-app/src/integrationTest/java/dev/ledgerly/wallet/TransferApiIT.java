@@ -8,6 +8,7 @@ import static dev.ledgerly.wallet.WalletApiDriver.transferBody;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.ledgerly.AbstractIntegrationTest;
+import dev.ledgerly.identity.AuthDriver;
 import dev.ledgerly.ledger.LedgerApi;
 import dev.ledgerly.ledger.Posting;
 import dev.ledgerly.ledger.PostingRequest;
@@ -39,10 +40,10 @@ class TransferApiIT extends AbstractIntegrationTest {
     private final JdbcClient jdbc;
 
     TransferApiIT(@Autowired RestTestClient client, @Autowired LedgerApi ledger, @Autowired JdbcClient jdbc) {
-        this.client = client;
+        this.client = AuthDriver.signedIn(client);
         this.ledger = ledger;
         this.jdbc = jdbc;
-        this.api = new WalletApiDriver(client);
+        this.api = new WalletApiDriver(this.client);
     }
 
     @Test

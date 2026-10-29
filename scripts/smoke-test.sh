@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# End-to-end check of a running system, the way a client sees it: a deposit, a transfer, the retry of that
-# transfer, the notification that the consumer writes from the event, and the invariants of the ledger.
+# End-to-end check of a running system, the way a client sees it: sign-up and sign-in, a deposit, a transfer, the
+# retry of that transfer, the notification that the consumer writes from the event, and the invariants of the ledger.
 #
 #   docker compose --profile full up -d --wait
 #   scripts/smoke-test.sh
@@ -21,7 +21,15 @@ fail() { echo "FAILED"; echo "  $1" >&2; exit 1; }
 expect() { [ "$2" = "$3" ] || fail "$1: expected '$3', got '$2'"; }
 
 psql() { docker compose -p "$COMPOSE_PROJECT" exec -T postgres psql -U ledgerly -d "$1" -At "${@:2}"; }
-post() { curl -sS -X POST "$API$1" -H 'Content-Type: application/json' "${@:2}"; }
+# Every API call but signing up and in carries the access token, once there is one.
+TOKEN=
+api() {
+  local auth=()
+  [ -z "$TOKEN" ] || auth=(-H "Authorization: Bearer $TOKEN")
+  curl -sS "${auth[@]}" "$@"
+}
+post() { api -X POST "$API$1" -H 'Content-Type: application/json' "${@:2}"; }
+get() { api "$API$1" "${@:2}"; }
 key() { cat /proc/sys/kernel/random/uuid; }
 
 step "both applications report UP"
@@ -32,6 +40,19 @@ ok
 step "the OpenAPI document is served"
 expect "operationId of POST /v1/transfers" \
   "$(curl -sS "$API/v3/api-docs" | jq -r '.paths["/v1/transfers"].post.operationId')" createTransfer
+ok
+
+step "a request without an access token is a 401 problem"
+expect "problem type" "$(get /v1/wallets/$(key) | jq -r .type)" /problems/unauthenticated
+ok
+
+step "sign up an organizer and sign in"
+EMAIL="smoke-$(key)@test.ledgerly.dev"
+PASSWORD=smoke-test-password
+user=$(post /v1/auth/register -d "{\"email\":\"$EMAIL\",\"password\":\"$PASSWORD\",\"role\":\"ORGANIZER\"}")
+expect "role" "$(jq -r .role <<<"$user")" ORGANIZER
+TOKEN=$(post /v1/auth/login -d "{\"email\":\"$EMAIL\",\"password\":\"$PASSWORD\"}" | jq -r .accessToken)
+[ -n "$TOKEN" ] && [ "$TOKEN" != null ] || fail "no access token"
 ok
 
 step "open two wallets and deposit 500000 into the first"
@@ -55,8 +76,8 @@ second=$(post /v1/transfers -H "Idempotency-Key: $KEY" -d "$BODY" -D "$headers")
 grep -qi '^Idempotent-Replayed: true' "$headers" || fail "the retry has no Idempotent-Replayed: true header"
 rm -f "$headers"
 expect "replayed body" "$second" "$first"
-expect "balance of the first wallet" "$(curl -sS "$API/v1/wallets/$A" | jq -r .balance)" 350000
-expect "balance of the second wallet" "$(curl -sS "$API/v1/wallets/$B" | jq -r .balance)" 150000
+expect "balance of the first wallet" "$(get /v1/wallets/$A | jq -r .balance)" 350000
+expect "balance of the second wallet" "$(get /v1/wallets/$B | jq -r .balance)" 150000
 ok
 
 step "a transfer the wallet cannot afford is a 422 problem"

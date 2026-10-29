@@ -1,5 +1,8 @@
 package dev.ledgerly.wallet.internal.web;
 
+import dev.ledgerly.idempotency.IdempotentRequests;
+import dev.ledgerly.idempotency.IdempotentRequests.Reply;
+import dev.ledgerly.identity.Caller;
 import dev.ledgerly.shared.problem.ProblemResponses;
 import dev.ledgerly.shared.problem.ProblemType;
 import dev.ledgerly.wallet.internal.application.DepositResult.BalanceLimitExceeded;
@@ -7,7 +10,6 @@ import dev.ledgerly.wallet.internal.application.DepositResult.Completed;
 import dev.ledgerly.wallet.internal.application.DepositResult.CurrencyMismatch;
 import dev.ledgerly.wallet.internal.application.DepositResult.WalletNotFound;
 import dev.ledgerly.wallet.internal.application.TransferService;
-import dev.ledgerly.wallet.internal.web.IdempotentRequests.Reply;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.headers.Header;
@@ -44,7 +46,8 @@ class DepositController {
     @Operation(operationId = "createDeposit", summary = "Deposit money into a wallet", description = """
             Credits the wallet and debits the system funding account, which is allowed to go negative, in one \
             database transaction. This is how wallets get money in development, tests and demos: no bank is \
-            involved, and since the API has no authentication the endpoint must not be reachable from outside.
+            involved. A user may deposit into their own wallets only, an organizer into any wallet. A wallet the \
+            caller may not deposit into answers `wallet-not-found`.
 
             The call needs an `Idempotency-Key`, with the same rules as a transfer: a retry with the same key \
             returns the stored response with `Idempotent-Replayed: true` and credits nothing again. The response \
@@ -58,9 +61,10 @@ class DepositController {
             headers =
                     @Header(
                             name = IdempotentRequests.REPLAYED_HEADER,
-                            description = ApiDocumentation.REPLAYED,
+                            description = IdempotentRequests.REPLAYED_DOC,
                             schema = @Schema(type = "string", allowableValues = "true")))
     @ProblemResponses({
+        ProblemType.UNAUTHENTICATED,
         ProblemType.WALLET_NOT_FOUND,
         ProblemType.IDEMPOTENCY_IN_PROGRESS,
         ProblemType.IDEMPOTENCY_KEY_REUSED,
@@ -70,17 +74,18 @@ class DepositController {
     })
     @PostMapping
     ResponseEntity<String> create(
-            @Parameter(description = ApiDocumentation.IDEMPOTENCY_KEY, example = "9b2e4c1a-7d3f-4a6b-8c5d-0e1f2a3b4c5d")
-                    @RequestHeader(ApiFormats.IDEMPOTENCY_KEY_HEADER)
-                    @Pattern(regexp = ApiFormats.IDEMPOTENCY_KEY_PATTERN, message = ApiFormats.IDEMPOTENCY_KEY_MESSAGE) String idempotencyKey,
+            Caller caller,
+            @Parameter(description = IdempotentRequests.KEY_DOC, example = "9b2e4c1a-7d3f-4a6b-8c5d-0e1f2a3b4c5d")
+                    @RequestHeader(IdempotentRequests.KEY_HEADER)
+                    @Pattern(regexp = IdempotentRequests.KEY_PATTERN, message = IdempotentRequests.KEY_MESSAGE) String idempotencyKey,
             @Valid @RequestBody DepositRequest request,
             HttpServletRequest http) {
         // A deposit cannot be read back on its own, so the response has no Location.
-        return idempotent.execute(idempotencyKey, http, request, null, () -> deposit(request));
+        return idempotent.execute(caller.userId(), idempotencyKey, http, request, null, () -> deposit(caller, request));
     }
 
-    private Reply deposit(DepositRequest request) {
-        return switch (transfers.deposit(request.walletId(), request.money())) {
+    private Reply deposit(Caller caller, DepositRequest request) {
+        return switch (transfers.deposit(caller, request.walletId(), request.money())) {
             case Completed completed ->
                 new Reply.Created(completed.deposit().id(), DepositResponse.from(completed.deposit()));
             case WalletNotFound notFound -> new Reply.Rejected(WalletProblems.walletNotFound(notFound.walletId()));

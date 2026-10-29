@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
 import dev.ledgerly.AbstractIntegrationTest;
+import dev.ledgerly.identity.Role;
+import dev.ledgerly.identity.TestUsers;
 import dev.ledgerly.ledger.PostingResult.AccountNotFound;
 import dev.ledgerly.ledger.PostingResult.InsufficientFunds;
 import dev.ledgerly.ledger.PostingResult.Posted;
@@ -15,20 +17,23 @@ import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.simple.JdbcClient;
 
 class LedgerServiceIT extends AbstractIntegrationTest {
 
     private static final Currency VND = Currency.getInstance("VND");
 
     private final LedgerApi ledger;
+    private final UUID owner;
 
-    LedgerServiceIT(@Autowired LedgerApi ledger) {
+    LedgerServiceIT(@Autowired LedgerApi ledger, @Autowired JdbcClient jdbc) {
         this.ledger = ledger;
+        this.owner = TestUsers.create(jdbc, Role.USER);
     }
 
     @Test
     void openedAccountIsAnEmptyUserWallet() {
-        AccountView account = ledger.openAccount(VND);
+        AccountView account = ledger.openAccount(VND, owner);
 
         assertThat(account.type()).isEqualTo(AccountType.USER_WALLET);
         assertThat(account.balance()).isEqualTo(vnd(0));
@@ -51,7 +56,7 @@ class LedgerServiceIT extends AbstractIntegrationTest {
     @Test
     void postedTransferUpdatesBalancesAndRecordsEntries() {
         UUID source = fundedWallet(1_000);
-        UUID target = ledger.openAccount(VND).id();
+        UUID target = ledger.openAccount(VND, owner).id();
 
         PostingResult result = ledger.post(transfer(source, target, 300));
 
@@ -70,7 +75,7 @@ class LedgerServiceIT extends AbstractIntegrationTest {
     @Test
     void rejectedPostingChangesNothing() {
         UUID source = fundedWallet(100);
-        UUID target = ledger.openAccount(VND).id();
+        UUID target = ledger.openAccount(VND, owner).id();
 
         PostingResult result = ledger.post(transfer(source, target, 101));
 
@@ -91,7 +96,7 @@ class LedgerServiceIT extends AbstractIntegrationTest {
 
     @Test
     void historyIsNewestFirstAndPagesWithoutGapsOrDuplicates() {
-        UUID wallet = ledger.openAccount(VND).id();
+        UUID wallet = ledger.openAccount(VND, owner).id();
         for (int i = 1; i <= 5; i++) {
             deposit(wallet, i);
         }
@@ -110,7 +115,7 @@ class LedgerServiceIT extends AbstractIntegrationTest {
     }
 
     private UUID fundedWallet(long amount) {
-        UUID wallet = ledger.openAccount(VND).id();
+        UUID wallet = ledger.openAccount(VND, owner).id();
         deposit(wallet, amount);
         return wallet;
     }

@@ -16,10 +16,15 @@ import org.springframework.context.annotation.Import;
  * would publish the events of whichever test happens to be running. Tests that are about the relay call it
  * directly, and the one test of the scheduler cancels its relay when it is done.
  *
+ * <p>Passwords are hashed with the cheapest BCrypt cost: tests sign up hundreds of users, and at the production cost
+ * hashing alone would take tens of seconds.
+ *
  * <p>Never close a context during the run, so no {@code @DirtiesContext}: when a context closes, Spring Boot stops
  * the containers it holds as beans, and those are the containers every other context is still connected to.
  */
-@SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT, properties = "ledgerly.outbox.relay.enabled=false")
+@SpringBootTest(
+        webEnvironment = WebEnvironment.RANDOM_PORT,
+        properties = {"ledgerly.outbox.relay.enabled=false", "ledgerly.security.password.bcrypt-strength=4"})
 @AutoConfigureRestTestClient
 @Import(TestcontainersConfiguration.class)
 public abstract class AbstractIntegrationTest {}

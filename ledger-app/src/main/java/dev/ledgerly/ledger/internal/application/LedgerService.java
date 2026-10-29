@@ -57,8 +57,14 @@ class LedgerService implements LedgerApi {
 
     @Override
     @Transactional
-    public AccountView openAccount(Currency currency) {
-        return accounts.insertUserWallet(currency);
+    public AccountView openAccount(Currency currency, UUID ownerId) {
+        return accounts.insertUserWallet(currency, ownerId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<AccountView> accountsOwnedBy(UUID ownerId) {
+        return accounts.findOwnedBy(ownerId);
     }
 
     @Override

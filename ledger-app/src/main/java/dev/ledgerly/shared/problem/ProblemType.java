@@ -35,6 +35,22 @@ public enum ProblemType {
             "Idempotency-Key was already used with a different request",
             "The Idempotency-Key was first sent with another method, path or body. Use a new key for every"
                     + " operation."),
+    UNAUTHENTICATED(
+            HttpStatus.UNAUTHORIZED,
+            "unauthenticated",
+            "Authentication required",
+            "The request has no access token, or its token is expired or invalid. Sign in at /v1/auth/login and"
+                    + " send the token as Authorization: Bearer <token>."),
+    INVALID_CREDENTIALS(
+            HttpStatus.UNAUTHORIZED,
+            "invalid-credentials",
+            "Email or password is wrong",
+            "No user has this email, or the password does not match. The two cases get the same answer."),
+    EMAIL_TAKEN(
+            HttpStatus.CONFLICT,
+            "email-taken",
+            "Email is already registered",
+            "A user with this email exists. Emails are compared regardless of case. Sign in instead."),
     INSUFFICIENT_FUNDS(
             HttpStatus.UNPROCESSABLE_CONTENT,
             "insufficient-funds",

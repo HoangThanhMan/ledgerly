@@ -5,6 +5,9 @@ import static org.awaitility.Awaitility.await;
 
 import dev.ledgerly.AbstractIntegrationTest;
 import dev.ledgerly.contracts.Topics;
+import dev.ledgerly.identity.AuthDriver;
+import dev.ledgerly.identity.Caller;
+import dev.ledgerly.identity.Role;
 import dev.ledgerly.shared.Money;
 import dev.ledgerly.wallet.internal.application.OpenWalletResult;
 import dev.ledgerly.wallet.internal.application.TransferResult;
@@ -61,6 +64,7 @@ class TracePropagationIT extends AbstractIntegrationTest {
     private final TransferService transfers;
     private final ConsumerFactory<String, String> consumers;
     private final JdbcClient jdbc;
+    private final Caller owner;
     private final InMemorySpanExporter spans;
 
     TracePropagationIT(
@@ -71,7 +75,10 @@ class TracePropagationIT extends AbstractIntegrationTest {
             @Autowired ConsumerFactory<String, String> consumers,
             @Autowired JdbcClient jdbc,
             @Autowired InMemorySpanExporter spans) {
-        this.client = client;
+        // The wallets are opened through the services but spent from through the API: one user does both.
+        String token = AuthDriver.register(client, Role.ORGANIZER);
+        this.client = AuthDriver.withToken(client, token);
+        this.owner = new Caller(AuthDriver.userIdOf(token), Role.ORGANIZER);
         this.relay = relay;
         this.wallets = wallets;
         this.transfers = transfers;
@@ -133,7 +140,8 @@ class TracePropagationIT extends AbstractIntegrationTest {
         UUID source = openWallet(1_000);
         UUID target = openWallet(0);
         try (TopicReader reader = new TopicReader(consumers, Topics.TRANSFERS)) {
-            UUID transferId = ((TransferResult.Completed) transfers.transfer(source, target, Money.of(5, VND)))
+            UUID transferId = ((TransferResult.Completed)
+                            transfers.transfer(owner.userId(), source, target, Money.of(5, VND)))
                     .transfer()
                     .id();
 
@@ -161,9 +169,11 @@ class TracePropagationIT extends AbstractIntegrationTest {
     }
 
     private UUID openWallet(long balance) {
-        UUID wallet = ((OpenWalletResult.Opened) wallets.open(VND)).wallet().id();
+        UUID wallet = ((OpenWalletResult.Opened) wallets.open(VND, owner.userId()))
+                .wallet()
+                .id();
         if (balance > 0) {
-            transfers.deposit(wallet, Money.of(balance, VND));
+            transfers.deposit(owner, wallet, Money.of(balance, VND));
         }
         return wallet;
     }

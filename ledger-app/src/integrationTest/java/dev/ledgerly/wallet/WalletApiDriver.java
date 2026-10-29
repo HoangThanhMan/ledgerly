@@ -11,7 +11,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 /** Calls the wallet API the way a client would, to arrange test data and read results back. */
-final class WalletApiDriver {
+public final class WalletApiDriver {
 
     static final String IDEMPOTENCY_KEY = "Idempotency-Key";
     static final String IDEMPOTENT_REPLAYED = "Idempotent-Replayed";
@@ -116,12 +116,12 @@ final class WalletApiDriver {
         return requireNonNull(response.expectBody(String.class).returnResult().getResponseBody());
     }
 
-    static Map<String, Object> body(RestTestClient.ResponseSpec response) {
+    public static Map<String, Object> body(RestTestClient.ResponseSpec response) {
         return requireNonNull(response.expectBody(JSON_OBJECT).returnResult().getResponseBody());
     }
 
     /** Asserts an RFC 9457 response of the given problem type and returns its body for further checks. */
-    static RestTestClient.BodyContentSpec expectProblem(
+    public static RestTestClient.BodyContentSpec expectProblem(
             RestTestClient.ResponseSpec response, HttpStatus status, String type) {
         return response.expectStatus()
                 .isEqualTo(status)

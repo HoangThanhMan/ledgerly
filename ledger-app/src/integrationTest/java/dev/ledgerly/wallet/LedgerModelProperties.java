@@ -3,6 +3,8 @@ package dev.ledgerly.wallet;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.ledgerly.AbstractIntegrationTest;
+import dev.ledgerly.identity.Caller;
+import dev.ledgerly.identity.TestUsers;
 import dev.ledgerly.ledger.InvariantChecker;
 import dev.ledgerly.shared.Money;
 import dev.ledgerly.wallet.internal.application.DepositResult;
@@ -83,16 +85,19 @@ class LedgerModelProperties extends AbstractIntegrationTest {
 
     @Property(tries = 1000)
     void systemBehavesLikeAnArrayOfBalances(@ForAll("commands") List<Command> commands) {
+        Caller owner = TestUsers.organizer(jdbc);
         List<UUID> ids = new ArrayList<>();
         for (int i = 0; i < WALLETS; i++) {
-            ids.add(((OpenWalletResult.Opened) wallets.open(VND)).wallet().id());
+            ids.add(((OpenWalletResult.Opened) wallets.open(VND, owner.userId()))
+                    .wallet()
+                    .id());
         }
         ids.add(UUID.randomUUID());
         long[] model = new long[WALLETS];
 
         for (Command command : commands) {
             Outcome expected = applyToModel(model, command);
-            Outcome actual = applyToSystem(ids, command);
+            Outcome actual = applyToSystem(owner, ids, command);
             Statistics.collect(command.getClass().getSimpleName(), expected);
 
             assertThat(actual).as("outcome of %s", command).isEqualTo(expected);
@@ -150,17 +155,17 @@ class LedgerModelProperties extends AbstractIntegrationTest {
         }
     }
 
-    private Outcome applyToSystem(List<UUID> ids, Command command) {
+    private Outcome applyToSystem(Caller owner, List<UUID> ids, Command command) {
         return switch (command) {
             case Deposit(int wallet, long amount) ->
-                switch (transfers.deposit(ids.get(wallet), Money.of(amount, VND))) {
+                switch (transfers.deposit(owner, ids.get(wallet), Money.of(amount, VND))) {
                     case DepositResult.Completed completed -> Outcome.COMPLETED;
                     case DepositResult.WalletNotFound notFound -> Outcome.WALLET_NOT_FOUND;
                     case DepositResult.BalanceLimitExceeded exceeded -> Outcome.BALANCE_LIMIT_EXCEEDED;
                     case DepositResult.CurrencyMismatch mismatch -> Outcome.CURRENCY_MISMATCH;
                 };
             case Transfer(int source, int target, long amount) ->
-                switch (transfers.transfer(ids.get(source), ids.get(target), Money.of(amount, VND))) {
+                switch (transfers.transfer(owner.userId(), ids.get(source), ids.get(target), Money.of(amount, VND))) {
                     case TransferResult.Completed completed -> Outcome.COMPLETED;
                     case TransferResult.InsufficientFunds funds -> Outcome.INSUFFICIENT_FUNDS;
                     case TransferResult.WalletNotFound notFound -> Outcome.WALLET_NOT_FOUND;

@@ -5,13 +5,6 @@ import dev.ledgerly.shared.Money;
 /** Wire formats shared by the wallet endpoints. */
 final class ApiFormats {
 
-    static final String IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
-
-    /** 1 to 64 visible ASCII characters. A UUID is what clients are expected to send. */
-    static final String IDEMPOTENCY_KEY_PATTERN = "[\\x21-\\x7E]{1,64}";
-
-    static final String IDEMPOTENCY_KEY_MESSAGE = "must be 1 to 64 visible ASCII characters";
-
     /**
      * Amounts travel as strings of minor units, so JavaScript clients do not round them. At most 18
      * digits always fit in a {@code long}.

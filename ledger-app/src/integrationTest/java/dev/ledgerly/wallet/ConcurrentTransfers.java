@@ -2,6 +2,8 @@ package dev.ledgerly.wallet;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import dev.ledgerly.identity.Caller;
+import dev.ledgerly.identity.TestUsers;
 import dev.ledgerly.shared.Money;
 import dev.ledgerly.wallet.internal.application.DepositResult;
 import dev.ledgerly.wallet.internal.application.OpenWalletResult;
@@ -24,6 +26,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
+import org.springframework.jdbc.core.simple.JdbcClient;
 
 /** Shared plumbing of the concurrency tests: wallets with money, and tasks that all start at the same instant. */
 final class ConcurrentTransfers {
@@ -34,10 +37,17 @@ final class ConcurrentTransfers {
 
     private final WalletService wallets;
     private final TransferService transfers;
+    private final Caller owner;
 
-    ConcurrentTransfers(WalletService wallets, TransferService transfers) {
+    ConcurrentTransfers(WalletService wallets, TransferService transfers, JdbcClient jdbc) {
         this.wallets = wallets;
         this.transfers = transfers;
+        this.owner = TestUsers.organizer(jdbc);
+    }
+
+    /** The organizer who owns every wallet these tests open, and on whose behalf they move money. */
+    Caller owner() {
+        return owner;
     }
 
     /** What became of the tasks of one run: the transfer results, and the tasks that ended in an exception. */
@@ -55,9 +65,11 @@ final class ConcurrentTransfers {
     }
 
     UUID openWallet(long balance) {
-        UUID wallet = ((OpenWalletResult.Opened) wallets.open(VND)).wallet().id();
+        UUID wallet = ((OpenWalletResult.Opened) wallets.open(VND, owner.userId()))
+                .wallet()
+                .id();
         if (balance > 0) {
-            assertThat(transfers.deposit(wallet, vnd(balance))).isInstanceOf(DepositResult.Completed.class);
+            assertThat(transfers.deposit(owner, wallet, vnd(balance))).isInstanceOf(DepositResult.Completed.class);
         }
         return wallet;
     }
@@ -67,7 +79,7 @@ final class ConcurrentTransfers {
     }
 
     TransferResult transfer(UUID source, UUID target, long amount) {
-        return transfers.transfer(source, target, vnd(amount));
+        return transfers.transfer(owner.userId(), source, target, vnd(amount));
     }
 
     /**

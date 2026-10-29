@@ -32,7 +32,7 @@ class HotWalletDrainIT extends AbstractIntegrationTest {
 
     HotWalletDrainIT(
             @Autowired WalletService wallets, @Autowired TransferService transfers, @Autowired JdbcClient jdbc) {
-        this.support = new ConcurrentTransfers(wallets, transfers);
+        this.support = new ConcurrentTransfers(wallets, transfers, jdbc);
         this.invariants = new InvariantChecker(jdbc);
     }
 

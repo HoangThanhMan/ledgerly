@@ -9,8 +9,11 @@ import org.jspecify.annotations.Nullable;
 /** Entry point of the ledger module. Other modules use only this interface and the types next to it. */
 public interface LedgerApi {
 
-    /** Opens an empty user wallet. */
-    AccountView openAccount(Currency currency);
+    /** Opens an empty user wallet that belongs to the given user. */
+    AccountView openAccount(Currency currency, UUID ownerId);
+
+    /** The user wallets of a user, oldest first. */
+    List<AccountView> accountsOwnedBy(UUID ownerId);
 
     Optional<AccountView> findAccount(UUID accountId);
 

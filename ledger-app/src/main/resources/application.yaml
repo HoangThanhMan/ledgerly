@@ -76,6 +76,16 @@ springdoc:
     tags-sorter: alpha
 
 ledgerly:
+  security:
+    jwt:
+      # Signs and verifies access tokens (HS256): base64 of at least 32 bytes. This value is for development
+      # only. Anywhere else set LEDGERLY_SECURITY_JWT_SECRET, for example to the output of: openssl rand -base64 32
+      secret: I69iH1c3TW10F68L6n8e1fzQmRTXVe++raV9S/rN83Y=
+      # Lifetime of an access token. A token cannot be revoked, so this bounds the damage of a leaked one.
+      ttl: 1h
+    password:
+      # Cost factor of the BCrypt password hashes: each step doubles the time to hash and to check a password.
+      bcrypt-strength: 10
   ledger:
     # How long a posting waits for the row locks on its accounts before it gives up with 503.
     lock-timeout: 2s
