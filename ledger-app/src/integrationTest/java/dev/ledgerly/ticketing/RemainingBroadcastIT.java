@@ -100,6 +100,15 @@ class RemainingBroadcastIT extends AbstractIntegrationTest {
         assertThat(heard.poll(1, TimeUnit.SECONDS)).isNull();
     }
 
+    @Test
+    void clientsCannotBroadcastToSubscribers() throws Exception {
+        BlockingQueue<Remaining> heard = watch(ticketClass);
+
+        requireNonNull(session).send("/topic/ticket-classes/" + ticketClass, new Remaining(ticketClass, 0));
+
+        assertThat(heard.poll(1, TimeUnit.SECONDS)).isNull();
+    }
+
     /** Subscribes to the ticket class and returns once the subscription is live, with nothing in the queue. */
     private BlockingQueue<Remaining> watch(UUID id) throws Exception {
         StompSession connected = stomp.connectAsync(
