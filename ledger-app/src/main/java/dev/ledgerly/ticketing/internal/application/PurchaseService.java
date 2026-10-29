@@ -53,18 +53,21 @@ public class PurchaseService {
     private final LedgerApi ledger;
     private final OutboxWriter outbox;
     private final MeterRegistry meters;
+    private final RemainingPublisher remainingPublisher;
 
     PurchaseService(
             TicketInventory inventory,
             OrderRepository orders,
             LedgerApi ledger,
             OutboxWriter outbox,
-            MeterRegistry meters) {
+            MeterRegistry meters,
+            RemainingPublisher remainingPublisher) {
         this.inventory = inventory;
         this.orders = orders;
         this.ledger = ledger;
         this.outbox = outbox;
         this.meters = meters;
+        this.remainingPublisher = remainingPublisher;
     }
 
     @Transactional
@@ -112,6 +115,7 @@ public class PurchaseService {
                 OrderRow order = orders.insert(
                         ticketClassId, buyerId, walletId, quantity, amount.amount(), posted.transactionId());
                 outbox.append(event(order, ticketClass, amount));
+                remainingPublisher.publishAfterCommit(ticketClassId, remaining.getAsInt());
                 yield new PurchaseResult.Purchased(order, remaining.getAsInt());
             }
             case PostingResult.InsufficientFunds funds -> {

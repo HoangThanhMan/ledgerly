@@ -20,7 +20,7 @@ import org.springframework.security.web.SecurityFilterChain;
  * Who may call what. Requests carry a JWT issued by {@code /v1/auth/login}: there are no sessions and no cookies, so
  * there is nothing for CSRF to forge.
  *
- * <p>Signing up and in, browsing events, the API document and the actuator endpoints the application exposes are
+ * <p>Signing up and in, browsing events, watching tickets sell over {@code /ws}, the API document and the actuator endpoints the application exposes are
  * open. Every other
  * request needs a valid token. What a signed-in user may do with a particular wallet is decided by the module that owns
  * it, not here.
@@ -35,6 +35,8 @@ class SecurityConfig {
                 .authorizeHttpRequests(requests -> requests.requestMatchers(HttpMethod.POST, "/v1/auth/**")
                         .permitAll()
                         .requestMatchers(HttpMethod.GET, "/v1/events", "/v1/events/**")
+                        .permitAll()
+                        .requestMatchers(HttpMethod.GET, "/ws")
                         .permitAll()
                         .requestMatchers("/actuator/health/**", "/actuator/info", "/actuator/metrics/**")
                         .permitAll()
