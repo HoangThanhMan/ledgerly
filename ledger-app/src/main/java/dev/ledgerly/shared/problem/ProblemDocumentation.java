@@ -43,7 +43,7 @@ class ProblemDocumentation implements OperationCustomizer, GlobalOpenApiCustomiz
 
     /** Problems that tell the client when to try again. */
     private static final Set<ProblemType> WITH_RETRY_AFTER =
-            EnumSet.of(ProblemType.IDEMPOTENCY_IN_PROGRESS, ProblemType.OVERLOADED);
+            EnumSet.of(ProblemType.IDEMPOTENCY_IN_PROGRESS, ProblemType.RATE_LIMITED, ProblemType.OVERLOADED);
 
     @Override
     public void customise(OpenAPI openApi) {

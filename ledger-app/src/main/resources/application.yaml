@@ -42,6 +42,10 @@ server:
   port: 8080
 
 management:
+  health:
+    redis:
+      # The application serves every request without Redis, so a Redis outage must not make it look down.
+      enabled: false
   endpoints:
     web:
       exposure:
@@ -103,6 +107,9 @@ ledgerly:
   ticketing:
     # How long a purchase waits for the row lock of its ticket class before it gives up with 503.
     lock-timeout: 2s
+    rate-limit:
+      # Orders one user may send in a minute. More are refused with 429.
+      per-minute: 10
   idempotency:
     # How long the request that claimed a key may hold it. After that a retry with the same key takes it over.
     lease: 30s
