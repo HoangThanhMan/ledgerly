@@ -18,6 +18,8 @@ servers:
 tags:
 - description: "Open wallets, read their balance and their entry history."
   name: Wallets
+- description: "Sign up, and sign in for an access token."
+  name: Authentication
 - description: "Put money into wallets from the system funding account. For development,\
     \ tests and demos."
   name: Deposits
@@ -194,6 +196,143 @@ paths:
       summary: Deposit money into a wallet
       tags:
       - Deposits
+  /v1/auth/login:
+    post:
+      description: "Exchanges email and password for an access token. A wrong password\
+        \ and an unknown email get the same answer, so the API does not tell which\
+        \ emails are registered."
+      operationId: login
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+          description: The access token.
+        "400":
+          content:
+            application/problem+json:
+              examples:
+                validation-error:
+                  description: "The body, a parameter or a header is missing or malformed.\
+                    \ Nothing was done, and an Idempotency-Key sent with the request\
+                    \ was not used up."
+                  summary: Request is not valid
+                  value:
+                    status: 400
+                    title: Request is not valid
+                    type: /problems/validation-error
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Request is not valid
+        "401":
+          content:
+            application/problem+json:
+              examples:
+                invalid-credentials:
+                  description: "No user has this email, or the password does not match.\
+                    \ The two cases get the same answer."
+                  summary: Email or password is wrong
+                  value:
+                    status: 401
+                    title: Email or password is wrong
+                    type: /problems/invalid-credentials
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Email or password is wrong
+        "500":
+          content:
+            application/problem+json:
+              examples:
+                internal-error:
+                  description: "Something unexpected failed. The cause is in the server\
+                    \ log, not in the response. A request that moves money was rolled\
+                    \ back and may be retried with the same Idempotency-Key."
+                  summary: Internal error
+                  value:
+                    status: 500
+                    title: Internal error
+                    type: /problems/internal-error
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal error
+      summary: Sign in
+      tags:
+      - Authentication
+  /v1/auth/register:
+    post:
+      description: "Creates a user. Emails are unique regardless of case. The role\
+        \ defaults to USER. Signing up does not sign in: call `login` next."
+      operationId: register
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+          description: The user was created.
+        "400":
+          content:
+            application/problem+json:
+              examples:
+                validation-error:
+                  description: "The body, a parameter or a header is missing or malformed.\
+                    \ Nothing was done, and an Idempotency-Key sent with the request\
+                    \ was not used up."
+                  summary: Request is not valid
+                  value:
+                    status: 400
+                    title: Request is not valid
+                    type: /problems/validation-error
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Request is not valid
+        "409":
+          content:
+            application/problem+json:
+              examples:
+                email-taken:
+                  description: A user with this email exists. Emails are compared
+                    regardless of case. Sign in instead.
+                  summary: Email is already registered
+                  value:
+                    status: 409
+                    title: Email is already registered
+                    type: /problems/email-taken
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Email is already registered
+        "500":
+          content:
+            application/problem+json:
+              examples:
+                internal-error:
+                  description: "Something unexpected failed. The cause is in the server\
+                    \ log, not in the response. A request that moves money was rolled\
+                    \ back and may be retried with the same Idempotency-Key."
+                  summary: Internal error
+                  value:
+                    status: 500
+                    title: Internal error
+                    type: /problems/internal-error
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal error
+      summary: Sign up
+      tags:
+      - Authentication
   /v1/transfers:
     post:
       description: |-
@@ -808,6 +947,22 @@ components:
           format: uuid
           description: Id of the transfer or deposit that wrote the entry.
           example: 01a11ad9-7f10-7459-a273-deb24dbb4296
+    LoginRequest:
+      type: object
+      description: Credentials of a registered user.
+      properties:
+        email:
+          type: string
+          description: Email given at sign-up. Case does not matter.
+          example: an@example.com
+          minLength: 1
+        password:
+          type: string
+          description: The password.
+          example: correct-horse-battery
+      required:
+      - email
+      - password
     OpenWalletRequest:
       type: object
       description: The wallet to open.
@@ -868,6 +1023,8 @@ components:
           - /problems/transfer-not-found
           - /problems/idempotency-in-progress
           - /problems/idempotency-key-reused
+          - /problems/invalid-credentials
+          - /problems/email-taken
           - /problems/insufficient-funds
           - /problems/same-account-transfer
           - /problems/currency-mismatch
@@ -876,6 +1033,49 @@ components:
           - /problems/internal-error
           - /problems/overloaded
           example: /problems/insufficient-funds
+    RegisterRequest:
+      type: object
+      description: A new user.
+      properties:
+        email:
+          type: string
+          format: email
+          description: Email to sign in with. Case does not matter.
+          example: an@example.com
+          maxLength: 254
+          minLength: 0
+        password:
+          type: string
+          description: "8 to 72 characters, and at most 72 bytes in UTF-8."
+          example: correct-horse-battery
+          maxLength: 72
+          minLength: 8
+        role:
+          type: string
+          description: USER (the default) buys tickets. ORGANIZER also runs events.
+          enum:
+          - USER
+          - ORGANIZER
+          example: USER
+      required:
+      - email
+      - password
+    TokenResponse:
+      type: object
+      description: "An access token. Send it as `Authorization: Bearer <accessToken>`."
+      properties:
+        accessToken:
+          type: string
+          description: A JWT.
+        expiresIn:
+          type: integer
+          format: int64
+          description: Seconds until the token expires.
+          example: 3600
+        tokenType:
+          type: string
+          description: Always `Bearer`.
+          example: Bearer
     TransferRequest:
       type: object
       description: The transfer to make.
@@ -945,6 +1145,27 @@ components:
           format: uuid
           description: Wallet the money went to.
           example: 01a11ad9-7ec9-7c41-8e2a-5b7d9c0e4f21
+    UserResponse:
+      type: object
+      description: A user. The password is never returned.
+      properties:
+        createdAt:
+          type: string
+          format: date-time
+          description: When the user signed up.
+        email:
+          type: string
+          description: In lower case.
+        id:
+          type: string
+          format: uuid
+          description: Id of the user. Access tokens carry it as their subject.
+        role:
+          type: string
+          description: What the user may do.
+          enum:
+          - USER
+          - ORGANIZER
     WalletResponse:
       type: object
       description: A wallet and its current balance.

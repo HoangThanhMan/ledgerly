@@ -38,6 +38,7 @@ class ArchitectureTest {
     private static final Map<String, Set<String>> ALLOWED_DEPENDENCIES = Map.of(
             "contracts", Set.of(),
             "shared", Set.of(),
+            "identity", Set.of("shared"),
             "ledger", Set.of("shared"),
             "idempotency", Set.of("shared"),
             "outbox", Set.of("shared", "contracts"),
