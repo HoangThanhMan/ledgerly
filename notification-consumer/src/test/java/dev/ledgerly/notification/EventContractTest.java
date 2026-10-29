@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -23,12 +24,11 @@ import tools.jackson.databind.json.JsonMapper;
  */
 class EventContractTest {
 
-    private final TransferEventParser parser =
-            new TransferEventParser(JsonMapper.builder().build());
+    private final EventParser parser = new EventParser(JsonMapper.builder().build());
 
     @Test
     void sampleEventOfTheContractIsReadCompletely() throws IOException {
-        assertThat(parser.parse(sample()))
+        assertThat(parse(sample()))
                 .contains(new EventEnvelope<>(
                         UUID.fromString("0199a7d0-1111-7aaa-8bbb-000000000001"),
                         "TransferCompleted",
@@ -49,14 +49,14 @@ class EventContractTest {
                 .replace("\"currency\": \"VND\"", "\"currency\": \"VND\", \"note\": \"lunch\"");
 
         assertThat(newer).contains("traceId").contains("note");
-        assertThat(parser.parse(newer)).isEqualTo(parser.parse(sample()));
+        assertThat(parse(newer)).isEqualTo(parse(sample()));
     }
 
     @Test
     void eventOfAnotherTypeIsNotForThisConsumer() throws IOException {
         String other = sample().replace("\"TransferCompleted\"", "\"TransferReversed\"");
 
-        assertThat(parser.parse(other)).isEmpty();
+        assertThat(parse(other)).isEmpty();
     }
 
     @ParameterizedTest
@@ -71,7 +71,7 @@ class EventContractTest {
                 "{\"eventType\": \"TransferCompleted\", \"eventId\": \"not-a-uuid\", \"payload\": {}}"
             })
     void messageThatIsNotAUsableEventIsRejectedAsMalformed(String message) {
-        assertThatThrownBy(() -> parser.parse(message)).isInstanceOf(MalformedEventException.class);
+        assertThatThrownBy(() -> parse(message)).isInstanceOf(MalformedEventException.class);
     }
 
     /**
@@ -91,7 +91,7 @@ class EventContractTest {
         String incomplete = sample().replace(field, "");
 
         assertThat(incomplete).isNotEqualTo(sample());
-        assertThatThrownBy(() -> parser.parse(incomplete)).isInstanceOf(MalformedEventException.class);
+        assertThatThrownBy(() -> parse(incomplete)).isInstanceOf(MalformedEventException.class);
     }
 
     @Test
@@ -99,7 +99,11 @@ class EventContractTest {
         String sample = sample();
         String withoutPayload = sample.substring(0, sample.indexOf("\"payload\"")) + "\"payload\": null\n}";
 
-        assertThatThrownBy(() -> parser.parse(withoutPayload)).isInstanceOf(MalformedEventException.class);
+        assertThatThrownBy(() -> parse(withoutPayload)).isInstanceOf(MalformedEventException.class);
+    }
+
+    private Optional<EventEnvelope<TransferCompleted>> parse(String message) {
+        return parser.parse(message, TransferCompleted.EVENT_TYPE, TransferCompleted.class);
     }
 
     private static String sample() throws IOException {
