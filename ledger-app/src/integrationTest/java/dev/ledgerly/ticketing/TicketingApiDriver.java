@@ -8,7 +8,9 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.jspecify.annotations.Nullable;
 import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.client.EntityExchangeResult;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 /** Calls the event API as an organizer would, to arrange events and read them back. */
@@ -80,6 +82,26 @@ public final class TicketingApiDriver {
                 .body(Map.of("ticketClassId", ticketClass, "walletId", wallet, "quantity", quantity))
                 .exchange();
     }
+
+    /** The answer to a purchase, with its problem type if it is an error. */
+    public record Attempt(int status, String body, @Nullable String problemType, boolean replayed) {}
+
+    /** Buys tickets under the given key and returns the answer, whatever it is. */
+    public Attempt attempt(String key, UUID ticketClass, UUID wallet, int quantity) {
+        EntityExchangeResult<String> result = purchase(key, ticketClass, wallet, quantity)
+                .expectBody(String.class)
+                .returnResult();
+        String body = requireNonNull(result.getResponseBody());
+        java.util.regex.Matcher type = PROBLEM_TYPE.matcher(body);
+        return new Attempt(
+                result.getStatus().value(),
+                body,
+                result.getStatus().isError() && type.find() ? type.group(1) : null,
+                "true".equals(result.getResponseHeaders().getFirst("Idempotent-Replayed")));
+    }
+
+    private static final java.util.regex.Pattern PROBLEM_TYPE =
+            java.util.regex.Pattern.compile("\"type\":\"/problems/([a-z-]+)\"");
 
     /** Tickets left in a class, as the public event API shows them. */
     @SuppressWarnings("unchecked")

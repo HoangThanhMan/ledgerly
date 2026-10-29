@@ -13,7 +13,8 @@ import org.jspecify.annotations.Nullable;
 import org.springframework.jdbc.core.simple.JdbcClient;
 
 /**
- * Checks the ledger invariants I1–I4 with the statements of {@code scripts/invariants.sql}, the same file that is run
+ * Checks the ledger invariants I1–I4, and I8–I9 of ticket sales, with the statements of
+ * {@code scripts/invariants.sql}, the same file that is run
  * by hand after load tests.
  */
 public final class InvariantChecker {
@@ -29,7 +30,7 @@ public final class InvariantChecker {
         this.statements = parse(read(locateScript()));
     }
 
-    /** The rows that violate each invariant, keyed by invariant ({@code I1} … {@code I4}). Empty if sound. */
+    /** The rows that violate each invariant, keyed by invariant ({@code I1}, {@code I2}, …). Empty if sound. */
     public Map<String, List<Map<String, @Nullable Object>>> violations() {
         Map<String, List<Map<String, @Nullable Object>>> violations = new LinkedHashMap<>();
         statements.forEach((invariant, sql) -> {
