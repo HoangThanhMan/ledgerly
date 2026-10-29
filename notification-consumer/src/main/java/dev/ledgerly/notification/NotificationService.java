@@ -1,6 +1,7 @@
 package dev.ledgerly.notification;
 
 import dev.ledgerly.contracts.EventEnvelope;
+import dev.ledgerly.contracts.TicketPurchased;
 import dev.ledgerly.contracts.TransferCompleted;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -38,5 +39,19 @@ class NotificationService {
                 transfer.targetWalletId(),
                 "You received " + transfer.amount() + " " + transfer.currency() + " from wallet "
                         + transfer.sourceWalletId());
+    }
+
+    /** Tells the buyer's wallet about the tickets, once per event, the same way {@link #handle} does. */
+    @Transactional
+    void handleTicket(EventEnvelope<TicketPurchased> event) {
+        if (!repository.markProcessed(event.eventId(), event.eventType())) {
+            duplicates.increment();
+            return;
+        }
+        TicketPurchased purchase = event.payload();
+        repository.insertNotification(
+                purchase.buyerWalletId(),
+                "You bought " + purchase.quantity() + " tickets of class " + purchase.ticketClassName() + " for "
+                        + purchase.eventName());
     }
 }

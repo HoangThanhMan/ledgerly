@@ -1,6 +1,7 @@
 package dev.ledgerly.notification;
 
 import dev.ledgerly.contracts.Topics;
+import dev.ledgerly.contracts.TransferCompleted;
 import org.springframework.context.annotation.Bean;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.listener.CommonErrorHandler;
@@ -11,17 +12,18 @@ import org.springframework.util.backoff.ExponentialBackOff;
 @Component
 class TransferEventListener {
 
-    private final TransferEventParser parser;
+    private final EventParser parser;
     private final NotificationService notifications;
 
-    TransferEventListener(TransferEventParser parser, NotificationService notifications) {
+    TransferEventListener(EventParser parser, NotificationService notifications) {
         this.parser = parser;
         this.notifications = notifications;
     }
 
     @KafkaListener(topics = Topics.TRANSFERS)
     void onMessage(String message) {
-        parser.parse(message).ifPresent(notifications::handle);
+        parser.parse(message, TransferCompleted.EVENT_TYPE, TransferCompleted.class)
+                .ifPresent(notifications::handle);
     }
 
     /**

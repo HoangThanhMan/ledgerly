@@ -8,7 +8,7 @@
 
 E-wallet backend on a double-entry ledger, with money invariants backed by tests and measurements.
 
-Ledgerly lets you open wallets, deposit money, transfer between wallets and read the entry history over a REST API. Every completed transfer publishes an event to Kafka, and a separate service consumes it to create a notification.
+Ledgerly lets you open wallets, deposit money, transfer between wallets and read the entry history over a REST API. Every completed transfer or ticket purchase publishes an event to Kafka, and a separate service consumes it to create a notification. A page showing an event can watch the tickets left in each class change as they sell, over a WebSocket.
 
 The business scope is small on purpose. The project is about the places where a money system usually goes wrong: two requests debiting the same wallet, a client that loses its connection and retries, a database write whose event never goes out, a message delivered twice. Money must not appear or disappear in any of those cases, and each guarantee comes with a test or a measurement.
 
@@ -343,6 +343,7 @@ The defaults live in each application's `application.yaml` and suit applications
 | `GET` | `/v1/orders/{id}` | One of my orders | |
 | `POST` | `/v1/events` | Create an event with its ticket classes. Organizers only | |
 | `PATCH` | `/v1/events/{id}` | Rename or reschedule one of my events | |
+| WebSocket | `/ws` | STOMP. Subscribe to `/topic/ticket-classes/{id}` to receive `{"ticketClassId", "remaining"}` after every purchase in that class. No sign-in needed | |
 
 Every request but signing up and in, and reading events, needs `Authorization: Bearer <accessToken>`, or it is answered with `401`. Wallets and transfers are visible to their owners only: anyone else gets `404`, as if they did not exist. Money can be transferred into anyone's wallet.
 
@@ -501,6 +502,7 @@ Good places to start reading the code:
 - **A killed consumer delays notifications.** After `kill -9` on `notification-consumer`, the restarted consumer got its partitions back only when the broker's 45-second session timeout had passed: 43 seconds in the test, against under 3 seconds after a graceful stop. Nothing is lost or duplicated, it is only late.
 - **No circuit breaker in front of Redis.** While Redis hangs, every request that uses it waits for the 200 ms timeout again, and orders go through without a rate limit (counted in `ledgerly.ratelimit.bypassed`).
 - **Event reads can lag.** The list is cached for 30 seconds, so an event can stay listed for up to 30 seconds after it started. An edit made while Redis did not answer shows up only when the cached copy expires, at most 30 seconds later. Purchases always check the start time in the database.
+- **Ticket counts are pushed by one instance only.** The WebSocket broker lives inside `ledger-app`, so a subscriber hears about the purchases made by the instance it is connected to. With several instances, a broker such as RabbitMQ would have to relay the messages. A client that missed a message can read the count again from `GET /v1/events/{id}`.
 - **Not deployed anywhere.** There are container images and a one-command compose setup, but no hosted demo and no images in a registry: they are built locally from source. Every measurement comes from one development machine.
 
 ## Contributing
