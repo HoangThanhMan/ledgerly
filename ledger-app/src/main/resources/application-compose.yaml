@@ -6,6 +6,11 @@ spring:
   kafka:
     bootstrap-servers: kafka:19092
 
+ledgerly:
+  demo:
+    # A fresh system in containers has an event to buy tickets for.
+    seed: true
+
 ---
 # Together with the observability profile: the collector is the lgtm service.
 spring:

@@ -285,6 +285,7 @@ The defaults live in each application's `application.yaml` and suit applications
 | `ledgerly.security.jwt.secret` | a development key | Base64 of at least 32 bytes that signs the access tokens. **Set `LEDGERLY_SECURITY_JWT_SECRET` anywhere but a development machine**, for example to the output of `openssl rand -base64 32` |
 | `ledgerly.security.jwt.ttl` | `1h` | How long an access token is valid |
 | `ledgerly.security.password.bcrypt-strength` | `10` | Cost of the BCrypt password hashes |
+| `ledgerly.demo.seed` | `false` (`true` in containers) | Sign up a demo organizer, `organizer@ledgerly.dev` with password `organizer-demo`, with one event, unless it has one already |
 | `ledgerly.ledger.lock-timeout` | `2s` | Longest wait for the account locks. After that the answer is `503` with `Retry-After` |
 | `ledgerly.idempotency.lease` | `30s` | How long a request may hold a key. After that a retry with the same key takes it over |
 | `ledgerly.idempotency.ttl` | `24h` | Minimum time a key and its response are kept |
@@ -305,8 +306,12 @@ The defaults live in each application's `application.yaml` and suit applications
 | `POST` | `/v1/transfers` | Transfer between two wallets | Required |
 | `GET` | `/v1/transfers/{id}` | Details of a transfer | |
 | `POST` | `/v1/admin/deposits` | Deposit into a wallet from a system account, for development and tests. A user deposits into their own wallets, an organizer into any | Required |
+| `GET` | `/v1/events` | Upcoming events, soonest first (`?page=&size=`). No sign-in needed | |
+| `GET` | `/v1/events/{id}` | An event with its ticket classes and the tickets left in each. No sign-in needed | |
+| `POST` | `/v1/events` | Create an event with its ticket classes. Organizers only | |
+| `PATCH` | `/v1/events/{id}` | Rename or reschedule one of my events | |
 
-Every request but signing up and in needs `Authorization: Bearer <accessToken>`, or it is answered with `401`. Wallets and transfers are visible to their owners only: anyone else gets `404`, as if they did not exist. Money can be transferred into anyone's wallet.
+Every request but signing up and in, and reading events, needs `Authorization: Bearer <accessToken>`, or it is answered with `401`. Wallets and transfers are visible to their owners only: anyone else gets `404`, as if they did not exist. Money can be transferred into anyone's wallet.
 
 The full reference is the OpenAPI document: Swagger UI at http://localhost:8080/swagger-ui.html, the document itself at `/v3/api-docs`, and a copy in [`ledger-app/openapi.yaml`](ledger-app/openapi.yaml) that a test keeps equal to what the application serves. It describes every parameter and, for each operation, every problem it can answer with.
 

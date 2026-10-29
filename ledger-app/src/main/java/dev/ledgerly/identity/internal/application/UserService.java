@@ -1,10 +1,12 @@
 package dev.ledgerly.identity.internal.application;
 
+import dev.ledgerly.identity.IdentityApi;
 import dev.ledgerly.identity.Role;
 import dev.ledgerly.identity.internal.persistence.UserRepository;
 import dev.ledgerly.identity.internal.persistence.UserRepository.UserRow;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -16,7 +18,7 @@ import org.springframework.stereotype.Service;
  * the same user. Passwords are stored as BCrypt hashes.
  */
 @Service
-public class UserService {
+public class UserService implements IdentityApi {
 
     private final UserRepository users;
     private final JwtIssuer tokens;
@@ -49,6 +51,16 @@ public class UserService {
             // Also the outcome when a concurrent sign-up with the same email committed first.
             return new RegisterResult.EmailTaken(normalized);
         }
+    }
+
+    /** Safe inside a transaction: an existing email does not abort it, as a failed insert would. */
+    @Override
+    public UUID findOrRegister(String email, String password, Role role) {
+        String normalized = normalize(email);
+        return users.insertIfAbsent(normalized, passwords.encode(password), role)
+                .or(() -> users.findByEmail(normalized))
+                .map(UserRow::id)
+                .orElseThrow(() -> new IllegalStateException("user " + normalized + " was neither inserted nor found"));
     }
 
     public LoginResult login(String email, String password) {

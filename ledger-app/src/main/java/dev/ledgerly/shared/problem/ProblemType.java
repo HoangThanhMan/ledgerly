@@ -23,6 +23,11 @@ public enum ProblemType {
             "transfer-not-found",
             "Transfer not found",
             "No transfer has this id. The id of a deposit is not the id of a transfer."),
+    EVENT_NOT_FOUND(
+            HttpStatus.NOT_FOUND,
+            "event-not-found",
+            "Event not found",
+            "No event has this id. When editing, an event of another organizer is reported the same way."),
     IDEMPOTENCY_IN_PROGRESS(
             HttpStatus.CONFLICT,
             "idempotency-in-progress",
@@ -41,6 +46,11 @@ public enum ProblemType {
             "Authentication required",
             "The request has no access token, or its token is expired or invalid. Sign in at /v1/auth/login and"
                     + " send the token as Authorization: Bearer <token>."),
+    FORBIDDEN(
+            HttpStatus.FORBIDDEN,
+            "forbidden",
+            "Not allowed for your role",
+            "The caller is signed in, but their role may not do this. Only organizers create events."),
     INVALID_CREDENTIALS(
             HttpStatus.UNAUTHORIZED,
             "invalid-credentials",
@@ -72,6 +82,11 @@ public enum ProblemType {
             "balance-limit-exceeded",
             "Balance limit exceeded",
             "The amount would take a balance past the largest value the ledger can hold. No money moved."),
+    PAYOUT_WALLET_INVALID(
+            HttpStatus.UNPROCESSABLE_CONTENT,
+            "payout-wallet-invalid",
+            "Payout wallet is not yours",
+            "The wallet that should receive the money of the tickets is not one of the caller's wallets."),
     UNSUPPORTED_CURRENCY(
             HttpStatus.UNPROCESSABLE_CONTENT,
             "unsupported-currency",

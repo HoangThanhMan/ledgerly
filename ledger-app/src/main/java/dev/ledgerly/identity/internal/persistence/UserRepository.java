@@ -40,6 +40,22 @@ public class UserRepository {
                 .single();
     }
 
+    /**
+     * Adds a user unless one with this email exists. Unlike {@link #insert}, a conflict does not abort the surrounding
+     * transaction.
+     *
+     * @return the new user, or empty if the email was taken
+     */
+    public Optional<UserRow> insertIfAbsent(String email, String passwordHash, Role role) {
+        return jdbc.sql("INSERT INTO users (email, password_hash, role) VALUES (:email, :hash, :role)"
+                        + " ON CONFLICT (email) DO NOTHING RETURNING " + COLUMNS)
+                .param("email", email)
+                .param("hash", passwordHash)
+                .param("role", role.name())
+                .query(UserRepository::row)
+                .optional();
+    }
+
     public Optional<UserRow> findByEmail(String email) {
         return jdbc.sql("SELECT " + COLUMNS + " FROM users WHERE email = :email")
                 .param("email", email)

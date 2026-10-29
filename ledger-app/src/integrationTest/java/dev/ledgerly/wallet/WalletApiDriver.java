@@ -13,19 +13,19 @@ import org.springframework.test.web.servlet.client.RestTestClient;
 /** Calls the wallet API the way a client would, to arrange test data and read results back. */
 public final class WalletApiDriver {
 
-    static final String IDEMPOTENCY_KEY = "Idempotency-Key";
-    static final String IDEMPOTENT_REPLAYED = "Idempotent-Replayed";
+    public static final String IDEMPOTENCY_KEY = "Idempotency-Key";
+    public static final String IDEMPOTENT_REPLAYED = "Idempotent-Replayed";
 
     private static final ParameterizedTypeReference<Map<String, Object>> JSON_OBJECT =
             new ParameterizedTypeReference<>() {};
 
     private final RestTestClient client;
 
-    WalletApiDriver(RestTestClient client) {
+    public WalletApiDriver(RestTestClient client) {
         this.client = client;
     }
 
-    UUID openWallet() {
+    public UUID openWallet() {
         Map<String, Object> wallet = body(client.post()
                 .uri("/v1/wallets")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -36,17 +36,17 @@ public final class WalletApiDriver {
         return UUID.fromString((String) requireNonNull(wallet.get("id")));
     }
 
-    UUID openWalletWith(long balance) {
+    public UUID openWalletWith(long balance) {
         UUID wallet = openWallet();
         deposit(wallet, balance);
         return wallet;
     }
 
-    void deposit(UUID wallet, long amount) {
+    public void deposit(UUID wallet, long amount) {
         deposit(wallet, Long.toString(amount), "VND").expectStatus().isCreated();
     }
 
-    RestTestClient.ResponseSpec deposit(UUID wallet, String amount, String currency) {
+    public RestTestClient.ResponseSpec deposit(UUID wallet, String amount, String currency) {
         return deposit(UUID.randomUUID().toString(), wallet, amount, currency);
     }
 
@@ -54,7 +54,7 @@ public final class WalletApiDriver {
         return post("/v1/admin/deposits", key, Map.of("walletId", wallet, "amount", amount, "currency", currency));
     }
 
-    RestTestClient.ResponseSpec transfer(UUID source, UUID target, String amount) {
+    public RestTestClient.ResponseSpec transfer(UUID source, UUID target, String amount) {
         return transfer(source, target, amount, "VND");
     }
 
@@ -63,7 +63,7 @@ public final class WalletApiDriver {
     }
 
     /** A transfer under the given key: sending it again with the same key is a retry of the same request. */
-    RestTestClient.ResponseSpec transfer(String key, UUID source, UUID target, String amount) {
+    public RestTestClient.ResponseSpec transfer(String key, UUID source, UUID target, String amount) {
         return transfer(key, source, target, amount, "VND");
     }
 
@@ -84,7 +84,7 @@ public final class WalletApiDriver {
         return Map.of("sourceWalletId", source, "targetWalletId", target, "amount", amount, "currency", currency);
     }
 
-    String balanceOf(UUID wallet) {
+    public String balanceOf(UUID wallet) {
         Map<String, Object> body = body(client.get()
                 .uri("/v1/wallets/{id}", wallet)
                 .exchange()
@@ -107,12 +107,12 @@ public final class WalletApiDriver {
     }
 
     @SuppressWarnings("unchecked")
-    static List<Map<String, Object>> items(Map<String, Object> page) {
+    public static List<Map<String, Object>> items(Map<String, Object> page) {
         return (List<Map<String, Object>>) requireNonNull(page.get("items"));
     }
 
     /** The response body exactly as it was sent, to compare a replay with the original byte for byte. */
-    static String rawBody(RestTestClient.ResponseSpec response) {
+    public static String rawBody(RestTestClient.ResponseSpec response) {
         return requireNonNull(response.expectBody(String.class).returnResult().getResponseBody());
     }
 
