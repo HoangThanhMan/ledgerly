@@ -701,6 +701,90 @@ paths:
       tags:
       - Events
   /v1/orders:
+    get:
+      description: "Returns the caller's orders, newest first, one page at a time.\
+        \ Orders of other users are never listed."
+      operationId: listOrders
+      parameters:
+      - description: "Number of the page, from 0."
+        in: query
+        name: page
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 0
+          minimum: 0
+      - description: "Largest number of orders in the page, from 1 to 50."
+        in: query
+        name: size
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 20
+          maximum: 50
+          minimum: 1
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderPageResponse"
+          description: One page of orders.
+        "400":
+          content:
+            application/problem+json:
+              examples:
+                validation-error:
+                  description: "The body, a parameter or a header is missing or malformed.\
+                    \ Nothing was done, and an Idempotency-Key sent with the request\
+                    \ was not used up."
+                  summary: Request is not valid
+                  value:
+                    status: 400
+                    title: Request is not valid
+                    type: /problems/validation-error
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Request is not valid
+        "401":
+          content:
+            application/problem+json:
+              examples:
+                unauthenticated:
+                  description: "The request has no access token, or its token is expired\
+                    \ or invalid. Sign in at /v1/auth/login and send the token as\
+                    \ Authorization: Bearer <token>."
+                  summary: Authentication required
+                  value:
+                    status: 401
+                    title: Authentication required
+                    type: /problems/unauthenticated
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Authentication required
+        "500":
+          content:
+            application/problem+json:
+              examples:
+                internal-error:
+                  description: "Something unexpected failed. The cause is in the server\
+                    \ log, not in the response. A request that moves money was rolled\
+                    \ back and may be retried with the same Idempotency-Key."
+                  summary: Internal error
+                  value:
+                    status: 500
+                    title: Internal error
+                    type: /problems/internal-error
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal error
+      security:
+      - bearerAuth: []
+      summary: List my orders
+      tags:
+      - Orders
     post:
       description: |-
         Buys 1 to 4 tickets of one class and pays for them from one of the caller's wallets, in a single \
@@ -941,6 +1025,94 @@ paths:
       security:
       - bearerAuth: []
       summary: Buy tickets
+      tags:
+      - Orders
+  /v1/orders/{id}:
+    get:
+      description: "Returns one of the caller's orders. An order of another user answers\
+        \ `order-not-found`, just like one that does not exist."
+      operationId: getOrder
+      parameters:
+      - description: Id of the order.
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderResponse"
+          description: The order.
+        "400":
+          content:
+            application/problem+json:
+              examples:
+                validation-error:
+                  description: "The body, a parameter or a header is missing or malformed.\
+                    \ Nothing was done, and an Idempotency-Key sent with the request\
+                    \ was not used up."
+                  summary: Request is not valid
+                  value:
+                    status: 400
+                    title: Request is not valid
+                    type: /problems/validation-error
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Request is not valid
+        "401":
+          content:
+            application/problem+json:
+              examples:
+                unauthenticated:
+                  description: "The request has no access token, or its token is expired\
+                    \ or invalid. Sign in at /v1/auth/login and send the token as\
+                    \ Authorization: Bearer <token>."
+                  summary: Authentication required
+                  value:
+                    status: 401
+                    title: Authentication required
+                    type: /problems/unauthenticated
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Authentication required
+        "404":
+          content:
+            application/problem+json:
+              examples:
+                order-not-found:
+                  description: "No order has this id, or it is an order of another\
+                    \ user. The two are not told apart."
+                  summary: Order not found
+                  value:
+                    status: 404
+                    title: Order not found
+                    type: /problems/order-not-found
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Order not found
+        "500":
+          content:
+            application/problem+json:
+              examples:
+                internal-error:
+                  description: "Something unexpected failed. The cause is in the server\
+                    \ log, not in the response. A request that moves money was rolled\
+                    \ back and may be retried with the same Idempotency-Key."
+                  summary: Internal error
+                  value:
+                    status: 500
+                    title: Internal error
+                    type: /problems/internal-error
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal error
+      security:
+      - bearerAuth: []
+      summary: Read an order
       tags:
       - Orders
   /v1/transfers:
@@ -1847,6 +2019,30 @@ components:
           example: VND
       required:
       - currency
+    OrderPageResponse:
+      type: object
+      description: "One page of the caller's orders, newest first."
+      properties:
+        items:
+          type: array
+          description: The orders of this page.
+          items:
+            $ref: "#/components/schemas/OrderResponse"
+        page:
+          type: integer
+          format: int32
+          description: "Number of this page, from 0."
+          example: 0
+        size:
+          type: integer
+          format: int32
+          description: Largest number of orders in a page.
+          example: 20
+        totalItems:
+          type: integer
+          format: int64
+          description: Number of orders on all pages together.
+          example: 3
     OrderResponse:
       type: object
       description: "A ticket order. It exists only once it is paid: there is no pending\
@@ -1940,6 +2136,7 @@ components:
           - /problems/event-not-found
           - /problems/ticket-class-not-found
           - /problems/sold-out
+          - /problems/order-not-found
           - /problems/idempotency-in-progress
           - /problems/idempotency-key-reused
           - /problems/unauthenticated

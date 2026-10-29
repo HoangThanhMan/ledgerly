@@ -44,7 +44,9 @@ class OpenApiDocumentIT extends AbstractIntegrationTest {
             "PATCH /v1/events/{id}",
             "GET /v1/events",
             "GET /v1/events/{id}",
-            "POST /v1/orders");
+            "POST /v1/orders",
+            "GET /v1/orders",
+            "GET /v1/orders/{id}");
 
     private static final List<String> MONEY_MOVING_PATHS = List.of("/v1/transfers", "/v1/admin/deposits", "/v1/orders");
 
@@ -106,7 +108,9 @@ class OpenApiDocumentIT extends AbstractIntegrationTest {
                         "updateEvent",
                         "listEvents",
                         "getEvent",
-                        "createOrder");
+                        "createOrder",
+                        "listOrders",
+                        "getOrder");
     }
 
     @Test

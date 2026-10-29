@@ -6,6 +6,7 @@ import dev.ledgerly.identity.Caller;
 import dev.ledgerly.shared.problem.ProblemException;
 import dev.ledgerly.shared.problem.ProblemResponses;
 import dev.ledgerly.shared.problem.ProblemType;
+import dev.ledgerly.ticketing.internal.application.OrderService;
 import dev.ledgerly.ticketing.internal.application.PurchaseResult;
 import dev.ledgerly.ticketing.internal.application.PurchaseService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -17,13 +18,19 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
 import java.net.URI;
+import java.util.UUID;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "Orders", description = "Buy tickets and read the orders.")
@@ -32,10 +39,12 @@ import org.springframework.web.bind.annotation.RestController;
 class OrderController {
 
     private final PurchaseService purchases;
+    private final OrderService orders;
     private final IdempotentRequests idempotent;
 
-    OrderController(PurchaseService purchases, IdempotentRequests idempotent) {
+    OrderController(PurchaseService purchases, OrderService orders, IdempotentRequests idempotent) {
         this.purchases = purchases;
+        this.orders = orders;
         this.idempotent = idempotent;
     }
 
@@ -90,6 +99,34 @@ class OrderController {
                 request,
                 id -> URI.create("/v1/orders/" + id),
                 () -> purchase(caller, request));
+    }
+
+    @Operation(operationId = "listOrders", summary = "List my orders", description = """
+            Returns the caller's orders, newest first, one page at a time. Orders of other users are never \
+            listed.""")
+    @ApiResponse(responseCode = "200", description = "One page of orders.")
+    @ProblemResponses(ProblemType.UNAUTHENTICATED)
+    @GetMapping
+    OrderPageResponse list(
+            Caller caller,
+            @Parameter(description = "Number of the page, from 0.") @RequestParam(defaultValue = "0") @Min(0) int page,
+            @Parameter(description = "Largest number of orders in the page, from 1 to 50.")
+                    @RequestParam(defaultValue = "20")
+                    @Min(1) @Max(50) int size) {
+        return OrderPageResponse.from(orders.page(caller.userId(), page, size));
+    }
+
+    @Operation(operationId = "getOrder", summary = "Read an order", description = """
+            Returns one of the caller's orders. An order of another user answers `order-not-found`, just like one \
+            that does not exist.""")
+    @ApiResponse(responseCode = "200", description = "The order.")
+    @ProblemResponses({ProblemType.UNAUTHENTICATED, ProblemType.ORDER_NOT_FOUND})
+    @GetMapping("/{id}")
+    OrderResponse get(Caller caller, @Parameter(description = "Id of the order.") @PathVariable UUID id) {
+        return orders.find(id, caller.userId())
+                .map(OrderResponse::from)
+                .orElseThrow(
+                        () -> new ProblemException(ProblemType.ORDER_NOT_FOUND, "Order " + id + " does not exist"));
     }
 
     private Reply purchase(Caller caller, PurchaseRequest request) {

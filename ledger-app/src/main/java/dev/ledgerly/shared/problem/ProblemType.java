@@ -36,6 +36,11 @@ public enum ProblemType {
             "Not enough tickets left",
             "The ticket class has fewer tickets left than were asked for. Nothing was bought and no money moved."
                     + " The refusal is stored under the Idempotency-Key, so a new attempt needs a new key."),
+    ORDER_NOT_FOUND(
+            HttpStatus.NOT_FOUND,
+            "order-not-found",
+            "Order not found",
+            "No order has this id, or it is an order of another user. The two are not told apart."),
     IDEMPOTENCY_IN_PROGRESS(
             HttpStatus.CONFLICT,
             "idempotency-in-progress",
