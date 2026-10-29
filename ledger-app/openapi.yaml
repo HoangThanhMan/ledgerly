@@ -29,7 +29,7 @@ paths:
   /v1/admin/deposits:
     post:
       description: |-
-        Credits the wallet and debits the system funding account, which is allowed to go negative, in one database transaction. This is how wallets get money in development, tests and demos: no bank is involved, and since the API has no authentication the endpoint must not be reachable from outside.
+        Credits the wallet and debits the system funding account, which is allowed to go negative, in one database transaction. This is how wallets get money in development, tests and demos: no bank is involved. A user may deposit into their own wallets only, an organizer into any wallet. A wallet the caller may not deposit into answers `wallet-not-found`.
 
         The call needs an `Idempotency-Key`, with the same rules as a transfer: a retry with the same key returns the stored response with `Idempotent-Replayed: true` and credits nothing again. The response has no `Location`: a deposit cannot be read back on its own, it appears as an entry of the wallet.
       operationId: createDeposit
@@ -567,8 +567,10 @@ paths:
       - Transfers
   /v1/transfers/{id}:
     get:
-      description: "Returns a completed transfer. Only transfers have an address here:\
-        \ the id of a deposit answers `transfer-not-found`."
+      description: "Returns a completed transfer, if the caller owns its source or\
+        \ its target wallet. Only transfers have an address here: the id of a deposit\
+        \ answers `transfer-not-found`, and so does a transfer between wallets of\
+        \ other users."
       operationId: getTransfer
       parameters:
       - description: "Id of the transfer, as returned when it was made."
@@ -654,8 +656,72 @@ paths:
       tags:
       - Transfers
   /v1/wallets:
+    get:
+      description: "Returns the wallets of the caller with their current balances,\
+        \ oldest first. Wallets of other users are never listed."
+      operationId: listWallets
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletListResponse"
+          description: The caller's wallets.
+        "400":
+          content:
+            application/problem+json:
+              examples:
+                validation-error:
+                  description: "The body, a parameter or a header is missing or malformed.\
+                    \ Nothing was done, and an Idempotency-Key sent with the request\
+                    \ was not used up."
+                  summary: Request is not valid
+                  value:
+                    status: 400
+                    title: Request is not valid
+                    type: /problems/validation-error
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Request is not valid
+        "401":
+          content:
+            application/problem+json:
+              examples:
+                unauthenticated:
+                  description: "The request has no access token, or its token is expired\
+                    \ or invalid. Sign in at /v1/auth/login and send the token as\
+                    \ Authorization: Bearer <token>."
+                  summary: Authentication required
+                  value:
+                    status: 401
+                    title: Authentication required
+                    type: /problems/unauthenticated
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Authentication required
+        "500":
+          content:
+            application/problem+json:
+              examples:
+                internal-error:
+                  description: "Something unexpected failed. The cause is in the server\
+                    \ log, not in the response. A request that moves money was rolled\
+                    \ back and may be retried with the same Idempotency-Key."
+                  summary: Internal error
+                  value:
+                    status: 500
+                    title: Internal error
+                    type: /problems/internal-error
+              schema:
+                $ref: "#/components/schemas/Problem"
+          description: Internal error
+      security:
+      - bearerAuth: []
+      summary: List my wallets
+      tags:
+      - Wallets
     post:
-      description: "Creates an empty wallet: a ledger account for a user, with a balance\
+      description: "Creates an empty wallet that belongs to the caller, with a balance\
         \ of 0. Only VND is supported, every other currency is rejected with `unsupported-currency`.\
         \ This call is not idempotent: sending it twice opens two wallets."
       operationId: openWallet
@@ -749,9 +815,10 @@ paths:
       - Wallets
   /v1/wallets/{id}:
     get:
-      description: "Returns the wallet with its current balance. The balance always\
-        \ equals the sum of the wallet's entries and is never negative. System accounts\
-        \ are not wallets: the id of one answers `wallet-not-found`."
+      description: "Returns one of the caller's wallets with its current balance.\
+        \ The balance always equals the sum of the wallet's entries and is never negative.\
+        \ A wallet of another user answers `wallet-not-found`, just like one that\
+        \ does not exist. System accounts are not wallets either."
       operationId: getWallet
       parameters:
       - description: "Id of the wallet, as returned when it was opened."
@@ -1275,6 +1342,15 @@ components:
           enum:
           - USER
           - ORGANIZER
+    WalletListResponse:
+      type: object
+      description: The caller's wallets.
+      properties:
+        items:
+          type: array
+          description: "The wallets, oldest first."
+          items:
+            $ref: "#/components/schemas/WalletResponse"
     WalletResponse:
       type: object
       description: A wallet and its current balance.

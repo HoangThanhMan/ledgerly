@@ -1,5 +1,6 @@
 package dev.ledgerly.wallet.internal.web;
 
+import dev.ledgerly.identity.Caller;
 import dev.ledgerly.shared.problem.ProblemException;
 import dev.ledgerly.shared.problem.ProblemResponses;
 import dev.ledgerly.shared.problem.ProblemType;
@@ -91,17 +92,23 @@ class TransferController {
     })
     @PostMapping
     ResponseEntity<String> create(
+            Caller caller,
             @Parameter(description = ApiDocumentation.IDEMPOTENCY_KEY, example = "6f1c2d3e-4a5b-4c6d-8e7f-9a0b1c2d3e4f")
                     @RequestHeader(ApiFormats.IDEMPOTENCY_KEY_HEADER)
                     @Pattern(regexp = ApiFormats.IDEMPOTENCY_KEY_PATTERN, message = ApiFormats.IDEMPOTENCY_KEY_MESSAGE) String idempotencyKey,
             @Valid @RequestBody TransferRequest request,
             HttpServletRequest http) {
         return idempotent.execute(
-                idempotencyKey, http, request, id -> URI.create("/v1/transfers/" + id), () -> transfer(request));
+                idempotencyKey,
+                http,
+                request,
+                id -> URI.create("/v1/transfers/" + id),
+                () -> transfer(caller, request));
     }
 
-    private Reply transfer(TransferRequest request) {
-        return switch (transfers.transfer(request.sourceWalletId(), request.targetWalletId(), request.money())) {
+    private Reply transfer(Caller caller, TransferRequest request) {
+        return switch (transfers.transfer(
+                caller.userId(), request.sourceWalletId(), request.targetWalletId(), request.money())) {
             case Completed completed ->
                 new Reply.Created(completed.transfer().id(), TransferResponse.from(completed.transfer()));
             case InsufficientFunds funds ->
@@ -122,15 +129,17 @@ class TransferController {
     }
 
     @Operation(operationId = "getTransfer", summary = "Read a transfer", description = """
-            Returns a completed transfer. Only transfers have an address here: the id of a deposit answers \
-            `transfer-not-found`.""")
+            Returns a completed transfer, if the caller owns its source or its target wallet. Only transfers have \
+            an address here: the id of a deposit answers `transfer-not-found`, and so does a transfer between \
+            wallets of other users.""")
     @ApiResponse(responseCode = "200", description = "The transfer.")
     @ProblemResponses({ProblemType.UNAUTHENTICATED, ProblemType.TRANSFER_NOT_FOUND})
     @GetMapping("/{id}")
     TransferResponse get(
+            Caller caller,
             @Parameter(description = "Id of the transfer, as returned when it was made.") @PathVariable UUID id) {
         return transfers
-                .find(id)
+                .find(id, caller.userId())
                 .map(TransferResponse::from)
                 .orElseThrow(() ->
                         new ProblemException(ProblemType.TRANSFER_NOT_FOUND, "Transfer " + id + " does not exist"));

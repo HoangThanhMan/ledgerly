@@ -42,7 +42,7 @@ class ArchitectureTest {
             "ledger", Set.of("shared"),
             "idempotency", Set.of("shared"),
             "outbox", Set.of("shared", "contracts"),
-            "wallet", Set.of("shared", "contracts", "ledger", "idempotency", "outbox"));
+            "wallet", Set.of("shared", "contracts", "identity", "ledger", "idempotency", "outbox"));
 
     @ArchTest
     static final ArchRule modulesAreFreeOfCycles =

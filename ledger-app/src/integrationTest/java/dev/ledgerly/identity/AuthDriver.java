@@ -2,6 +2,8 @@ package dev.ledgerly.identity;
 
 import static java.util.Objects.requireNonNull;
 
+import com.nimbusds.jwt.SignedJWT;
+import java.text.ParseException;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.core.ParameterizedTypeReference;
@@ -30,6 +32,15 @@ public final class AuthDriver {
         return client.mutate()
                 .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                 .build();
+    }
+
+    /** The id of the user an access token was issued to: its subject. */
+    public static UUID userIdOf(String token) {
+        try {
+            return UUID.fromString(SignedJWT.parse(token).getJWTClaimsSet().getSubject());
+        } catch (ParseException e) {
+            throw new IllegalArgumentException("not a JWT: " + token, e);
+        }
     }
 
     /** Signs up a user with a unique email and signs them in. */

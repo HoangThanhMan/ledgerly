@@ -21,7 +21,7 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class AccountRepository {
 
-    private static final String VIEW_COLUMNS = "id, type, currency, balance, created_at";
+    private static final String VIEW_COLUMNS = "id, type, currency, balance, owner_id, created_at";
 
     /** SQLSTATE that PostgreSQL raises when {@code lock_timeout} runs out. */
     private static final String LOCK_NOT_AVAILABLE = "55P03";
@@ -32,12 +32,22 @@ public class AccountRepository {
         this.jdbc = jdbc;
     }
 
-    public AccountView insertUserWallet(Currency currency) {
-        return jdbc.sql("INSERT INTO accounts (type, currency) VALUES ('USER_WALLET', :currency) RETURNING "
-                        + VIEW_COLUMNS)
+    public AccountView insertUserWallet(Currency currency, UUID ownerId) {
+        return jdbc.sql("INSERT INTO accounts (type, currency, owner_id) VALUES ('USER_WALLET', :currency, :owner)"
+                        + " RETURNING " + VIEW_COLUMNS)
                 .param("currency", currency.getCurrencyCode())
+                .param("owner", ownerId)
                 .query(AccountRepository::toView)
                 .single();
+    }
+
+    /** User wallets of the owner, oldest first. Served by the partial index {@code accounts_owner_id}. */
+    public List<AccountView> findOwnedBy(UUID ownerId) {
+        return jdbc.sql("SELECT " + VIEW_COLUMNS + " FROM accounts WHERE owner_id = :owner AND type = 'USER_WALLET'"
+                        + " ORDER BY created_at, id")
+                .param("owner", ownerId)
+                .query(AccountRepository::toView)
+                .list();
     }
 
     public Optional<AccountView> findView(UUID id) {
@@ -104,6 +114,7 @@ public class AccountRepository {
                 rs.getObject("id", UUID.class),
                 AccountType.valueOf(rs.getString("type")),
                 money(rs, "balance"),
+                rs.getObject("owner_id", UUID.class),
                 rs.getObject("created_at", OffsetDateTime.class).toInstant());
     }
 

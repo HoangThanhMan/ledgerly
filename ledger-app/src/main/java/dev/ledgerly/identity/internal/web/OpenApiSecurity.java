@@ -1,9 +1,11 @@
 package dev.ledgerly.identity.internal.web;
 
+import dev.ledgerly.identity.Caller;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import org.springdoc.core.customizers.GlobalOpenApiCustomizer;
+import org.springdoc.core.utils.SpringDocUtils;
 import org.springframework.stereotype.Component;
 
 /**
@@ -15,6 +17,11 @@ class OpenApiSecurity implements GlobalOpenApiCustomizer {
 
     private static final String BEARER = "bearerAuth";
     private static final String OPEN_PATHS = "/v1/auth/";
+
+    static {
+        // The caller comes from the access token, not from the request: it is no parameter of the operation.
+        SpringDocUtils.getConfig().addRequestWrapperToIgnore(Caller.class);
+    }
 
     @Override
     public void customise(OpenAPI openApi) {

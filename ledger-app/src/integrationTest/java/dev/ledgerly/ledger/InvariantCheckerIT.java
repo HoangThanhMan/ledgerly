@@ -3,6 +3,8 @@ package dev.ledgerly.ledger;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.ledgerly.AbstractIntegrationTest;
+import dev.ledgerly.identity.Role;
+import dev.ledgerly.identity.TestUsers;
 import dev.ledgerly.shared.Money;
 import java.util.Currency;
 import java.util.List;
@@ -26,6 +28,7 @@ class InvariantCheckerIT extends AbstractIntegrationTest {
 
     private final LedgerApi ledger;
     private final JdbcClient jdbc;
+    private final UUID owner;
     private final TransactionTemplate transaction;
     private final InvariantChecker checker;
 
@@ -35,12 +38,13 @@ class InvariantCheckerIT extends AbstractIntegrationTest {
         this.jdbc = jdbc;
         this.transaction = transaction;
         this.checker = new InvariantChecker(jdbc);
+        this.owner = TestUsers.create(jdbc, Role.USER);
     }
 
     @Test
     void ledgerWrittenThroughTheApiIsSound() {
         UUID wallet = fundedWallet(500);
-        UUID other = ledger.openAccount(VND).id();
+        UUID other = ledger.openAccount(VND, owner).id();
         ledger.post(new PostingRequest(
                 TransactionType.TRANSFER,
                 null,
@@ -100,7 +104,7 @@ class InvariantCheckerIT extends AbstractIntegrationTest {
     }
 
     private UUID fundedWallet(long amount) {
-        UUID wallet = ledger.openAccount(VND).id();
+        UUID wallet = ledger.openAccount(VND, owner).id();
         UUID funding = ledger.systemAccountId(SystemAccount.FUNDING);
         ledger.post(new PostingRequest(
                 TransactionType.DEPOSIT,

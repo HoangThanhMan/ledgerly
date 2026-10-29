@@ -32,6 +32,7 @@ class OpenApiDocumentIT extends AbstractIntegrationTest {
 
     private static final Set<String> OPERATIONS = Set.of(
             "POST /v1/wallets",
+            "GET /v1/wallets",
             "GET /v1/wallets/{id}",
             "GET /v1/wallets/{id}/entries",
             "POST /v1/transfers",
@@ -88,6 +89,7 @@ class OpenApiDocumentIT extends AbstractIntegrationTest {
         assertThat(ids)
                 .containsExactlyInAnyOrder(
                         "openWallet",
+                        "listWallets",
                         "getWallet",
                         "listWalletEntries",
                         "createTransfer",

@@ -55,7 +55,7 @@ class OutboxAtomicityIT extends AbstractIntegrationTest {
         this.outbox = outbox;
         this.jdbc = jdbc;
         this.transaction = transaction;
-        this.support = new ConcurrentTransfers(wallets, transfers);
+        this.support = new ConcurrentTransfers(wallets, transfers, jdbc);
         this.api = new WalletApiDriver(AuthDriver.signedIn(client));
     }
 
@@ -96,7 +96,7 @@ class OutboxAtomicityIT extends AbstractIntegrationTest {
         });
 
         assertThat(transferId).isNotNull();
-        assertThat(transfers.find(transferId)).isEmpty();
+        assertThat(transfers.find(transferId, support.owner().userId())).isEmpty();
         assertThat(eventsOf(transferId)).isEmpty();
         assertThat(support.balanceOf(source)).isEqualTo(1_000);
     }
@@ -116,7 +116,7 @@ class OutboxAtomicityIT extends AbstractIntegrationTest {
         UUID wallet = support.openWallet(0);
 
         DepositResult.Completed deposit =
-                (DepositResult.Completed) transfers.deposit(wallet, ConcurrentTransfers.vnd(500));
+                (DepositResult.Completed) transfers.deposit(support.owner(), wallet, ConcurrentTransfers.vnd(500));
 
         assertThat(eventsOf(deposit.deposit().id())).isEmpty();
         assertThat(eventsAboutWallet(wallet)).isZero();

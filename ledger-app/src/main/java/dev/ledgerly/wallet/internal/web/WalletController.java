@@ -1,5 +1,6 @@
 package dev.ledgerly.wallet.internal.web;
 
+import dev.ledgerly.identity.Caller;
 import dev.ledgerly.shared.problem.ProblemException;
 import dev.ledgerly.shared.problem.ProblemResponses;
 import dev.ledgerly.shared.problem.ProblemType;
@@ -40,7 +41,7 @@ class WalletController {
     }
 
     @Operation(operationId = "openWallet", summary = "Open a wallet", description = """
-            Creates an empty wallet: a ledger account for a user, with a balance of 0. Only VND is supported, \
+            Creates an empty wallet that belongs to the caller, with a balance of 0. Only VND is supported, \
             every other currency is rejected with `unsupported-currency`. This call is not idempotent: sending it \
             twice opens two wallets.""")
     @ApiResponse(
@@ -56,8 +57,8 @@ class WalletController {
                                             example = "/v1/wallets/01a11ad9-7eb8-7b3e-9d1f-2f3c6f1c2a10")))
     @ProblemResponses({ProblemType.UNAUTHENTICATED, ProblemType.UNSUPPORTED_CURRENCY})
     @PostMapping
-    ResponseEntity<WalletResponse> open(@Valid @RequestBody OpenWalletRequest request) {
-        return switch (wallets.open(request.currency())) {
+    ResponseEntity<WalletResponse> open(Caller caller, @Valid @RequestBody OpenWalletRequest request) {
+        return switch (wallets.open(request.currency(), caller.userId())) {
             case Opened opened ->
                 ResponseEntity.created(
                                 URI.create("/v1/wallets/" + opened.wallet().id()))
@@ -69,14 +70,29 @@ class WalletController {
         };
     }
 
+    @Operation(operationId = "listWallets", summary = "List my wallets", description = """
+            Returns the wallets of the caller with their current balances, oldest first. Wallets of other users \
+            are never listed.""")
+    @ApiResponse(responseCode = "200", description = "The caller's wallets.")
+    @ProblemResponses(ProblemType.UNAUTHENTICATED)
+    @GetMapping
+    WalletListResponse list(Caller caller) {
+        return new WalletListResponse(wallets.owned(caller.userId()).stream()
+                .map(WalletResponse::from)
+                .toList());
+    }
+
     @Operation(operationId = "getWallet", summary = "Read a wallet", description = """
-            Returns the wallet with its current balance. The balance always equals the sum of the wallet's entries \
-            and is never negative. System accounts are not wallets: the id of one answers `wallet-not-found`.""")
+            Returns one of the caller's wallets with its current balance. The balance always equals the sum of the \
+            wallet's entries and is never negative. A wallet of another user answers `wallet-not-found`, just like \
+            one that does not exist. System accounts are not wallets either.""")
     @ApiResponse(responseCode = "200", description = "The wallet.")
     @ProblemResponses({ProblemType.UNAUTHENTICATED, ProblemType.WALLET_NOT_FOUND})
     @GetMapping("/{id}")
-    WalletResponse get(@Parameter(description = ApiDocumentation.WALLET_ID) @PathVariable UUID id) {
-        return wallets.find(id).map(WalletResponse::from).orElseThrow(() -> WalletProblems.walletNotFound(id));
+    WalletResponse get(Caller caller, @Parameter(description = ApiDocumentation.WALLET_ID) @PathVariable UUID id) {
+        return wallets.findOwned(id, caller.userId())
+                .map(WalletResponse::from)
+                .orElseThrow(() -> WalletProblems.walletNotFound(id));
     }
 
     /** Entries of the wallet, newest first, paged by keyset: pass {@code nextCursor} of a page as {@code after}. */
@@ -92,6 +108,7 @@ class WalletController {
     @ProblemResponses({ProblemType.UNAUTHENTICATED, ProblemType.WALLET_NOT_FOUND})
     @GetMapping("/{id}/entries")
     EntryPageResponse entries(
+            Caller caller,
             @Parameter(description = ApiDocumentation.WALLET_ID) @PathVariable UUID id,
             @Parameter(
                             description = "Return only entries older than the entry with this id. Pass the"
@@ -102,7 +119,7 @@ class WalletController {
             @Parameter(description = "Largest number of entries in the page, from 1 to 100.")
                     @RequestParam(defaultValue = "50")
                     @Min(1) @Max(100) int limit) {
-        return wallets.history(id, after, limit)
+        return wallets.history(id, caller.userId(), after, limit)
                 .map(EntryPageResponse::from)
                 .orElseThrow(() -> WalletProblems.walletNotFound(id));
     }

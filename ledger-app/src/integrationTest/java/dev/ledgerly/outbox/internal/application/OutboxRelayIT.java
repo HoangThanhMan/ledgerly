@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import dev.ledgerly.AbstractIntegrationTest;
 import dev.ledgerly.contracts.Topics;
+import dev.ledgerly.identity.Caller;
+import dev.ledgerly.identity.TestUsers;
 import dev.ledgerly.outbox.OutboxEvent;
 import dev.ledgerly.outbox.OutboxWriter;
 import dev.ledgerly.outbox.internal.persistence.OutboxEventRepository;
@@ -74,6 +76,7 @@ class OutboxRelayIT extends AbstractIntegrationTest {
     private final TransferService transfers;
     private final ConsumerFactory<String, String> consumers;
     private final JdbcClient jdbc;
+    private final Caller owner;
     private final TransactionTemplate transaction;
     private final JsonMapper json;
     private final MeterRegistry meters;
@@ -98,6 +101,7 @@ class OutboxRelayIT extends AbstractIntegrationTest {
         this.transfers = transfers;
         this.consumers = consumers;
         this.jdbc = jdbc;
+        this.owner = TestUsers.organizer(jdbc);
         this.transaction = transaction;
         this.json = json;
         this.meters = meters;
@@ -278,15 +282,17 @@ class OutboxRelayIT extends AbstractIntegrationTest {
     }
 
     private UUID openWallet(long balance) {
-        UUID wallet = ((OpenWalletResult.Opened) wallets.open(VND)).wallet().id();
+        UUID wallet = ((OpenWalletResult.Opened) wallets.open(VND, owner.userId()))
+                .wallet()
+                .id();
         if (balance > 0) {
-            transfers.deposit(wallet, Money.of(balance, VND));
+            transfers.deposit(owner, wallet, Money.of(balance, VND));
         }
         return wallet;
     }
 
     private UUID transfer(UUID source, UUID target, long amount) {
-        TransferResult result = transfers.transfer(source, target, Money.of(amount, VND));
+        TransferResult result = transfers.transfer(owner.userId(), source, target, Money.of(amount, VND));
         return ((TransferResult.Completed) result).transfer().id();
     }
 

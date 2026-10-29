@@ -5,6 +5,8 @@ import static org.awaitility.Awaitility.await;
 
 import dev.ledgerly.AbstractIntegrationTest;
 import dev.ledgerly.contracts.Topics;
+import dev.ledgerly.identity.Caller;
+import dev.ledgerly.identity.TestUsers;
 import dev.ledgerly.shared.Money;
 import dev.ledgerly.wallet.internal.application.OpenWalletResult;
 import dev.ledgerly.wallet.internal.application.TransferResult;
@@ -46,6 +48,7 @@ class OutboxRelaySchedulerIT extends AbstractIntegrationTest {
     private final TransferService transfers;
     private final ConsumerFactory<String, String> consumers;
     private final JdbcClient jdbc;
+    private final Caller owner;
     private final ScheduledTaskHolder scheduledTasks;
 
     OutboxRelaySchedulerIT(
@@ -58,6 +61,7 @@ class OutboxRelaySchedulerIT extends AbstractIntegrationTest {
         this.transfers = transfers;
         this.consumers = consumers;
         this.jdbc = jdbc;
+        this.owner = TestUsers.organizer(jdbc);
         this.scheduledTasks = scheduledTasks;
     }
 
@@ -75,11 +79,15 @@ class OutboxRelaySchedulerIT extends AbstractIntegrationTest {
 
     @Test
     void committedTransferReachesKafkaWithoutAnyoneCallingTheRelay() {
-        UUID source = ((OpenWalletResult.Opened) wallets.open(VND)).wallet().id();
-        UUID target = ((OpenWalletResult.Opened) wallets.open(VND)).wallet().id();
-        transfers.deposit(source, Money.of(100, VND));
+        UUID source = ((OpenWalletResult.Opened) wallets.open(VND, owner.userId()))
+                .wallet()
+                .id();
+        UUID target = ((OpenWalletResult.Opened) wallets.open(VND, owner.userId()))
+                .wallet()
+                .id();
+        transfers.deposit(owner, source, Money.of(100, VND));
         try (TopicReader reader = new TopicReader(consumers, Topics.TRANSFERS)) {
-            TransferResult result = transfers.transfer(source, target, Money.of(10, VND));
+            TransferResult result = transfers.transfer(owner.userId(), source, target, Money.of(10, VND));
             UUID transferId = ((TransferResult.Completed) result).transfer().id();
 
             await().atMost(PATIENCE).until(() -> isPublished(transferId));

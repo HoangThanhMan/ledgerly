@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import dev.ledgerly.AbstractIntegrationTest;
 import dev.ledgerly.contracts.Topics;
+import dev.ledgerly.identity.Caller;
+import dev.ledgerly.identity.TestUsers;
 import dev.ledgerly.outbox.internal.persistence.OutboxEventRepository;
 import dev.ledgerly.shared.Money;
 import dev.ledgerly.wallet.internal.application.OpenWalletResult;
@@ -84,6 +86,7 @@ class RelayCrashDuplicateIT extends AbstractIntegrationTest {
     private final TransferService transfers;
     private final ConsumerFactory<String, String> consumers;
     private final JdbcClient jdbc;
+    private final Caller owner;
 
     RelayCrashDuplicateIT(
             @Autowired OutboxRelay relay,
@@ -100,6 +103,7 @@ class RelayCrashDuplicateIT extends AbstractIntegrationTest {
         this.transfers = transfers;
         this.consumers = consumers;
         this.jdbc = jdbc;
+        this.owner = TestUsers.organizer(jdbc);
     }
 
     @BeforeEach
@@ -112,13 +116,17 @@ class RelayCrashDuplicateIT extends AbstractIntegrationTest {
     void batchSentBeforeACrashIsSentAgainSoNothingIsLostAndCopiesAppear() {
         int transfersMade = 5;
         int crashes = 2;
-        UUID source = ((OpenWalletResult.Opened) wallets.open(VND)).wallet().id();
-        UUID target = ((OpenWalletResult.Opened) wallets.open(VND)).wallet().id();
-        transfers.deposit(source, Money.of(100, VND));
+        UUID source = ((OpenWalletResult.Opened) wallets.open(VND, owner.userId()))
+                .wallet()
+                .id();
+        UUID target = ((OpenWalletResult.Opened) wallets.open(VND, owner.userId()))
+                .wallet()
+                .id();
+        transfers.deposit(owner, source, Money.of(100, VND));
         try (TopicReader reader = new TopicReader(consumers, Topics.TRANSFERS)) {
             Set<String> transferIds = new HashSet<>();
             for (int i = 0; i < transfersMade; i++) {
-                TransferResult result = transfers.transfer(source, target, Money.of(1, VND));
+                TransferResult result = transfers.transfer(owner.userId(), source, target, Money.of(1, VND));
                 transferIds.add(
                         ((TransferResult.Completed) result).transfer().id().toString());
             }
