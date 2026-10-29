@@ -5,6 +5,7 @@ import dev.ledgerly.shared.problem.ProblemException;
 import dev.ledgerly.shared.problem.ProblemResponses;
 import dev.ledgerly.shared.problem.ProblemType;
 import dev.ledgerly.ticketing.internal.application.CreateEventResult;
+import dev.ledgerly.ticketing.internal.application.EventCatalog;
 import dev.ledgerly.ticketing.internal.application.EventService;
 import dev.ledgerly.ticketing.internal.application.NewTicketClass;
 import dev.ledgerly.ticketing.internal.application.UpdateEventResult;
@@ -38,9 +39,11 @@ import org.springframework.web.bind.annotation.RestController;
 class EventController {
 
     private final EventService events;
+    private final EventCatalog catalog;
 
-    EventController(EventService events) {
+    EventController(EventService events, EventCatalog catalog) {
         this.events = events;
+        this.catalog = catalog;
     }
 
     @Operation(operationId = "createEvent", summary = "Create an event", description = """
@@ -78,7 +81,8 @@ class EventController {
 
     @Operation(operationId = "listEvents", summary = "List upcoming events", description = """
             Returns the events that have not started yet, soonest first, one page at a time. Each event shows the \
-            price of its cheapest ticket. No sign-in needed.""")
+            price of its cheapest ticket. No sign-in needed. The list is cached: an event can still appear for up to \
+            30 seconds after it started.""")
     @ApiResponse(responseCode = "200", description = "One page of events.")
     @GetMapping
     EventPageResponse list(
@@ -86,7 +90,7 @@ class EventController {
             @Parameter(description = "Largest number of events in the page, from 1 to 50.")
                     @RequestParam(defaultValue = "20")
                     @Min(1) @Max(50) int size) {
-        return EventPageResponse.from(events.upcoming(page, size));
+        return EventPageResponse.from(catalog.page(page, size));
     }
 
     @Operation(operationId = "getEvent", summary = "Read an event", description = """

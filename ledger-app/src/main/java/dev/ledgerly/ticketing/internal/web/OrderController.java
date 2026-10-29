@@ -6,6 +6,7 @@ import dev.ledgerly.identity.Caller;
 import dev.ledgerly.shared.problem.ProblemException;
 import dev.ledgerly.shared.problem.ProblemResponses;
 import dev.ledgerly.shared.problem.ProblemType;
+import dev.ledgerly.ticketing.internal.application.OrderRateLimiter;
 import dev.ledgerly.ticketing.internal.application.OrderService;
 import dev.ledgerly.ticketing.internal.application.PurchaseResult;
 import dev.ledgerly.ticketing.internal.application.PurchaseService;
@@ -41,11 +42,14 @@ class OrderController {
     private final PurchaseService purchases;
     private final OrderService orders;
     private final IdempotentRequests idempotent;
+    private final OrderRateLimiter limiter;
 
-    OrderController(PurchaseService purchases, OrderService orders, IdempotentRequests idempotent) {
+    OrderController(
+            PurchaseService purchases, OrderService orders, IdempotentRequests idempotent, OrderRateLimiter limiter) {
         this.purchases = purchases;
         this.orders = orders;
         this.idempotent = idempotent;
+        this.limiter = limiter;
     }
 
     @Operation(operationId = "createOrder", summary = "Buy tickets", description = """
@@ -55,7 +59,10 @@ class OrderController {
 
             The call needs an `Idempotency-Key`. Sending it again with the same key never buys twice: it returns \\
             the stored response of the first attempt with `Idempotent-Replayed: true`. That holds for rejections \\
-            too: a purchase refused with `sold-out` or `insufficient-funds` stays refused under its key.""")
+            too: a purchase refused with `sold-out` or `insufficient-funds` stays refused under its key.
+
+            Each user may send a limited number of orders a minute (10 by default); more are refused with `rate-limited` before anything is \\
+            done, so they can be retried with the same key once the minute is over.""")
     @ApiResponse(
             responseCode = "201",
             description = "The tickets are bought. Also the answer when a purchase is retried with the same key.",
@@ -82,6 +89,7 @@ class OrderController {
         ProblemType.INSUFFICIENT_FUNDS,
         ProblemType.SAME_ACCOUNT_TRANSFER,
         ProblemType.BALANCE_LIMIT_EXCEEDED,
+        ProblemType.RATE_LIMITED,
         ProblemType.OVERLOADED
     })
     @PostMapping
@@ -92,6 +100,10 @@ class OrderController {
                     @Pattern(regexp = IdempotentRequests.KEY_PATTERN, message = IdempotentRequests.KEY_MESSAGE) String idempotencyKey,
             @Valid @RequestBody PurchaseRequest request,
             HttpServletRequest http) {
+        // Before the key is claimed: a limited order leaves nothing behind, and its retry is a new attempt.
+        if (limiter.check(caller.userId()) instanceof OrderRateLimiter.Decision.Limited limited) {
+            throw new ProblemException(ProblemType.RATE_LIMITED, "Too many orders this minute", limited.retryAfter());
+        }
         return idempotent.execute(
                 caller.userId(),
                 idempotencyKey,

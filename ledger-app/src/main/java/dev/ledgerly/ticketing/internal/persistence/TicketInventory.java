@@ -114,6 +114,7 @@ public class TicketInventory {
                 .sql("SELECT id, remaining FROM ticket_classes WHERE event_id = :event")
                 .param("event", eventId)
                 .query((rs, row) -> new Remaining(rs.getObject("id", UUID.class), rs.getInt("remaining")))
+                .list()
                 .stream()
                 .collect(Collectors.toUnmodifiableMap(Remaining::ticketClassId, Remaining::remaining));
     }

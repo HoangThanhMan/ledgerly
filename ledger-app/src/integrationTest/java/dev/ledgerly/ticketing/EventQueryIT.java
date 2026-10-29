@@ -9,6 +9,8 @@ import static dev.ledgerly.wallet.WalletApiDriver.expectProblem;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.zaxxer.hikari.HikariDataSource;
+import com.zaxxer.hikari.HikariPoolMXBean;
 import dev.ledgerly.AbstractIntegrationTest;
 import dev.ledgerly.identity.AuthDriver;
 import dev.ledgerly.identity.Role;
@@ -19,6 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -30,12 +33,14 @@ class EventQueryIT extends AbstractIntegrationTest {
 
     private final RestTestClient anonymous;
     private final JdbcClient jdbc;
+    private final DataSource dataSource;
     private final TicketingApiDriver organizer;
     private final UUID payoutWallet;
 
-    EventQueryIT(@Autowired RestTestClient client, @Autowired JdbcClient jdbc) {
+    EventQueryIT(@Autowired RestTestClient client, @Autowired JdbcClient jdbc, @Autowired DataSource dataSource) {
         this.anonymous = client;
         this.jdbc = jdbc;
+        this.dataSource = dataSource;
         RestTestClient signedIn = AuthDriver.signedIn(client, Role.ORGANIZER);
         this.organizer = new TicketingApiDriver(signedIn);
         this.payoutWallet = new WalletApiDriver(signedIn).openWallet();
@@ -109,6 +114,23 @@ class EventQueryIT extends AbstractIntegrationTest {
                 .isOk());
 
         assertThat(classOf(event, "A")).containsEntry("remaining", 6).containsEntry("totalQty", 10);
+    }
+
+    @Test
+    void detailReadsGiveTheirConnectionsBack() throws Exception {
+        UUID event = create(Instant.now().plus(Duration.ofDays(20)));
+        HikariPoolMXBean pool = dataSource.unwrap(HikariDataSource.class).getHikariPoolMXBean();
+
+        for (int read = 0; read < 3; read++) {
+            anonymous
+                    .get()
+                    .uri("/v1/events/{id}", event)
+                    .exchange()
+                    .expectStatus()
+                    .isOk();
+        }
+
+        assertThat(pool.getActiveConnections()).isZero();
     }
 
     @Test

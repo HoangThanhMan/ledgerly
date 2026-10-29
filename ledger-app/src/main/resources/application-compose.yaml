@@ -5,6 +5,9 @@ spring:
     url: jdbc:postgresql://postgres:5432/ledger
   kafka:
     bootstrap-servers: kafka:19092
+  data:
+    redis:
+      host: redis
 
 ledgerly:
   demo:

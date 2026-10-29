@@ -121,6 +121,12 @@ public enum ProblemType {
             "Internal error",
             "Something unexpected failed. The cause is in the server log, not in the response. A request that"
                     + " moves money was rolled back and may be retried with the same Idempotency-Key."),
+    RATE_LIMITED(
+            HttpStatus.TOO_MANY_REQUESTS,
+            "rate-limited",
+            "Too many orders",
+            "The caller sent more orders this minute than one user may. Nothing was done. Wait for the time in"
+                    + " Retry-After, then send the request again with the same Idempotency-Key."),
     OVERLOADED(
             HttpStatus.SERVICE_UNAVAILABLE,
             "overloaded",
