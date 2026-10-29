@@ -37,7 +37,9 @@ paths:
       - description: "Identifies this operation, so that it is safe to send again.\
           \ Generate one value for each operation (a UUID is recommended) and send\
           \ that same value on every retry of it. 1 to 64 visible ASCII characters.\
-          \ The key and the response stored under it are kept for at least 24 hours."
+          \ The key and the response stored under it are kept for at least 24 hours.\
+          \ Keys are per user: another user's key with the same value is a different\
+          \ key."
         example: 9b2e4c1a-7d3f-4a6b-8c5d-0e1f2a3b4c5d
         in: header
         name: Idempotency-Key
@@ -364,7 +366,9 @@ paths:
       - description: "Identifies this operation, so that it is safe to send again.\
           \ Generate one value for each operation (a UUID is recommended) and send\
           \ that same value on every retry of it. 1 to 64 visible ASCII characters.\
-          \ The key and the response stored under it are kept for at least 24 hours."
+          \ The key and the response stored under it are kept for at least 24 hours.\
+          \ Keys are per user: another user's key with the same value is a different\
+          \ key."
         example: 6f1c2d3e-4a5b-4c6d-8e7f-9a0b1c2d3e4f
         in: header
         name: Idempotency-Key

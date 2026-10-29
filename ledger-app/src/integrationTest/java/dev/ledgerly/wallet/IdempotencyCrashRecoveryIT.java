@@ -9,6 +9,7 @@ import static org.awaitility.Awaitility.await;
 import dev.ledgerly.AbstractIntegrationTest;
 import dev.ledgerly.idempotency.internal.application.FaultInjector;
 import dev.ledgerly.identity.AuthDriver;
+import dev.ledgerly.identity.Role;
 import dev.ledgerly.ledger.InvariantChecker;
 import dev.ledgerly.wallet.RetryingClient.Answer;
 import java.time.Duration;
@@ -109,6 +110,7 @@ class IdempotencyCrashRecoveryIT extends AbstractIntegrationTest {
 
     private final ScriptedFaults faults;
     private final JdbcClient jdbc;
+    private final UUID user;
     private final WalletApiDriver api;
     private final RetryingClient client;
     private final InvariantChecker invariants;
@@ -117,7 +119,9 @@ class IdempotencyCrashRecoveryIT extends AbstractIntegrationTest {
             @Autowired RestTestClient restClient, @Autowired ScriptedFaults faults, @Autowired JdbcClient jdbc) {
         this.faults = faults;
         this.jdbc = jdbc;
-        this.api = new WalletApiDriver(AuthDriver.signedIn(restClient));
+        String token = AuthDriver.register(restClient, Role.ORGANIZER);
+        this.user = AuthDriver.userIdOf(token);
+        this.api = new WalletApiDriver(AuthDriver.withToken(restClient, token));
         this.client = new RetryingClient(api, jdbc);
         this.invariants = new InvariantChecker(jdbc);
     }
@@ -127,7 +131,7 @@ class IdempotencyCrashRecoveryIT extends AbstractIntegrationTest {
         UUID source = api.openWalletWith(100);
         UUID target = api.openWallet();
         String key = UUID.randomUUID().toString();
-        faults.crashOnceAfterClaim(key);
+        faults.crashOnceAfterClaim(stored(key));
 
         expectProblem(api.transfer(key, source, target, "10"), HttpStatus.INTERNAL_SERVER_ERROR, "internal-error");
 
@@ -155,7 +159,7 @@ class IdempotencyCrashRecoveryIT extends AbstractIntegrationTest {
         UUID source = api.openWalletWith(100);
         UUID target = api.openWallet();
         String key = UUID.randomUUID().toString();
-        ScriptedFaults.Stall stall = faults.stallOnceBeforeComplete(key);
+        ScriptedFaults.Stall stall = faults.stallOnceBeforeComplete(stored(key));
 
         // The zombie: it has written the transfer inside its open transaction, and then stops responding.
         CompletableFuture<RestTestClient.ResponseSpec> zombie =
@@ -194,7 +198,7 @@ class IdempotencyCrashRecoveryIT extends AbstractIntegrationTest {
         UUID source = api.openWalletWith(100);
         UUID target = api.openWallet();
         String key = UUID.randomUUID().toString();
-        faults.failOnceBeforeComplete(key);
+        faults.failOnceBeforeComplete(stored(key));
 
         expectProblem(api.transfer(key, source, target, "10"), HttpStatus.INTERNAL_SERVER_ERROR, "internal-error");
 
@@ -214,23 +218,28 @@ class IdempotencyCrashRecoveryIT extends AbstractIntegrationTest {
         assertThat(invariants.violations()).isEmpty();
     }
 
+    /** The key as the server stores it: scoped to the user who sent it. */
+    private String stored(String key) {
+        return user + ":" + key;
+    }
+
     private String statusOf(String key) {
         return jdbc.sql("SELECT status FROM idempotency_keys WHERE idem_key = :key")
-                .param("key", key)
+                .param("key", stored(key))
                 .query(String.class)
                 .single();
     }
 
     private UUID leaseOf(String key) {
         return jdbc.sql("SELECT lease_token FROM idempotency_keys WHERE idem_key = :key")
-                .param("key", key)
+                .param("key", stored(key))
                 .query(UUID.class)
                 .single();
     }
 
     private boolean leaseHasRunOut(String key) {
         return jdbc.sql("SELECT locked_until <= now() FROM idempotency_keys WHERE idem_key = :key")
-                .param("key", key)
+                .param("key", stored(key))
                 .query(Boolean.class)
                 .single();
     }

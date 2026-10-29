@@ -1,5 +1,7 @@
 package dev.ledgerly.wallet.internal.web;
 
+import dev.ledgerly.idempotency.IdempotentRequests;
+import dev.ledgerly.idempotency.IdempotentRequests.Reply;
 import dev.ledgerly.identity.Caller;
 import dev.ledgerly.shared.problem.ProblemException;
 import dev.ledgerly.shared.problem.ProblemResponses;
@@ -11,7 +13,6 @@ import dev.ledgerly.wallet.internal.application.TransferResult.InsufficientFunds
 import dev.ledgerly.wallet.internal.application.TransferResult.SameWallet;
 import dev.ledgerly.wallet.internal.application.TransferResult.WalletNotFound;
 import dev.ledgerly.wallet.internal.application.TransferService;
-import dev.ledgerly.wallet.internal.web.IdempotentRequests.Reply;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.headers.Header;
@@ -76,7 +77,7 @@ class TransferController {
                                         example = "/v1/transfers/01a11ad9-7f10-7459-a273-deb24dbb4296")),
                 @Header(
                         name = IdempotentRequests.REPLAYED_HEADER,
-                        description = ApiDocumentation.REPLAYED,
+                        description = IdempotentRequests.REPLAYED_DOC,
                         schema = @Schema(type = "string", allowableValues = "true"))
             })
     @ProblemResponses({
@@ -93,12 +94,13 @@ class TransferController {
     @PostMapping
     ResponseEntity<String> create(
             Caller caller,
-            @Parameter(description = ApiDocumentation.IDEMPOTENCY_KEY, example = "6f1c2d3e-4a5b-4c6d-8e7f-9a0b1c2d3e4f")
-                    @RequestHeader(ApiFormats.IDEMPOTENCY_KEY_HEADER)
-                    @Pattern(regexp = ApiFormats.IDEMPOTENCY_KEY_PATTERN, message = ApiFormats.IDEMPOTENCY_KEY_MESSAGE) String idempotencyKey,
+            @Parameter(description = IdempotentRequests.KEY_DOC, example = "6f1c2d3e-4a5b-4c6d-8e7f-9a0b1c2d3e4f")
+                    @RequestHeader(IdempotentRequests.KEY_HEADER)
+                    @Pattern(regexp = IdempotentRequests.KEY_PATTERN, message = IdempotentRequests.KEY_MESSAGE) String idempotencyKey,
             @Valid @RequestBody TransferRequest request,
             HttpServletRequest http) {
         return idempotent.execute(
+                caller.userId(),
                 idempotencyKey,
                 http,
                 request,

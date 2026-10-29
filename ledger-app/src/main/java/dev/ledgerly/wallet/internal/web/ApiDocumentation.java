@@ -17,15 +17,6 @@ class ApiDocumentation {
     static final String TRANSFERS = "Transfers";
     static final String DEPOSITS = "Deposits";
 
-    static final String IDEMPOTENCY_KEY = """
-            Identifies this operation, so that it is safe to send again. Generate one value for each operation \
-            (a UUID is recommended) and send that same value on every retry of it. 1 to 64 visible ASCII \
-            characters. The key and the response stored under it are kept for at least 24 hours.""";
-
-    static final String REPLAYED = """
-            Present with the value `true` when this is the stored response of an earlier request with the same \
-            Idempotency-Key, and nothing was done again.""";
-
     static final String WALLET_ID = "Id of the wallet, as returned when it was opened.";
 
     static {

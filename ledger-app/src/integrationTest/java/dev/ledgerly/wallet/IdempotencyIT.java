@@ -9,6 +9,7 @@ import static org.awaitility.Awaitility.await;
 
 import dev.ledgerly.AbstractIntegrationTest;
 import dev.ledgerly.identity.AuthDriver;
+import dev.ledgerly.identity.Role;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -33,6 +34,7 @@ class IdempotencyIT extends AbstractIntegrationTest {
     private final DataSource dataSource;
     private final JdbcClient jdbc;
     private final MeterRegistry meters;
+    private final UUID user;
     private final WalletApiDriver api;
 
     IdempotencyIT(
@@ -40,7 +42,9 @@ class IdempotencyIT extends AbstractIntegrationTest {
             @Autowired DataSource dataSource,
             @Autowired JdbcClient jdbc,
             @Autowired MeterRegistry meters) {
-        this.client = AuthDriver.signedIn(client);
+        String token = AuthDriver.register(client, Role.ORGANIZER);
+        this.user = AuthDriver.userIdOf(token);
+        this.client = AuthDriver.withToken(client, token);
         this.dataSource = dataSource;
         this.jdbc = jdbc;
         this.meters = meters;
@@ -260,9 +264,14 @@ class IdempotencyIT extends AbstractIntegrationTest {
         assertThat(api.balanceOf(target)).isEqualTo("10");
     }
 
+    /** The key as the server stores it: scoped to the user who sent it. */
+    private String stored(String key) {
+        return user + ":" + key;
+    }
+
     private boolean keyExists(String key) {
         return jdbc.sql("SELECT count(*) FROM idempotency_keys WHERE idem_key = :key")
-                        .param("key", key)
+                        .param("key", stored(key))
                         .query(Long.class)
                         .single()
                 == 1;

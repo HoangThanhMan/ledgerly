@@ -1,9 +1,5 @@
-package dev.ledgerly.wallet.internal.web;
+package dev.ledgerly.idempotency;
 
-import dev.ledgerly.idempotency.IdempotencyApi;
-import dev.ledgerly.idempotency.IdempotencyResult;
-import dev.ledgerly.idempotency.RequestHasher;
-import dev.ledgerly.idempotency.StoredResponse;
 import dev.ledgerly.shared.problem.ProblemException;
 import dev.ledgerly.shared.problem.ProblemType;
 import jakarta.servlet.http.HttpServletRequest;
@@ -23,17 +19,39 @@ import tools.jackson.databind.json.JsonMapper;
  * Runs the endpoints that move money under their {@code Idempotency-Key}, and turns what the key resolved to into
  * the HTTP response.
  *
+ * <p>A key is the client's name for one of its own operations, so it is scoped to the user who sent it: two users who
+ * pick the same key name two different operations, and neither can replay the other's response.
+ *
  * <p>The answer of an endpoint is rendered to JSON inside the action, so it is stored in the same transaction as
  * the money movement, and a retry gets back the very text the first request got. This covers rejections as well:
  * a transfer refused for lack of funds stays refused under its key, even if the wallet is topped up later.
  */
 @Component
-class IdempotentRequests {
+public final class IdempotentRequests {
 
-    static final String REPLAYED_HEADER = "Idempotent-Replayed";
+    public static final String KEY_HEADER = "Idempotency-Key";
+
+    /** 1 to 64 visible ASCII characters. A UUID is what clients are expected to send. */
+    public static final String KEY_PATTERN = "[\\x21-\\x7E]{1,64}";
+
+    public static final String KEY_MESSAGE = "must be 1 to 64 visible ASCII characters";
+
+    public static final String REPLAYED_HEADER = "Idempotent-Replayed";
+
+    /** Documentation of the {@code Idempotency-Key} header, for the endpoints that take it. */
+    public static final String KEY_DOC = """
+            Identifies this operation, so that it is safe to send again. Generate one value for each operation \
+            (a UUID is recommended) and send that same value on every retry of it. 1 to 64 visible ASCII \
+            characters. The key and the response stored under it are kept for at least 24 hours. Keys are \
+            per user: another user's key with the same value is a different key.""";
+
+    /** Documentation of the {@code Idempotent-Replayed} response header. */
+    public static final String REPLAYED_DOC = """
+            Present with the value `true` when this is the stored response of an earlier request with the same \
+            Idempotency-Key, and nothing was done again.""";
 
     /** What an endpoint answers. Stored with the key, so it must not depend on anything but the action. */
-    sealed interface Reply {
+    public sealed interface Reply {
 
         /** 201 with the representation of what was created. */
         record Created(UUID resourceId, Object body) implements Reply {}
@@ -53,12 +71,17 @@ class IdempotentRequests {
     }
 
     /**
+     * Runs the action once per key of the caller, and answers every request with that key with its response.
+     *
+     * @param scope whose key it is, normally the id of the signed-in user
+     * @param key the client's {@code Idempotency-Key}, as sent
      * @param body the validated request body: together with method and path it identifies the request
      * @param location where a created resource can be read, or null if the endpoint has no such address
      * @param action does the work. A rejection must be returned as {@link Reply.Rejected}: an exception rolls the
      *     action back and stores nothing.
      */
-    ResponseEntity<String> execute(
+    public ResponseEntity<String> execute(
+            UUID scope,
             String key,
             HttpServletRequest http,
             Object body,
@@ -66,7 +89,8 @@ class IdempotentRequests {
             Supplier<Reply> action) {
         String path = http.getRequestURI();
         String requestHash = hasher.hash(http.getMethod(), path, body);
-        return switch (idempotency.execute(key, requestHash, () -> stored(action.get(), path))) {
+        String scopedKey = scope + ":" + key;
+        return switch (idempotency.execute(scopedKey, requestHash, () -> stored(action.get(), path))) {
             case IdempotencyResult.Executed executed -> render(executed.response(), false, location);
             case IdempotencyResult.Replayed replayed -> render(replayed.response(), true, location);
             case IdempotencyResult.KeyReused reused ->
