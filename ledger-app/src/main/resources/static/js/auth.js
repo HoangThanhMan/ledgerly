@@ -45,10 +45,19 @@ export function escapeHtml(text) {
   );
 }
 
-/** Where to go after signing in: the page that sent the user here, if it is one of ours. */
+/**
+ * Where to go after signing in: the page that sent the user here, if it is on this site. The origin is compared after
+ * the browser has parsed the address, since "/\\evil.example" and similar strings lead off the site.
+ */
 function nextPage() {
   const next = new URLSearchParams(location.search).get("next");
-  return next && next.startsWith("/") && !next.startsWith("//") ? next : "events.html";
+  if (next) {
+    const url = new URL(next, location.href);
+    if (url.origin === location.origin) {
+      return url.pathname + url.search;
+    }
+  }
+  return "events.html";
 }
 
 async function signIn(email, password) {
