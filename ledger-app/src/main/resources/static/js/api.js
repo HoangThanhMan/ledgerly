@@ -109,14 +109,29 @@ export function formatVnd(amount) {
   return vnd.format(BigInt(amount));
 }
 
-const dateTime = new Intl.DateTimeFormat("vi-VN", { dateStyle: "full", timeStyle: "short" });
+const longDate = new Intl.DateTimeFormat("vi-VN", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+const time = new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit" });
 
+/** "Thứ Bảy, 28 tháng 11, 2026, lúc 16:08", in the browser's time zone. */
 export function formatDateTime(instant) {
-  return dateTime.format(new Date(instant));
+  const date = new Date(instant);
+  return `${longDate.format(date)}, lúc ${time.format(date)}`;
 }
 
 /** Writes a message into an element with role=status or role=alert; an empty message hides it. */
 export function show(element, message, kind = "") {
   element.className = "notice" + (kind ? " " + kind : "");
   element.textContent = message;
+}
+
+/** A new Idempotency-Key. crypto.randomUUID needs a secure context, which plain http on a LAN address is not. */
+export function newKey() {
+  if (crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }

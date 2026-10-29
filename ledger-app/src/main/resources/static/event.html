@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect x=%222%22 y=%228%22 width=%2228%22 height=%2216%22 rx=%223%22 fill=%22%235b2a86%22/%3E%3Ccircle cx=%2222%22 cy=%228%22 r=%223%22 fill=%22%23f6eef2%22/%3E%3Ccircle cx=%2222%22 cy=%2224%22 r=%223%22 fill=%22%23f6eef2%22/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="css/app.css">
+    <title>Sự kiện – TicketBox</title>
+    <script src="vendor/stomp.umd.min.js"></script>
+  </head>
+  <body>
+    <header class="topbar"></header>
+    <main>
+      <div role="alert" class="notice" data-page-message></div>
+      <div data-event>
+        <div class="page-head">
+          <p><a href="events.html">Tất cả sự kiện</a></p>
+          <h1 data-name></h1>
+          <p class="lead"><time data-starts-at></time></p>
+          <p class="live" data-live>Đang kết nối…</p>
+        </div>
+        <div class="event-layout">
+          <section aria-labelledby="classes-title">
+            <h2 id="classes-title" class="visually-hidden">Hạng vé</h2>
+            <ul class="stubs" data-stubs></ul>
+          </section>
+          <section class="panel" aria-labelledby="order-title" data-order>
+            <h2 id="order-title">Mua vé</h2>
+            <form class="form" novalidate>
+              <div class="field">
+                <label for="ticketClass">Hạng vé</label>
+                <select id="ticketClass" name="ticketClass"></select>
+              </div>
+              <div class="field">
+                <label for="quantity">Số lượng</label>
+                <select id="quantity" name="quantity">
+                  <option>1</option>
+                  <option>2</option>
+                  <option>3</option>
+                  <option>4</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="wallet">Trả bằng ví</label>
+                <select id="wallet" name="wallet"></select>
+              </div>
+              <div class="actions">
+                <button class="button" type="submit">Mua</button>
+                <button class="button quiet" type="button" data-resend hidden>Gửi lại (cùng key)</button>
+              </div>
+            </form>
+            <p data-no-wallet hidden>Bạn chưa có ví. <a href="wallet.html">Mở ví và nạp tiền</a> để mua vé.</p>
+            <div role="status" class="notice" data-message></div>
+          </section>
+        </div>
+      </div>
+    </main>
+    <script type="module">
+      import { renderTopbar } from "./js/auth.js";
+      import { showEvent } from "./js/event.js";
+
+      renderTopbar();
+      showEvent(document.querySelector("main"));
+    </script>
+  </body>
+</html>

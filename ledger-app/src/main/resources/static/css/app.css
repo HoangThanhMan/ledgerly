@@ -90,6 +90,11 @@ html {
   -webkit-text-size-adjust: 100%;
 }
 
+/* Classes below set display; an element the page hides must stay hidden. */
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   background: var(--paper);
@@ -553,6 +558,12 @@ fieldset {
   font-size: var(--t-small);
 }
 
+/* Four digits and more would not fit the tear-off part at full size. */
+.stub-count.is-long {
+  font-size: var(--t-h1);
+  letter-spacing: -0.02em;
+}
+
 .stub.is-low .stub-count {
   color: var(--alert);
 }
@@ -657,4 +668,13 @@ fieldset {
 
 .live.is-on::before {
   background: var(--ok);
+}
+
+.button.is-disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.section-title {
+  margin: 2.5rem 0 1rem;
 }
