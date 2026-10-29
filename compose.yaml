@@ -1,7 +1,8 @@
 # Infrastructure for local development, and the whole system in containers.
-#   docker compose up -d                            → PostgreSQL (:5433) + Kafka (:9092), for applications run from Gradle
+#   docker compose up -d                            → PostgreSQL (:5433), Kafka (:9092) and Redis (:6379), for
+#                                                     applications run from Gradle
 #   docker compose --profile observability up -d    → the above + Grafana (:3000) with metrics and traces
-#   docker compose --profile full up -d --wait      → PostgreSQL, Kafka and the applications, built from source:
+#   docker compose --profile full up -d --wait      → PostgreSQL, Kafka, Redis and the applications, built from source:
 #                                                     ledger-app (:8080) and notification-consumer (:8082)
 # With both profiles, start the applications with LEDGERLY_PROFILES=compose,observability so they export to Grafana.
 name: ledgerly
@@ -51,6 +52,16 @@ services:
       retries: 12
       start_period: 15s
 
+  redis:
+    image: redis:8-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   # OpenTelemetry collector, Prometheus, Tempo, Loki and Grafana in one container. For development only.
   # The applications send to it when they run with SPRING_PROFILES_ACTIVE=observability.
   lgtm:
@@ -82,6 +93,8 @@ services:
       postgres:
         condition: service_healthy
       kafka:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O - http://localhost:8080/actuator/health | grep -q '\"status\":\"UP\"'"]

@@ -5,16 +5,15 @@ import dev.ledgerly.ledger.AccountType;
 import dev.ledgerly.ledger.LedgerApi;
 import dev.ledgerly.ticketing.internal.persistence.EventEntity;
 import dev.ledgerly.ticketing.internal.persistence.EventJpaRepository;
-import dev.ledgerly.ticketing.internal.persistence.TicketClassEntity;
 import dev.ledgerly.ticketing.internal.persistence.TicketInventory;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * Organizers create and edit their events. An event belongs to the organizer who created it: to anyone else, editing
@@ -29,11 +28,13 @@ public class EventService {
     private final EventJpaRepository events;
     private final TicketInventory inventory;
     private final LedgerApi ledger;
+    private final EventCatalog catalog;
 
-    EventService(EventJpaRepository events, TicketInventory inventory, LedgerApi ledger) {
+    EventService(EventJpaRepository events, TicketInventory inventory, LedgerApi ledger, EventCatalog catalog) {
         this.events = events;
         this.inventory = inventory;
         this.ledger = ledger;
+        this.catalog = catalog;
     }
 
     /**
@@ -73,41 +74,23 @@ public class EventService {
                 .orElseGet(UpdateEventResult.NotFound::new);
     }
 
-    /** A page of the events that have not started yet, soonest first. */
-    @Transactional(readOnly = true)
-    public EventPage upcoming(int page, int size) {
-        Page<EventEntity> found =
-                events.findByStartsAtAfterOrderByStartsAtAscIdAsc(Instant.now(), PageRequest.of(page, size));
-        List<EventSummary> items = found.stream().map(EventService::summary).toList();
-        return new EventPage(items, page, size, found.getTotalElements());
-    }
-
-    /** The event with the tickets left in each class, started or not. */
-    @Transactional(readOnly = true)
+    /** The event with the tickets left in each class, started or not. The tickets left are read now, never cached. */
     public Optional<EventDetails> find(UUID eventId) {
-        return events.findById(eventId).map(this::details);
-    }
-
-    private static EventSummary summary(EventEntity event) {
-        long minPrice = event.ticketClasses().stream()
-                .mapToLong(TicketClassEntity::price)
-                .min()
-                .orElseThrow(() -> new IllegalStateException("event " + event.id() + " has no ticket classes"));
-        return new EventSummary(event.id(), event.name(), event.startsAt(), minPrice);
+        return catalog.find(eventId).map(event -> new EventDetails(event, inventory.remainingOf(eventId)));
     }
 
     private EventDetails details(EventEntity event) {
-        return new EventDetails(view(event), inventory.remainingOf(event.id()));
+        evictAfterCommit(event.id());
+        return new EventDetails(EventCatalog.view(event), inventory.remainingOf(event.id()));
     }
 
-    static EventView view(EventEntity event) {
-        List<TicketClassView> classes =
-                event.ticketClasses().stream().map(EventService::view).toList();
-        return new EventView(
-                event.id(), event.organizerId(), event.payoutWalletId(), event.name(), event.startsAt(), classes);
-    }
-
-    private static TicketClassView view(TicketClassEntity ticketClass) {
-        return new TicketClassView(ticketClass.id(), ticketClass.name(), ticketClass.price(), ticketClass.totalQty());
+    /** After the commit, not before: a read in between would cache the old event again. */
+    private void evictAfterCommit(UUID eventId) {
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                catalog.evict(eventId);
+            }
+        });
     }
 }

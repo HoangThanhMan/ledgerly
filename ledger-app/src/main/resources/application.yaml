@@ -12,6 +12,13 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: validate
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      # Redis only caches and limits. A Redis that hangs must cost a request at most this, never a stuck thread.
+      timeout: 200ms
+      connect-timeout: 200ms
   kafka:
     bootstrap-servers: localhost:9092
     template:

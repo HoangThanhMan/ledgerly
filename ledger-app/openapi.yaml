@@ -361,7 +361,8 @@ paths:
     get:
       description: "Returns the events that have not started yet, soonest first, one\
         \ page at a time. Each event shows the price of its cheapest ticket. No sign-in\
-        \ needed."
+        \ needed. The list is cached: an event can still appear for up to 30 seconds\
+        \ after it started."
       operationId: listEvents
       parameters:
       - description: "Number of the page, from 0."
