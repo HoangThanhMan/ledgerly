@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect x=%222%22 y=%228%22 width=%2228%22 height=%2216%22 rx=%223%22 fill=%22%235b2a86%22/%3E%3Ccircle cx=%2222%22 cy=%228%22 r=%223%22 fill=%22%23f6eef2%22/%3E%3Ccircle cx=%2222%22 cy=%2224%22 r=%223%22 fill=%22%23f6eef2%22/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="css/app.css">
+    <title>Đăng ký – TicketBox</title>
+  </head>
+  <body>
+    <header class="topbar"></header>
+    <main>
+      <div class="page-head">
+        <h1>Tạo tài khoản</h1>
+        <p class="muted">Đã có tài khoản? <a href="login.html">Đăng nhập</a>.</p>
+      </div>
+      <form class="form" novalidate>
+        <div class="field">
+          <label for="email">Email</label>
+          <input id="email" name="email" type="email" autocomplete="username" required>
+        </div>
+        <div class="field">
+          <label for="password">Mật khẩu</label>
+          <input id="password" name="password" type="password" autocomplete="new-password" minlength="8"
+                 maxlength="72" aria-describedby="password-hint" required>
+          <span class="hint" id="password-hint">Từ 8 đến 72 ký tự.</span>
+        </div>
+        <fieldset class="field">
+          <legend>Bạn dùng TicketBox để</legend>
+          <div class="choices">
+            <label><input type="radio" name="role" value="USER" checked> Mua vé</label>
+            <label><input type="radio" name="role" value="ORGANIZER"> Tổ chức sự kiện</label>
+          </div>
+        </fieldset>
+        <div role="alert" class="notice" data-message></div>
+        <div class="actions">
+          <button class="button" type="submit">Tạo tài khoản</button>
+        </div>
+      </form>
+    </main>
+    <script type="module">
+      import { renderTopbar, setUpRegisterForm } from "./js/auth.js";
+
+      renderTopbar();
+      setUpRegisterForm(document.querySelector("form"));
+    </script>
+  </body>
+</html>

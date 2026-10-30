@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect x=%222%22 y=%228%22 width=%2228%22 height=%2216%22 rx=%223%22 fill=%22%235b2a86%22/%3E%3Ccircle cx=%2222%22 cy=%228%22 r=%223%22 fill=%22%23f6eef2%22/%3E%3Ccircle cx=%2222%22 cy=%2224%22 r=%223%22 fill=%22%23f6eef2%22/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="css/app.css">
+    <title>Sự kiện – TicketBox</title>
+  </head>
+  <body>
+    <header class="topbar"></header>
+    <main>
+      <div class="page-head">
+        <h1>Sắp diễn ra</h1>
+        <p class="muted">Sự kiện gần nhất ở trên cùng.</p>
+      </div>
+      <div role="status" class="notice" data-message></div>
+      <ol class="listing" data-list></ol>
+      <nav class="pager" aria-label="Phân trang" data-pager>
+        <a class="button quiet" data-previous>Trang trước</a>
+        <span class="muted" data-where></span>
+        <a class="button quiet" data-next>Trang sau</a>
+      </nav>
+    </main>
+    <script type="module">
+      import { renderTopbar } from "./js/auth.js";
+      import { showEvents } from "./js/events.js";
+
+      renderTopbar();
+      showEvents(
+        document.querySelector("[data-list]"),
+        document.querySelector("[data-pager]"),
+        document.querySelector("[data-message]"),
+      );
+    </script>
+  </body>
+</html>

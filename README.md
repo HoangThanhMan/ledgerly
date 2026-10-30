@@ -199,6 +199,10 @@ One [`Dockerfile`](Dockerfile) builds the image of any application (`--build-arg
 
 ## Usage
 
+### In the browser
+
+Open http://localhost:8080. The pages are in Vietnamese and need no build step: sign up, open a wallet, deposit demo money, then buy tickets and see them under "Vé của tôi". With the demo seed on (`--ledgerly.demo.seed=true`, as compose runs it), there is one event to buy from. Open it in two tabs: a purchase in one changes the count in the other without a reload. "Gửi lại (cùng key)" sends the last order again with the same `Idempotency-Key` and shows that nothing more was bought.
+
 ### A first transfer
 
 ```bash
