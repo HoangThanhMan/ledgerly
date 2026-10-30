@@ -45,22 +45,7 @@ The pages are in Vietnamese and served by the application itself; everything the
 
 ## Architecture
 
-```mermaid
-flowchart LR
-    browser(["Browser"])
-    app["<b>ledger-app</b><br/>REST API, web pages, WebSocket"]
-    consumer["<b>notification-consumer</b>"]
-    pg[("PostgreSQL")]
-    kafka[["Kafka"]]
-    redis[("Redis")]
-
-    browser --> app
-    app --> pg
-    app -.->|"cache, rate limit"| redis
-    app -->|events| kafka
-    kafka --> consumer
-    consumer --> pg
-```
+![Architecture of Ledgerly](assets/architecture.svg)
 
 - **`ledger-app`** is a modular monolith holding users, wallets, the ledger, events and orders. Because they share one database, buying a ticket is a single transaction: the tickets, the payment and the order are saved together or not at all.
 - **`notification-consumer`** is a separate service that reads events from Kafka and writes notifications. If it is down, sales continue.
