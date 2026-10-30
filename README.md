@@ -5,519 +5,429 @@
 ![Spring Boot 4.1](https://img.shields.io/badge/Spring_Boot-4.1-6DB33F)
 ![PostgreSQL 18](https://img.shields.io/badge/PostgreSQL-18-336791)
 ![Kafka 4](https://img.shields.io/badge/Kafka-4.x_KRaft-231F20)
+![Redis 8](https://img.shields.io/badge/Redis-8-DC382D)
 
-E-wallet backend on a double-entry ledger, with money invariants backed by tests and measurements.
+Event ticketing with a built-in wallet, on a double-entry ledger that does not lose or invent money, not under concurrent buyers, not when a client retries, not when a process dies midway.
 
-Ledgerly lets you open wallets, deposit money, transfer between wallets and read the entry history over a REST API. Every completed transfer or ticket purchase publishes an event to Kafka, and a separate service consumes it to create a notification. A page showing an event can watch the tickets left in each class change as they sell, over a WebSocket.
+![The event page: ticket classes with the tickets left, updated live, and the order form](assets/event-page.png)
 
-The business scope is small on purpose. The project is about the places where a money system usually goes wrong: two requests debiting the same wallet, a client that loses its connection and retries, a database write whose event never goes out, a message delivered twice. Money must not appear or disappear in any of those cases, and each guarantee comes with a test or a measurement.
+Buyers top up a wallet, then pay for tickets from it. Organizers create events and are paid into their own wallet. Wallets can also send money to each other. The browser pages in the screenshot are in Vietnamese and come with the application; everything they do is also a REST API.
 
-## Table of contents
+The interesting part is not the features but what happens at the edges: hundreds of people buying the last tickets at once, a phone that loses its connection right after pressing "Buy", a server killed between writing to the database and publishing the event. Each of those cases has a test that proves nothing is sold twice, charged twice or lost.
 
-- [What problems it solves](#what-problems-it-solves)
+## Contents
+
+- [Try it](#try-it)
+- [Features](#features)
 - [Architecture](#architecture)
-- [Install](#install)
-- [Usage](#usage)
-- [Configuration](#configuration)
+- [How it stays correct](#how-it-stays-correct)
 - [API](#api)
+- [Development](#development)
 - [Testing](#testing)
 - [Performance](#performance)
 - [Design decisions](#design-decisions)
 - [Tech stack](#tech-stack)
 - [Repository layout](#repository-layout)
 - [Current limitations](#current-limitations)
-- [Contributing](#contributing)
-- [Author](#author)
-- [License](#license)
 
-## What problems it solves
+## Try it
 
-| Problem | Approach | Evidence |
-|---|---|---|
-| **Double spending** when several requests debit one wallet | Lock the account rows with `SELECT ... FOR NO KEY UPDATE` before checking the balance. A `CHECK` constraint in the database also rejects a negative balance | `HotWalletDrainIT`: 500 threads each transfer 1 from a wallet holding 100, and exactly 100 succeed |
-| **Deadlocks** when A→B and B→A run at the same time | Every transaction locks its accounts in ascending `id` order | `DeadlockFreedomIT`: 1,000 pairs of opposite transfers, 0 deadlocks. With the lock kept but the `ORDER BY` removed, the same test deadlocks more than 70 times |
-| **A wrong ledger** under concurrent load | Entries are append-only, and the entries of a transaction must sum to zero, checked by a trigger at commit | `ConcurrentTransferIT`: 10,000 transfers from 200 virtual threads, after which the four ledger invariants still hold. `LedgerModelProperties`: 1,000 random operation sequences compared with an in-memory model |
-| **Client retries** when it cannot tell whether the money moved | An `Idempotency-Key` header, a two-phase design with a lease and a fencing token, stored in PostgreSQL | `IdempotencyConcurrencyIT`: 50 concurrent requests with one key produce 1 transaction and 50 identical responses. `IdempotencyCrashRecoveryIT`: a failure after the money moved rolls the whole transfer back |
-| **The database is written but the event is not published** (dual write) | Transactional outbox: the event is written in the same transaction as the entries, and a relay reads the outbox table and sends to Kafka | `OutboxAtomicityIT`, `RelayCrashDuplicateIT`. Run by hand: `kill -9` on the application while it drained 3,000 events ended with 3,050 transactions and 3,050 notifications |
-| **Messages delivered more than once** | The consumer deduplicates by `eventId` in the same transaction that writes the notification | `ConsumerDedupIT`. In the `kill -9` run above, 22 duplicates were dropped |
-| **Selling more tickets than there are** when hundreds of buyers want the last ones | One conditional `UPDATE ... SET remaining = remaining - q WHERE remaining >= q`: checking and taking the tickets is one atomic statement. A `CHECK` constraint keeps `remaining` between 0 and the class size | `ConcurrentPurchaseIT`: 500 buyers, 100 tickets, exactly 100 orders. `scripts/spikes/overselling.sh` measures it against `SELECT ... FOR UPDATE`, optimistic locking and an unlocked read-then-write, which lost all but 800 of 39,709 decrements |
-| **Tickets taken but not paid for, or paid for but not taken** | The tickets, the payment, the order and its event are one database transaction. A buyer who cannot pay gets the tickets put back in the same transaction, so the refusal can still be stored under the idempotency key | `InsufficientFundsPurchaseIT`, `PurchaseIdempotencyIT`, `PurchaseAndTransferIT`, and two more ledger invariants: tickets sold equal tickets ordered, and every order was paid with exactly its amount |
-| **A few clients flooding a sale**, or **Redis failing** | Each user may send 10 orders a minute, counted in Redis by one Lua script, so a counter never outlives its window. Event reads are cached in Redis, except the tickets left. Redis only makes things faster: when it fails or hangs, each command gives up after 200 ms and the request goes on without it | `OrderRateLimitIT`, `EventCacheIT`, `RedisDownIT`: with the Redis container paused, a purchase still succeeds in 0.26 s and events can still be browsed |
-| **Acting on someone else's wallet** | Users sign in for a JWT. A wallet belongs to the user who opened it: only they can read it or spend from it, and to anyone else it answers `404` exactly like a wallet that does not exist. Idempotency keys are scoped to the user | `WalletOwnershipIT`, `SecurityIT`, `IdempotencyScopeIT` |
-| **Module boundaries eroding** over time | Each module has a public API and an `internal` package. ArchUnit checks the dependency matrix on every build | `ArchitectureTest` |
-| **Not knowing where the time goes** | OpenTelemetry: one transfer is one trace from HTTP through every SQL statement, the outbox and Kafka to the consumer | `TracePropagationIT`, `TraceContinuationIT`, a Grafana dashboard in the repository |
+You need Docker with Compose v2, and the ports 8080, 8082, 5433, 6379 and 9092 free.
 
-The reasoning behind the main choices, and the alternatives that were rejected, are under [Design decisions](#design-decisions).
+```bash
+git clone https://github.com/HoangThanhMan/ledgerly.git
+cd ledgerly
+docker compose --profile full up -d --wait
+```
+
+Then open **http://localhost:8080**:
+
+1. Sign up ("Đăng ký"). You land on your wallet.
+2. Open a wallet ("Mở ví") and deposit demo money ("Nạp tiền"), for example `5000000`.
+3. Go to the events ("Sự kiện"), open *Ledgerly Live* and buy tickets ("Mua").
+4. Open the same event in a second tab: a purchase in one tab changes the count in the other without a reload.
+5. Press "Gửi lại (cùng key)" to send the same order again. It answers with the first result and charges nothing more.
+
+The first start builds the images from source and takes a few minutes. Later starts take about 12 seconds. The API reference is at http://localhost:8080/swagger-ui.html. A demo organizer is ready to use: `organizer@ledgerly.dev`, password `organizer-demo`.
+
+To stop: `docker compose --profile full down`, with `-v` to delete the data too.
+
+## Features
+
+**For buyers**
+
+- Sign up and sign in with an email and a password.
+- Open a wallet in VND, deposit demo money, see the balance and every change to it.
+- Browse upcoming events and their ticket classes, with the tickets left in each class updated live.
+- Buy 1 to 4 tickets of a class, paid from the wallet. Clear messages when tickets run out, the wallet is short, or the user orders too fast.
+- See past orders under "Vé của tôi", and get a notification for every purchase.
+- Send money to another wallet.
+
+**For organizers**
+
+- Create an event with its ticket classes (name, price, number of tickets), then rename or reschedule it.
+- Be paid for every ticket sold, into the wallet chosen for the event.
+
+**Behind the pages**
+
+- Every request that moves money takes an `Idempotency-Key`, so a retry never charges twice.
+- Every transfer and purchase publishes an event to Kafka; a separate service turns it into a notification, exactly once.
+- Event pages are cached in Redis and orders are rate-limited per user. If Redis goes down, the application keeps selling without it.
+- Metrics and traces in Grafana: one purchase is one trace, from the HTTP request through every SQL statement to the consumer.
 
 ## Architecture
 
-### Components
+### The parts
 
 ```mermaid
 flowchart LR
-    client(["Client / k6"])
-    app["<b>ledger-app</b><br/>modular monolith<br/>Spring Boot · virtual threads"]
-    consumer["<b>notification-consumer</b><br/>idempotent Kafka listener"]
-    pg[("<b>PostgreSQL 18</b><br/>one database per service")]
-    kafka[["<b>Kafka</b><br/>KRaft"]]
-    redis[("<b>Redis</b><br/>cache · rate limit")]
-    lgtm["<b>Grafana LGTM</b><br/>metrics · traces"]
+    browser(["Browser<br/>pages served by ledger-app"])
+    client(["API client / k6"])
+    app["<b>ledger-app</b><br/>modular monolith<br/>REST + WebSocket"]
+    consumer["<b>notification-consumer</b><br/>Kafka listener"]
+    pg[("<b>PostgreSQL</b><br/>one database per service")]
+    kafka[["<b>Kafka</b>"]]
+    redis[("<b>Redis</b><br/>cache, rate limit")]
+    lgtm["<b>Grafana LGTM</b><br/>metrics, traces"]
 
+    browser -->|"REST, STOMP over WebSocket"| app
     client -->|"REST + Idempotency-Key"| app
     app -->|JDBC| pg
-    app -.->|"optional"| redis
+    app -.->|optional| redis
     app -->|"outbox relay"| kafka
     kafka --> consumer
     consumer -->|JDBC| pg
-    app -. OTLP .-> lgtm
-    consumer -. OTLP .-> lgtm
+    app -.->|OTLP| lgtm
+    consumer -.->|OTLP| lgtm
 ```
 
-`ledger-app` is a **modular monolith**: everything that touches money lives in one process and one database, so a transfer is a single local transaction and needs no distributed transaction. What should be separate is separated through Kafka: `notification-consumer` is its own process with its own database, and a slow or dead consumer does not affect transfers.
+- **`ledger-app`** holds everything that touches money: users, wallets, the ledger, events, tickets, orders. Keeping them in one process and one database makes a purchase a single local transaction: the tickets, the payment and the order commit together or not at all.
+- **`notification-consumer`** is a separate process with its own database. It reads events from Kafka and writes notifications. If it is slow or down, sales go on.
+- **PostgreSQL** is the source of truth. **Redis** only saves work and can be lost. **Kafka** carries events between the two applications.
 
 ### Modules inside `ledger-app`
 
 ```mermaid
 flowchart TB
-    wallet["<b>wallet</b><br/>REST API, open wallet / deposit / transfer"]
-    identity["<b>identity</b><br/>users, sign-up and sign-in, JWT<br/>Spring Security"]
-    ticketing["<b>ticketing</b><br/>events, ticket classes, orders<br/>buying tickets from a wallet"]
-    idem["<b>idempotency</b><br/>claims keys, stores and replays responses"]
-    ledger["<b>ledger</b><br/>double-entry ledger: accounts, transactions, entries<br/>ordered locking"]
-    outbox["<b>outbox</b><br/>writes events inside the transaction<br/>relay sends them to Kafka"]
-    shared["<b>shared</b><br/>Money, Problem Details"]
+    identity["<b>identity</b><br/>users, sign-in, JWT"]
+    wallet["<b>wallet</b><br/>wallets, deposits, transfers"]
+    ticketing["<b>ticketing</b><br/>events, ticket classes, orders"]
+    idem["<b>idempotency</b><br/>Idempotency-Key handling"]
+    ledger["<b>ledger</b><br/>double-entry accounts and entries"]
+    outbox["<b>outbox</b><br/>events written in the transaction,<br/>relayed to Kafka"]
+    shared["<b>shared</b><br/>Money, error responses"]
 
     wallet --> identity
+    wallet --> idem
+    wallet --> ledger
+    wallet --> outbox
     ticketing --> identity
     ticketing --> idem
     ticketing --> ledger
     ticketing --> outbox
-    wallet --> idem
-    wallet --> ledger
-    wallet --> outbox
     identity --> shared
     idem --> shared
     ledger --> shared
     outbox --> shared
 ```
 
-Each module is a package under `dev.ledgerly`. Types at the package root are its public API, and everything under `internal` (`web`, `application`, `domain`, `persistence`) is private to the module. ArchUnit checks three rules on every build: a module only calls the modules it is allowed to and there are no cycles, `internal.domain` is plain Java with no dependency on Spring or JDBC, and `@Transactional` appears only in the `application` layer.
+Each module is a package with a small public API at its root and everything else under `internal`. A test ([`ArchitectureTest`](ledger-app/src/test/java/dev/ledgerly/ArchitectureTest.java)) fails the build if a module reaches into another's internals, if a cycle appears, or if a transaction is opened outside the application layer.
 
-### One transfer
+### What happens when someone buys tickets
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant C as Client
+    participant B as Browser
     participant A as ledger-app
+    participant R as Redis
     participant DB as PostgreSQL
     participant K as Kafka
     participant N as notification-consumer
 
-    C->>A: POST /v1/transfers (Idempotency-Key)
-    Note over A,DB: Transaction 1: claim the key
-    A->>DB: INSERT idempotency_keys ... ON CONFLICT DO NOTHING
+    B->>A: POST /v1/orders (Idempotency-Key)
+    A->>R: count this user's orders this minute
+    Note over A,DB: Transaction 1
+    A->>DB: claim the Idempotency-Key
     Note over A,DB: Transaction 2: all or nothing
-    A->>DB: lock both accounts in ascending id order
-    A->>DB: check the balance, write the transaction and 2 entries
-    A->>DB: write the TransferCompleted event to the outbox
-    A->>DB: store the response on the key (lease token must match)
-    A-->>C: 201 Created
-    Note over A,K: After the request has been answered
-    A->>K: relay reads the outbox (SKIP LOCKED), sends, waits for the ack
-    K->>N: TransferCompleted
-    N->>N: deduplicate by eventId, write the notification
+    A->>DB: UPDATE ticket_classes SET remaining = remaining - q WHERE remaining >= q
+    A->>DB: lock both wallets in id order, move the money, write the entries
+    A->>DB: write the order and its TicketPurchased event (outbox)
+    A->>DB: store the response under the key
+    A-->>B: 201 Created
+    A-->>B: after the commit: new count to everyone watching (WebSocket)
+    A->>K: relay sends the event, waits for the ack
+    K->>N: TicketPurchased
+    N->>N: skip if this eventId was handled, else write the notification
 ```
 
-The money, the event and the response are committed in **the same transaction**. So there is no state in which the money moved but the event was lost, or the money moved and a retry moves it again. The relay delivers each event at least once and the consumer handles each `eventId` at most once, so the effect happens exactly once.
+The tickets, the money, the order, the event and the stored response are one transaction. So there is no moment where the tickets are gone but unpaid, the money moved but the event was lost, or a retry buys again. A transfer between wallets follows the same path without the ticket step.
 
-### The database is the last line of defence
+## How it stays correct
 
-The money rules do not live only in Java. If the code has a bug, PostgreSQL still refuses:
+| What could go wrong | What prevents it | Proven by |
+|---|---|---|
+| **Selling more tickets than exist** when many people want the last ones | One conditional `UPDATE ... WHERE remaining >= q` checks and takes the tickets in a single statement. A `CHECK` keeps `remaining` between 0 and the class size | `ConcurrentPurchaseIT`: 500 buyers, 100 tickets, exactly 100 orders. [`overselling.sh`](scripts/spikes/overselling.sh) compares four strategies; an unlocked read-then-write kept only 800 of 39,709 sales |
+| **Tickets taken but not paid, or paid but not taken** | Tickets, payment, order and event commit in one transaction. A buyer who cannot pay gets the tickets back inside it | `InsufficientFundsPurchaseIT`, `PurchaseAndTransferIT`, invariants I8 and I9 |
+| **Spending the same money twice** | The wallet rows are locked before the balance is checked, and the database rejects a negative balance anyway | `HotWalletDrainIT`: 500 threads take 1 each from a wallet holding 100; exactly 100 succeed |
+| **Deadlocks** between opposite transfers | Accounts are always locked in ascending id order | `DeadlockFreedomIT`: 1,000 pairs of opposite transfers, no deadlock. Without the ordering, over 70 |
+| **A retry that charges again** after a lost response | `Idempotency-Key`: the first response is stored with the money and replayed to every retry | `IdempotencyConcurrencyIT`: 50 requests with one key, 1 transaction. `PurchaseIdempotencyIT`: 20 sends, 1 order |
+| **An event that never goes out**, or goes out for a rolled-back change | Transactional outbox: the event is a row in the same transaction; a relay sends it afterwards | `OutboxAtomicityIT`, `RelayCrashDuplicateIT`. `kill -9` while draining 3,000 events: every transaction got its notification |
+| **A notification sent twice** because Kafka redelivered | The consumer remembers each `eventId` in the same transaction as the notification | `ConsumerDedupIT`, `TicketNotificationIT` |
+| **A few clients flooding a sale**, or **Redis failing** | 10 orders per user per minute, counted in Redis. Every Redis call gives up after 200 ms, and the request goes on without Redis | `OrderRateLimitIT`; `RedisDownIT`: with Redis frozen, a purchase still succeeds in 0.26 s |
+| **Using someone else's wallet** | Wallets belong to the user who opened them; to anyone else they answer `404`, like a wallet that does not exist | `WalletOwnershipIT`, `SecurityIT` |
+| **A fake ticket count pushed to everyone** | The WebSocket only lets clients listen; anything they send is dropped | `RemainingBroadcastIT` |
 
-- `CHECK` constraints reject a negative balance on a user wallet and an entry with a zero amount.
-- Triggers reject `UPDATE`, `DELETE` and `TRUNCATE` on the entries table. The ledger is append-only, and a mistake is fixed with a reversing entry.
-- A `DEFERRABLE INITIALLY DEFERRED` constraint trigger checks at commit that the entries of every transaction sum to zero.
-- Money is a `BIGINT` in the minor unit of the currency, never a floating-point number.
+The database is the last line of defence: even with a bug in the Java code, PostgreSQL refuses a negative wallet balance, any change or deletion of a ledger entry, and a transaction whose entries do not sum to zero (checked by a trigger at commit). Money is always a whole number of đồng in a `BIGINT`, never a floating-point number.
 
-## Install
+## API
 
-### Requirements
+| Method | Path | What it does | `Idempotency-Key` |
+|---|---|---|:-:|
+| `POST` | `/v1/auth/register` | Sign up as `USER` (default) or `ORGANIZER` | |
+| `POST` | `/v1/auth/login` | Sign in; returns an access token valid for one hour | |
+| `POST` | `/v1/wallets` | Open a wallet | |
+| `GET` | `/v1/wallets` | My wallets | |
+| `GET` | `/v1/wallets/{id}` | Balance of a wallet | |
+| `GET` | `/v1/wallets/{id}/entries` | Its history, newest first (`?after=&limit=`) | |
+| `POST` | `/v1/admin/deposits` | Deposit demo money. A user into their own wallets, an organizer into any | Required |
+| `POST` | `/v1/transfers` | Send money to another wallet | Required |
+| `GET` | `/v1/transfers/{id}` | One of my transfers | |
+| `GET` | `/v1/events` | Upcoming events, soonest first (`?page=&size=`). No sign-in | |
+| `GET` | `/v1/events/{id}` | An event, its ticket classes and the tickets left. No sign-in | |
+| `POST` | `/v1/events` | Create an event with its ticket classes. Organizers only | |
+| `PATCH` | `/v1/events/{id}` | Rename or reschedule one of my events | |
+| `POST` | `/v1/orders` | Buy 1 to 4 tickets of a class from one of my wallets | Required |
+| `GET` | `/v1/orders` | My orders, newest first (`?page=&size=`) | |
+| `GET` | `/v1/orders/{id}` | One of my orders | |
+| WebSocket | `/ws` | STOMP. Subscribe to `/topic/ticket-classes/{id}` for `{ticketClassId, remaining}` after every sale. No sign-in | |
 
-| What | Notes |
-|---|---|
-| Docker Engine and Docker Compose v2 | All that the container quick start needs. The integration tests need Docker too (Testcontainers) |
-| JDK 17 or later | Only to run the applications or the tests from Gradle. Gradle downloads the JDK 25 used for compilation if the machine does not have it |
-| `curl`, `jq`, `uuidgen` | Only for the example commands under [Usage](#usage) and for the smoke test |
-| Free ports | 8080, 8082, 5433, 9092, plus 3000 and 4318 when Grafana is on |
+- **Sign-in:** every other request needs `Authorization: Bearer <accessToken>`, or gets `401`.
+- **Amounts** are strings of whole đồng (`"amount": "150000"`), so JavaScript cannot round them.
+- **Errors** follow RFC 9457 Problem Details, with a stable `type` such as `/problems/sold-out` or `/problems/insufficient-funds`.
+- **Full reference:** Swagger UI at `/swagger-ui.html`, and [`ledger-app/openapi.yaml`](ledger-app/openapi.yaml), which a test keeps identical to what the application serves.
 
-### Quick start: everything in containers
+<details>
+<summary><b>How retries with <code>Idempotency-Key</code> behave</b></summary>
 
-```bash
-git clone https://github.com/HoangThanhMan/ledgerly.git
-cd ledgerly
+The client makes up one key (a UUID) for each operation and sends the same key on every retry of it.
 
-# PostgreSQL, Kafka, Redis, ledger-app (:8080) and notification-consumer (:8082). Returns when all five are healthy
-docker compose --profile full up -d --wait
+| Situation | Response | What the client does |
+|---|---|---|
+| The first request finished | Its response again, with `Idempotent-Replayed: true` | Use the result |
+| The first request is still running | `409 idempotency-in-progress`, `Retry-After: 1` | Wait, resend with the same key |
+| Same key, different body or endpoint | `422 idempotency-key-reused` | Fix the client: one key per operation |
+| The first request was refused (sold out, not enough money) | The same refusal, even if things changed since | Use a new key to try again |
+| The first request failed (`500`, `503`) | Nothing was stored and nothing moved | Resend with the same key |
 
-# Optional: a deposit, a transfer, its retry, the notification and the ledger invariants, checked end to end
-scripts/smoke-test.sh
-```
+Keys are kept for at least 24 hours.
 
-The first run builds the two application images from source inside Docker. On the development machine that took about 3 minutes, most of it Gradle downloading dependencies. Once the images exist, the system is up in about 12 seconds.
+</details>
 
-Then open http://localhost:8080/swagger-ui.html to try the API in the browser, or continue with [Usage](#usage).
-
-To stop: `docker compose --profile full down` (add `-v` to delete the data as well).
-
-### For development: applications from Gradle
-
-```bash
-# 1. Infrastructure only: PostgreSQL on port 5433, Kafka on port 9092, Redis on port 6379
-docker compose up -d --wait
-
-# 2. The two applications, one terminal each. Flyway creates the schema at startup
-./gradlew :ledger-app:bootRun
-./gradlew :notification-consumer:bootRun
-
-# 3. Check: both must answer "status":"UP"
-curl -s localhost:8080/actuator/health
-curl -s localhost:8082/actuator/health
-```
-
-To try the API without compose, `./gradlew :ledger-app:bootTestRun` starts PostgreSQL, Kafka and Redis through Testcontainers.
-
-To stop and clean up: `Ctrl+C` in both terminals, then `docker compose down` (add `-v` to delete the data as well).
-
-### The container images
-
-One [`Dockerfile`](Dockerfile) builds the image of any application (`--build-arg MODULE=ledger-app`):
-
-- **Layered jar.** The dependencies (92 MB, rarely changed) and the application's own classes (under 200 kB, changed by every commit) are separate image layers, so a rebuild or a pull after a code change does not move the dependencies again.
-- **Unprivileged user.** The process runs as uid 1001, not as root.
-- **AOT cache (Java 25).** A training run during the image build records the classes the application loads and links at startup. Startup of `ledger-app` in its container: **2.07 s with the cache, 4.09 s without** (median of 5 starts each, alternating). `notification-consumer`: 1.48 s against 2.73 s (median of 3). The price is 114 MB more in the `ledger-app` image (622 MB in total), a layer that is rebuilt on every code change.
-
-## Usage
-
-### In the browser
-
-Open http://localhost:8080. The pages are in Vietnamese and need no build step: sign up, open a wallet, deposit demo money, then buy tickets and see them under "Vé của tôi". With the demo seed on (`--ledgerly.demo.seed=true`, as compose runs it), there is one event to buy from. Open it in two tabs: a purchase in one changes the count in the other without a reload. "Gửi lại (cùng key)" sends the last order again with the same `Idempotency-Key` and shows that nothing more was bought.
-
-### A first transfer
+<details>
+<summary><b>The same flow with curl</b></summary>
 
 ```bash
-# Sign up and sign in. Every other request carries the access token
+# Sign up and sign in
 curl -s -X POST localhost:8080/v1/auth/register -H 'Content-Type: application/json' \
   -d '{"email":"an@example.com","password":"correct-horse-battery"}'
 TOKEN=$(curl -s -X POST localhost:8080/v1/auth/login -H 'Content-Type: application/json' \
   -d '{"email":"an@example.com","password":"correct-horse-battery"}' | jq -r .accessToken)
 AUTH="Authorization: Bearer $TOKEN"
 
-# Open two wallets
-A=$(curl -s -X POST localhost:8080/v1/wallets -H "$AUTH" -H 'Content-Type: application/json' -d '{"currency":"VND"}' | jq -r .id)
-B=$(curl -s -X POST localhost:8080/v1/wallets -H "$AUTH" -H 'Content-Type: application/json' -d '{"currency":"VND"}' | jq -r .id)
-
-# Deposit 500,000 into wallet A
+# Open a wallet and deposit 500,000 đồng
+A=$(curl -s -X POST localhost:8080/v1/wallets -H "$AUTH" -H 'Content-Type: application/json' \
+  -d '{"currency":"VND"}' | jq -r .id)
 curl -s -X POST localhost:8080/v1/admin/deposits -H "$AUTH" -H 'Content-Type: application/json' \
-  -H "Idempotency-Key: $(uuidgen)" \
-  -d "{\"walletId\":\"$A\",\"amount\":\"500000\",\"currency\":\"VND\"}"
+  -H "Idempotency-Key: $(uuidgen)" -d "{\"walletId\":\"$A\",\"amount\":\"500000\",\"currency\":\"VND\"}"
 
-# Transfer 150,000 from A to B. Run this curl command TWICE with the same key
-KEY=$(uuidgen)
-curl -si -X POST localhost:8080/v1/transfers -H "$AUTH" -H 'Content-Type: application/json' \
-  -H "Idempotency-Key: $KEY" \
-  -d "{\"sourceWalletId\":\"$A\",\"targetWalletId\":\"$B\",\"amount\":\"150000\",\"currency\":\"VND\"}"
-
-# Balance and entry history of wallet A
-curl -s -H "$AUTH" localhost:8080/v1/wallets/$A
-curl -s -H "$AUTH" "localhost:8080/v1/wallets/$A/entries?limit=5"
-```
-
-The second send returns the response of the first, adds the header `Idempotent-Replayed: true`, and does not move the money again:
-
-```console
-HTTP/1.1 201
-Idempotent-Replayed: true
-Location: /v1/transfers/01a11ad9-7f10-7459-a273-deb24dbb4296
-Content-Type: application/json
-
-{"id":"01a11ad9-7f10-7459-a273-deb24dbb4296","status":"COMPLETED","sourceWalletId":"01a11ad9-7eb8-...","targetWalletId":"01a11ad9-7ec9-...","amount":"150000","currency":"VND","createdAt":"2026-10-08T09:30:23.885956Z"}
-```
-
-```console
-$ curl -s -H "$AUTH" localhost:8080/v1/wallets/$A
-{"id":"01a11ad9-7eb8-...","currency":"VND","balance":"350000","createdAt":"2026-10-08T09:30:23.800096Z"}
-```
-
-### Buy a ticket
-
-```bash
-# The demo event, seeded when the application runs in containers. From Gradle, add --ledgerly.demo.seed=true
+# The demo event and its class B
 EVENT=$(curl -s localhost:8080/v1/events | jq -r '.items[] | select(.name == "Ledgerly Live") | .id')
 CLASS=$(curl -s localhost:8080/v1/events/$EVENT | jq -r '.ticketClasses[] | select(.name == "B") | .id')
 
-# One ticket of class B, paid from wallet A. Sending it again with the same key buys nothing more
+# Buy one ticket. Run it twice: the second answer carries Idempotent-Replayed: true and buys nothing
+KEY=$(uuidgen)
 curl -si -X POST localhost:8080/v1/orders -H "$AUTH" -H 'Content-Type: application/json' \
-  -H "Idempotency-Key: $(uuidgen)" \
-  -d "{\"ticketClassId\":\"$CLASS\",\"walletId\":\"$A\",\"quantity\":1}"
+  -H "Idempotency-Key: $KEY" -d "{\"ticketClassId\":\"$CLASS\",\"walletId\":\"$A\",\"quantity\":1}"
 
-# The tickets left in each class, and my orders
+# Tickets left, my orders, my balance
 curl -s localhost:8080/v1/events/$EVENT | jq '.ticketClasses[] | {name, remaining}'
 curl -s -H "$AUTH" localhost:8080/v1/orders
-```
+curl -s -H "$AUTH" localhost:8080/v1/wallets/$A
 
-### See the event and check the ledger
-
-```bash
-# The TransferCompleted event on Kafka
-docker compose exec kafka /opt/kafka/bin/kafka-console-consumer.sh \
-  --bootstrap-server localhost:9092 --topic ledgerly.transfers.v1 --from-beginning --max-messages 1
-
-# The notification that notification-consumer created
-docker compose exec postgres psql -U ledgerly -d notification -c 'SELECT message, created_at FROM notifications'
-
-# The four ledger invariants: each query lists violations, so a sound ledger returns 0 rows from all four
+# The notification the consumer wrote, and the ledger checks (each query must return 0 rows)
+docker compose exec postgres psql -U ledgerly -d notification -c 'SELECT message FROM notifications'
 docker compose exec -T postgres psql -U ledgerly -d ledger < scripts/invariants.sql
 ```
 
-```console
-                                 message                                  |          created_at
---------------------------------------------------------------------------+-------------------------------
- You received 150000 VND from wallet 01a11ae0-91a3-73aa-abf2-99d7ab7901bc | 2026-10-08 09:38:21.016439+00
-```
+</details>
 
-### Metrics and traces
+## Development
 
-By default the applications export no metrics and no traces. Add Grafana and restart both applications with the `observability` profile:
+Requirements: Docker, and JDK 17 or later to run Gradle (it downloads the JDK 25 it compiles with).
 
 ```bash
-docker compose --profile observability up -d --wait
-SPRING_PROFILES_ACTIVE=observability ./gradlew :ledger-app:bootRun
-SPRING_PROFILES_ACTIVE=observability ./gradlew :notification-consumer:bootRun
+docker compose up -d --wait                  # PostgreSQL :5433, Kafka :9092, Redis :6379
+./gradlew :ledger-app:bootRun --args='--ledgerly.demo.seed=true'
+./gradlew :notification-consumer:bootRun
 ```
 
-With the applications in containers, one command does the same:
+`./gradlew :ledger-app:bootTestRun` starts the application with PostgreSQL, Kafka and Redis in Testcontainers, without compose.
+
+**Metrics and traces.** Start Grafana and the applications with the `observability` profile, then open http://localhost:3000 (admin / admin). The Ledgerly dashboard is the home page; traces are under Explore → Tempo.
 
 ```bash
 LEDGERLY_PROFILES=compose,observability docker compose --profile full --profile observability up -d --wait
 ```
 
-Open http://localhost:3000 (user `admin`, password `admin`): the Ledgerly dashboard is the home page. In Explore, pick the Tempo data source to see traces. One transfer is one trace across both services: the HTTP request, 12 SQL statements, `outbox publish`, the send to Kafka, then the processing in the consumer.
+<details>
+<summary><b>Configuration</b></summary>
 
-## Configuration
-
-The defaults live in each application's `application.yaml` and suit applications run from Gradle next to `compose.yaml`. In containers the `compose` profile replaces the host names (`application-compose.yaml`). Override them with environment variables following the Spring Boot convention, for example `SERVER_PORT=9080` or `LEDGERLY_OUTBOX_RELAY_ENABLED=false`.
+Defaults are in each application's `application.yaml`; the `compose` profile swaps in the container host names. Override with environment variables, for example `LEDGERLY_TICKETING_RATE_LIMIT_PER_MINUTE=20`.
 
 | Property | Default | Meaning |
 |---|---|---|
-| `server.port` | `8080` (`ledger-app`), `8082` (`notification-consumer`) | HTTP port |
-| `spring.datasource.url` | `jdbc:postgresql://localhost:5433/ledger` | Database of `ledger-app`. The consumer uses the `notification` database |
-| `spring.kafka.bootstrap-servers` | `localhost:9092` | Kafka |
-| `ledgerly.security.jwt.secret` | a development key | Base64 of at least 32 bytes that signs the access tokens. **Set `LEDGERLY_SECURITY_JWT_SECRET` anywhere but a development machine**, for example to the output of `openssl rand -base64 32` |
-| `ledgerly.security.jwt.ttl` | `1h` | How long an access token is valid |
-| `ledgerly.security.password.bcrypt-strength` | `10` | Cost of the BCrypt password hashes |
-| `ledgerly.demo.seed` | `false` (`true` in containers) | Sign up a demo organizer, `organizer@ledgerly.dev` with password `organizer-demo`, with one event, unless it has one already |
-| `ledgerly.ticketing.lock-timeout` | `2s` | Longest wait of a purchase for the row lock of its ticket class. After that the answer is `503` with `Retry-After` |
-| `ledgerly.ticketing.rate-limit.per-minute` | `10` | Orders one user may send in a minute. More are answered `429` with `Retry-After` |
-| `spring.data.redis.host`, `port` | `localhost`, `6379` | Redis for the event cache and the order rate limit. Optional: without it the application serves everything from PostgreSQL |
-| `ledgerly.ledger.lock-timeout` | `2s` | Longest wait for the account locks. After that the answer is `503` with `Retry-After` |
-| `ledgerly.idempotency.lease` | `30s` | How long a request may hold a key. After that a retry with the same key takes it over |
+| `ledgerly.security.jwt.secret` | a development key | Signs the access tokens. **Set `LEDGERLY_SECURITY_JWT_SECRET` anywhere but a development machine** (`openssl rand -base64 32`) |
+| `ledgerly.security.jwt.ttl` | `1h` | Lifetime of an access token |
+| `ledgerly.demo.seed` | `false` (`true` in compose) | Create the demo organizer and the *Ledgerly Live* event at startup |
+| `ledgerly.ticketing.rate-limit.per-minute` | `10` | Orders per user per minute; more get `429` with `Retry-After` |
+| `ledgerly.ticketing.lock-timeout` | `2s` | Longest wait for a ticket class lock; then `503` with `Retry-After` |
+| `ledgerly.ledger.lock-timeout` | `2s` | Longest wait for the wallet locks; then `503` with `Retry-After` |
+| `ledgerly.idempotency.lease` | `30s` | How long a request may hold a key before a retry takes it over |
 | `ledgerly.idempotency.ttl` | `24h` | Minimum time a key and its response are kept |
-| `ledgerly.outbox.relay.enabled` | `true` | `false`: this instance serves the API only and publishes no events |
-| `ledgerly.outbox.relay.poll-interval`, `batch-size` | `200ms`, `100` | Polling interval and batch size of the relay |
-| `management.tracing.sampling.probability` | `0.1` | Share of requests that are traced. The `observability` profile sets `1.0` |
+| `ledgerly.outbox.relay.enabled` | `true` | `false`: serve the API but publish no events |
+| `ledgerly.outbox.relay.poll-interval`, `batch-size` | `200ms`, `100` | How often and how much the relay sends |
+| `spring.datasource.url` | `jdbc:postgresql://localhost:5433/ledger` | The consumer uses the `notification` database |
+| `spring.kafka.bootstrap-servers` | `localhost:9092` | |
+| `spring.data.redis.host`, `port` | `localhost`, `6379` | Optional: without Redis, everything is served from PostgreSQL |
+| `management.tracing.sampling.probability` | `0.1` | Share of requests traced; `1.0` with the `observability` profile |
 
-## API
+</details>
 
-| Method | Path | Description | `Idempotency-Key` |
-|---|---|---|:-:|
-| `POST` | `/v1/auth/register` | Sign up as `USER` (the default) or `ORGANIZER` | |
-| `POST` | `/v1/auth/login` | Sign in for an access token, valid for one hour | |
-| `POST` | `/v1/wallets` | Open a wallet | |
-| `GET` | `/v1/wallets` | My wallets | |
-| `GET` | `/v1/wallets/{id}` | Balance and details of a wallet | |
-| `GET` | `/v1/wallets/{id}/entries` | Entry history, keyset pagination (`?after=&limit=`) | |
-| `POST` | `/v1/transfers` | Transfer between two wallets | Required |
-| `GET` | `/v1/transfers/{id}` | Details of a transfer | |
-| `POST` | `/v1/admin/deposits` | Deposit into a wallet from a system account, for development and tests. A user deposits into their own wallets, an organizer into any | Required |
-| `GET` | `/v1/events` | Upcoming events, soonest first (`?page=&size=`). No sign-in needed | |
-| `GET` | `/v1/events/{id}` | An event with its ticket classes and the tickets left in each. No sign-in needed | |
-| `POST` | `/v1/orders` | Buy 1 to 4 tickets of one class, paid from one of my wallets | Required |
-| `GET` | `/v1/orders` | My orders, newest first (`?page=&size=`) | |
-| `GET` | `/v1/orders/{id}` | One of my orders | |
-| `POST` | `/v1/events` | Create an event with its ticket classes. Organizers only | |
-| `PATCH` | `/v1/events/{id}` | Rename or reschedule one of my events | |
-| WebSocket | `/ws` | STOMP. Subscribe to `/topic/ticket-classes/{id}` to receive `{"ticketClassId", "remaining"}` after every purchase in that class. No sign-in needed | |
+<details>
+<summary><b>The container images</b></summary>
 
-Every request but signing up and in, and reading events, needs `Authorization: Bearer <accessToken>`, or it is answered with `401`. Wallets and transfers are visible to their owners only: anyone else gets `404`, as if they did not exist. Money can be transferred into anyone's wallet.
+One [`Dockerfile`](Dockerfile) builds both applications (`--build-arg MODULE=ledger-app`): a layered jar so a code change does not re-ship the 92 MB of dependencies, an unprivileged user, and a Java 25 AOT cache that halves startup (`ledger-app`: 2.07 s instead of 4.09 s, median of 5).
 
-The full reference is the OpenAPI document: Swagger UI at http://localhost:8080/swagger-ui.html, the document itself at `/v3/api-docs`, and a copy in [`ledger-app/openapi.yaml`](ledger-app/openapi.yaml) that a test keeps equal to what the application serves. It describes every parameter and, for each operation, every problem it can answer with.
-
-Amounts are integer strings in the minor unit (`"amount": "150000"`), so a JavaScript client cannot lose precision. Errors follow RFC 9457 Problem Details:
-
-```json
-{"type":"/problems/insufficient-funds","title":"Insufficient funds","status":422,
- "detail":"Wallet 01a11ad9-7eb8-... has 350000 VND, the transfer needs 9999999 VND","instance":"/v1/transfers"}
-```
-
-### How retries stay safe
-
-A client that loses its connection midway cannot tell whether the money moved. So every `POST` that moves money requires an `Idempotency-Key` header: the client generates one value (a UUID is recommended) for **each operation** and keeps it across every resend.
-
-| Situation | Response | What the client should do |
-|---|---|---|
-| Same key, same content, the first request has finished | The response of the first request, with `Idempotent-Replayed: true`. Reordered JSON fields or different whitespace still count as the same content | Use the result |
-| Same key, the first request is still running | `409 idempotency-in-progress`, with `Retry-After: 1` | Wait, then resend with the **same** key |
-| Same key, different body or different endpoint | `422 idempotency-key-reused` | A client bug: one key per operation |
-| The first request was rejected by a business rule (for example `422 insufficient-funds`) | Later requests get that same error, even after the wallet has been topped up | To try again, use a **new** key |
-| The first request failed technically (`503`, `500`) | Nothing was stored and no money moved | Resend with the same key |
-| Missing header or invalid body | `400 validation-error`, and the key is not used up | Fix the request |
-
-A key is kept for at least 24 hours.
+</details>
 
 ## Testing
 
 ```bash
-./gradlew build             # everything: formatting, Error Prone, NullAway, unit tests, integration tests, coverage
-./gradlew test              # unit tests, ArchUnit
-./gradlew integrationTest   # Testcontainers: real PostgreSQL 18 and Kafka
-./gradlew spotlessApply     # fix formatting
+./gradlew build              # everything: formatting, static checks, unit and integration tests, coverage
+./gradlew integrationTest    # against real PostgreSQL, Kafka and Redis in Testcontainers
 ```
 
-- **No H2, no mocked database.** Persistence tests run on real PostgreSQL, the same version the application runs on.
-- **Concurrency tests check invariants, not just the absence of errors.** After each run, `InvariantChecker` executes the very statements in [`scripts/invariants.sql`](scripts/invariants.sql). Randomised tests log their seed, and `-Pledgerly.test.seed=<n>` replays a failed run.
-- **Failures are injected on purpose.** Tests simulate a process dying at the hardest points: after the money moved but before the key is marked complete, and after the relay sent to Kafka but before it committed.
-- **The packaged system is tested too.** CI builds the container images, starts the whole system with `docker compose --profile full` and runs [`scripts/smoke-test.sh`](scripts/smoke-test.sh) against it.
-- **Quality gates in CI:** a formatting difference, a null error (NullAway in JSpecify mode) or an Error Prone error fails the build. Line coverage of the `internal.domain` packages must be at least 80%.
+- **Real infrastructure, no mocks of it.** No H2: tests run on the PostgreSQL version the application runs on.
+- **Concurrency tests check the books, not just for errors.** After each run, the same SQL as [`scripts/invariants.sql`](scripts/invariants.sql) must return no rows.
+- **Crashes are staged on purpose:** after the money moved but before the key was completed, after Kafka got an event but before the relay recorded it, with Redis frozen mid-request.
+- **The packaged system is tested in CI:** it builds the images, starts everything with compose and runs [`scripts/smoke-test.sh`](scripts/smoke-test.sh).
+- **Strict build:** Spotless formatting, Error Prone, NullAway (JSpecify), and at least 80% line coverage of the domain packages.
 
-| Invariant | Statement |
+| Invariant | Must always hold |
 |---|---|
 | I1 | The entries of every transaction sum to zero |
-| I2 | No user wallet has a negative balance |
-| I3 | Every account's balance equals the sum of its entries |
-| I4 | The balances of all accounts, system accounts included, sum to zero |
-| I5 | Each `Idempotency-Key` produces at most one transaction |
-| I6 | Every committed transfer has exactly one outbox event |
-| I7 | Each `eventId` has at most one effect in the consumer |
+| I2 | No user wallet is negative |
+| I3 | Every balance equals the sum of its entries |
+| I4 | All balances, system accounts included, sum to zero |
+| I5 | One `Idempotency-Key`, at most one transaction |
+| I6 | Every transfer has exactly one event, and no event is left unsent |
+| I7 | Each event has at most one effect in the consumer |
+| I8 | Tickets sold in a class equal the quantities ordered |
+| I9 | Every order was paid exactly its amount, from its wallet |
+| I10 | Every order has exactly one `TicketPurchased` event |
 
 ## Performance
 
-Measured with k6 and the `constant-arrival-rate` executor (open loop, so the moments when the server is slow are still measured), 1 minute of warm-up and 5 minutes of measurement, three runs, median reported. `ledger-app` was pinned to 2 CPU cores. After each run the script rechecks the ledger invariants and compares the number of transactions, events and notifications.
+`POST /v1/transfers` with k6 at a constant arrival rate, `ledger-app` pinned to 2 CPU cores, median of three 5-minute runs:
 
-| `POST /v1/transfers` | Result |
+| Measure | Result |
 |---|---|
-| Latency at 300 requests per second | p50 **2.17 ms**, p95 **4.21 ms**, p99 **17.14 ms**, no errors |
-| Throughput ceiling on 2 cores | About **1,560 transfers per second**. The application's CPU runs out first, not PostgreSQL |
-| Correctness under overload | At every load level the ledger stays correct and each transaction has exactly one event and one notification |
+| Latency at 300 requests/s | p50 **2.17 ms**, p95 **4.21 ms**, p99 **17.14 ms**, no errors |
+| Ceiling on 2 cores | about **1,560 transfers/s**; the application CPU runs out before PostgreSQL |
+| Under overload | the ledger stays correct; every transaction has exactly one event and one notification |
 
-These numbers come from **one laptop running everything, over loopback, with a small data set** (Intel Core i7-11800H, 7 GB RAM, PostgreSQL and Kafka in Docker, k6 on the same machine). They are not the capacity of the system on a server.
+These come from one laptop running everything (i7-11800H, 7 GB RAM), not from a server. In 4 of 11 runs the server also stalled for 0.5 to 6 seconds, for a reason not yet found. Raw results of every run are in [`perf/results`](perf/results).
 
-Two things did not go well and are kept in the open. The first batch of runs is unusable: the benchmark script took a dashboard screenshot in the middle of a run and wrote its raw output to a RAM-backed directory. That batch is still in the repository, labelled as such. And in 4 of 11 runs at 300 requests per second the server stalled for 0.5 to 6 seconds. The cause has not been found, so the honest summary is a p99 of about 17 ms with an unexplained risk of a stall of a few seconds.
+![Grafana dashboard during a ramp test](assets/dashboard-ramp-test.png)
 
-The packaged system was checked with the same scenario: one run at 300 requests per second against the containers, `ledger-app` limited to 2 CPUs, gave p50 2.12 ms, p95 3.67 ms, p99 15.28 ms and no errors, with 102,598 transfers, events and notifications at the end. It is a single run on a different network path, so it confirms the baseline rather than replacing it.
-
-![Grafana dashboard during the ramp test](assets/dashboard-ramp-test.png)
-
-*The `Ledgerly` dashboard during a ramp test in four steps: 600, 1,000, 1,500 and 2,000 requests per second.*
-
-Every run is in [`perf/results`](perf/results): the k6 summary, one line per request (enough to recompute any percentile), server-side metrics, the post-run checks and a description of the environment (the notes are in Vietnamese). To rerun the baseline, with nothing else running on the machine:
+<details>
+<summary><b>How to rerun the benchmark</b></summary>
 
 ```bash
 docker compose --profile observability up -d --wait
 ./gradlew :ledger-app:bootJar :notification-consumer:bootJar
-export SPRING_PROFILES_ACTIVE=observability
-export MANAGEMENT_TRACING_SAMPLING_PROBABILITY=0.1   # the profile traces every request, the baseline traced 10%
+export SPRING_PROFILES_ACTIVE=observability MANAGEMENT_TRACING_SAMPLING_PROBABILITY=0.1
 taskset -c 0,1 java -Xmx512m -jar ledger-app/build/libs/ledger-app-1.0.0.jar &
 java -Xmx256m -jar notification-consumer/build/libs/notification-consumer-1.0.0.jar &
-
-# Three runs at 300 requests per second, results in perf/results/<name>/
 perf/run-baseline.sh "$(date +%F)-baseline" 300 3
 ```
 
+</details>
+
 ## Design decisions
 
-| Question | Choice | Rejected, and why |
+| Question | Choice | Why not the alternative |
 |---|---|---|
-| How to structure the system | A modular monolith with boundaries checked by ArchUnit, plus one consumer process behind Kafka | Microservices: a transfer would be a saga from day one, at a high operating cost. A plain monolith: no boundaries to keep the money code apart |
-| Which database | PostgreSQL | MySQL has no deferred constraints or constraint triggers, so "the entries of a transaction sum to zero" could not be enforced in the database |
-| How to reach the database on the money path | Explicit SQL through `JdbcClient` | JPA alone hides which locks are taken and when the flush happens |
-| How to represent money | `BIGINT` in minor units, with signed entries | Floating point cannot represent amounts exactly |
-| How to stop double spending and deadlocks | Row locks taken in `id` order, at `READ COMMITTED` | Locking without `ORDER BY` still deadlocked about 72 times in 2,000 transfers, and locking each account in posting order 129 to 143 times (both measured). `SERIALIZABLE` and optimistic locking turn contention into retries, which grow with contention on a hot account (reasoned, not measured) |
-| Where to keep idempotency keys | A table in the same PostgreSQL, so the stored response commits with the money | Redis: two stores, with a gap between the PostgreSQL commit and the Redis write in which a crash leaves them disagreeing |
-| One transaction or two for an idempotent request | Two phases: claim the key, then do the work and complete the key | One transaction: a duplicate request blocks on the unique index and holds a connection until the first one commits |
-| What if the request holding a key is slow, not dead | A lease with a fencing token that the completing `UPDATE` must match | A lease with an unconditional completing `UPDATE`: the slow request could still commit after a retry took the key over, giving two transfers for one key (measured) |
-| How to publish events | A transactional outbox, drained by a polling relay with `FOR UPDATE SKIP LOCKED` | Writing to the database and then to Kafka loses the event if the process dies in between. Kafka transactions do not cover PostgreSQL. Debezium adds Kafka Connect and a replication slot to operate, and is much harder to run in tests |
-| How to instrument | The Spring Boot OpenTelemetry starter, with Grafana LGTM in one container for development | The OpenTelemetry Java agent rewrites bytecode at runtime and lives outside the build, so it is hard to test in `./gradlew build`. Separate Prometheus, Jaeger and Grafana mean three services to wire together |
-| Where ticket sales live | A module of the same application, so the tickets, the payment and the order commit in one local transaction | A separate ticketing service: every purchase becomes a saga with held tickets, expiry, compensating entries and deduplication on both sides |
-| How to stop overselling | A conditional `UPDATE` at `READ COMMITTED`: a sale that waited for the row lock re-checks `remaining >= q` against the newest version of the row | `SELECT ... FOR UPDATE` then `UPDATE`: also correct, one more round trip, about 2% fewer purchases per second and a 15% higher p99 (measured). Optimistic locking: 94% of attempts failed under contention and would have to retry (measured) |
-| What Redis is for, and what happens when it fails | Only a cache of event reads (30 seconds, never the tickets left) and the order rate limit. Both fail open: a Redis error is logged and the request goes on without it, after at most 200 ms | Failing closed: a component that only saves work would stop ticket sales. Idempotency keys in Redis: the same commit gap as above. A rate limit in the JVM: with several instances each would count on its own |
-| How to authenticate | JWTs (HS256) that the application issues itself at sign-in, valid for one hour | Keycloak: a second heavy service in compose, CI and the tests, for features this API does not use. Session cookies: server-side state, and CSRF protection on every write |
-| What to answer for someone else's wallet | `404`, the same as for a wallet that does not exist | `403`: tells the caller that the id belongs to a wallet, so ids could be probed |
-| What to do when a balance would overflow 64 bits | Reject the posting like any other business rule (`422`) | Letting the arithmetic exception surface: correct for the ledger, since nothing is written, but the client gets a `500` for a request it could have been told about (found by testing) |
-| How to follow a request through the outbox | Store the request's `traceparent` on the outbox row and restore it when the relay sends | A separate trace for the relay with a span link back: correct, but harder to read |
+| Services or monolith? | One modular monolith for everything that touches money, plus one consumer behind Kafka | Separate ticket and wallet services would turn every purchase into a saga: held tickets, expiry, compensating payments |
+| How to stop overselling? | A conditional `UPDATE` on the ticket class | `SELECT ... FOR UPDATE` works too but is slower (15% higher p99, measured). Optimistic locking failed 94% of attempts under contention |
+| How to stop double spending? | Row locks in id order, at `READ COMMITTED` | Without the ordering it deadlocks (measured). `SERIALIZABLE` and optimistic locking turn contention into retries |
+| Which database? | PostgreSQL, with explicit SQL on the money path | MySQL cannot check "entries sum to zero" at commit. JPA alone hides which locks are taken and when |
+| Where do idempotency keys live? | In PostgreSQL, committed with the money | In Redis there is a gap between the two commits where a crash makes them disagree |
+| How are events published? | A transactional outbox and a polling relay | Writing to Kafka after the database loses events on a crash. Debezium is much more to run |
+| What is Redis for? | Only a cache and the rate limit, both failing open | If Redis could stop sales, a component that only saves work would be the weakest link |
+| How do users sign in? | JWTs the application issues itself | Keycloak is a heavy second service for features this API does not use |
+| Someone else's wallet? | `404`, like a missing wallet | `403` would confirm that the id exists |
 
 ## Tech stack
 
-| Layer | Choice |
+| Area | Choice |
 |---|---|
-| Language | Java 25 (records, sealed interfaces, pattern matching, virtual threads), no preview features, no Lombok |
-| Framework | Spring Boot 4.1, Spring Framework 7 |
-| Data | PostgreSQL 18, Flyway, explicit SQL through `JdbcClient` on the money path |
-| Messaging | Kafka 4 (KRaft), producer with `acks=all` and idempotence |
-| Security | Spring Security as an OAuth2 resource server, HS256 JWTs issued by the application, BCrypt |
-| Testing | JUnit 5, AssertJ, Testcontainers, ArchUnit, jqwik (property-based) |
-| Quality | Spotless (Palantir Java Format), Error Prone, NullAway, JaCoCo |
-| Observability | OpenTelemetry through the Spring Boot starter, Grafana LGTM |
-| API reference | OpenAPI through springdoc, Swagger UI |
-| Packaging | Docker multi-stage build, layered jar, Java 25 AOT cache, Docker Compose |
-| Performance | k6 |
-| Build, CI | Gradle 9 (Kotlin DSL, version catalog, convention plugins), GitHub Actions |
+| Language, framework | Java 25 (records, sealed types, virtual threads), Spring Boot 4.1 |
+| Data | PostgreSQL 18, Flyway, `JdbcClient` on the money path, JPA for event editing |
+| Messaging, realtime | Kafka 4 (KRaft), STOMP over WebSocket |
+| Cache | Redis 8 |
+| Security | Spring Security resource server, HS256 JWT, BCrypt |
+| Frontend | Plain HTML, CSS and JavaScript modules, served by `ledger-app`; no build step |
+| Testing | JUnit 5, AssertJ, Testcontainers, ArchUnit, jqwik, k6 |
+| Quality | Spotless, Error Prone, NullAway, JaCoCo |
+| Observability | OpenTelemetry (Spring Boot starter), Grafana LGTM |
+| Build, packaging | Gradle 9, GitHub Actions, Docker multi-stage build with AOT cache, Docker Compose |
 
 ## Repository layout
 
 | Directory | Contents |
 |---|---|
-| [`ledger-app`](ledger-app) | The main application: modules `identity`, `ticketing`, `wallet`, `ledger`, `idempotency`, `outbox`, `shared` |
-| [`notification-consumer`](notification-consumer) | Idempotent Kafka consumer with its own database |
-| [`ledger-contracts`](ledger-contracts) | Event definitions shared by producer and consumer |
-| [`build-logic`](build-logic) | Gradle convention plugins: Java setup, quality gates, the `integrationTest` source set |
-| [`Dockerfile`](Dockerfile), [`compose.yaml`](compose.yaml) | The container image of the applications, and the services to run them with |
-| [`infra`](infra) | PostgreSQL init script, Grafana dashboard definition |
-| [`perf`](perf) | k6 scenario, the script that runs the benchmark, raw results of every run |
-| [`scripts`](scripts) | Queries that check the ledger invariants, the end-to-end smoke test |
+| [`ledger-app`](ledger-app) | The main application, its modules, and the browser pages in `src/main/resources/static` |
+| [`notification-consumer`](notification-consumer) | Turns events into notifications, with its own database |
+| [`ledger-contracts`](ledger-contracts) | The event types shared by producer and consumer |
+| [`build-logic`](build-logic) | Gradle conventions: Java setup, quality gates, integration tests |
+| [`infra`](infra) | Database init script, Grafana dashboard |
+| [`perf`](perf), [`scripts`](scripts) | Load tests and their results; invariant checks, smoke test, the overselling spike |
 
-Good places to start reading the code:
+Good places to start reading:
 
-- [`V1__ledger_core.sql`](ledger-app/src/main/resources/db/migration/V1__ledger_core.sql): the ledger schema and the database-level constraints.
-- [`LedgerService`](ledger-app/src/main/java/dev/ledgerly/ledger/internal/application/LedgerService.java) and [`PostingRules`](ledger-app/src/main/java/dev/ledgerly/ledger/internal/domain/PostingRules.java): posting a transaction, with locking and I/O kept apart from the pure business rules.
-- [`IdempotencyService`](ledger-app/src/main/java/dev/ledgerly/idempotency/internal/application/IdempotencyService.java): the two phases, claiming a key and completing it.
-- [`OutboxRelay`](ledger-app/src/main/java/dev/ledgerly/outbox/internal/application/OutboxRelay.java): reads the outbox and sends to Kafka.
-- [`ConcurrentTransferIT`](ledger-app/src/integrationTest/java/dev/ledgerly/wallet/ConcurrentTransferIT.java) and [`ArchitectureTest`](ledger-app/src/test/java/dev/ledgerly/ArchitectureTest.java): the concurrency test and the module boundary test.
+- [`V1__ledger_core.sql`](ledger-app/src/main/resources/db/migration/V1__ledger_core.sql): the ledger and the rules the database enforces.
+- [`PurchaseService`](ledger-app/src/main/java/dev/ledgerly/ticketing/internal/application/PurchaseService.java): buying tickets in one transaction.
+- [`LedgerService`](ledger-app/src/main/java/dev/ledgerly/ledger/internal/application/LedgerService.java): posting a transaction with ordered locks.
+- [`IdempotencyService`](ledger-app/src/main/java/dev/ledgerly/idempotency/internal/application/IdempotencyService.java): claiming and completing a key.
+- [`ConcurrentPurchaseIT`](ledger-app/src/integrationTest/java/dev/ledgerly/ticketing/ConcurrentPurchaseIT.java): 500 buyers, 100 tickets.
 
 ## Current limitations
 
-- **Money stays inside the system.** There are no top-ups or withdrawals through a bank: money enters a wallet only through the development deposit endpoint.
-- **Anyone can create money.** The development deposit endpoint lets every user deposit into their own wallets, and anyone can sign up as an organizer, who may deposit into any wallet. Fine for a demo, not for real money.
-- **Access tokens cannot be revoked.** A leaked token works until it expires, at most one hour later. Changing the signing key logs everybody out.
-- **The default signing key is public.** It is in `application.yaml` for development. Set `LEDGERLY_SECURITY_JWT_SECRET` before running anywhere else.
-- **One currency.** Wallets can only be opened in VND.
-- **No overload protection.** Past the ceiling, requests queue up instead of being rejected early: at 2,000 requests per second some waited 7 seconds and still got a `201`.
-- **A dead database is noticed slowly.** With PostgreSQL stopped, a request waits 30 seconds for a connection and is then answered with `500`, not with a quick `503`. The application recovers by itself about 5 seconds after the database is back. Tracked in [#1](https://github.com/HoangThanhMan/ledgerly/issues/1).
-- **A killed consumer delays notifications.** After `kill -9` on `notification-consumer`, the restarted consumer got its partitions back only when the broker's 45-second session timeout had passed: 43 seconds in the test, against under 3 seconds after a graceful stop. Nothing is lost or duplicated, it is only late.
-- **No circuit breaker in front of Redis.** While Redis hangs, every request that uses it waits for the 200 ms timeout again, and orders go through without a rate limit (counted in `ledgerly.ratelimit.bypassed`).
-- **Event reads can lag.** The list is cached for 30 seconds, so an event can stay listed for up to 30 seconds after it started. An edit made while Redis did not answer shows up only when the cached copy expires, at most 30 seconds later. Purchases always check the start time in the database.
-- **Ticket counts are pushed by one instance only.** The WebSocket broker lives inside `ledger-app`, so a subscriber hears about the purchases made by the instance it is connected to. With several instances, a broker such as RabbitMQ would have to relay the messages. A client that missed a message can read the count again from `GET /v1/events/{id}`.
-- **Not deployed anywhere.** There are container images and a one-command compose setup, but no hosted demo and no images in a registry: they are built locally from source. Every measurement comes from one development machine.
+- **Demo money only.** There is no bank: money enters a wallet through the demo deposit, and anyone can sign up as an organizer.
+- **The default signing key is public.** Set `LEDGERLY_SECURITY_JWT_SECRET` outside development. Tokens cannot be revoked before they expire (one hour).
+- **One currency (VND), one instance.** The WebSocket broker lives in the process, so with several instances a watcher only hears about sales made on its own instance.
+- **No circuit breaker in front of Redis.** While Redis hangs, each request that uses it waits 200 ms, and orders are not rate-limited.
+- **Lists can lag.** The event list is cached for 30 seconds, so an event can stay listed up to 30 seconds after it starts. Purchases always check the real start time.
+- **No overload protection.** Past the ceiling, requests queue up rather than being turned away early.
+- **A killed consumer delays notifications** by up to 45 seconds, until Kafka hands its partitions back. Nothing is lost or duplicated.
+- **A stopped database is noticed slowly:** requests wait 30 seconds for a connection before failing ([#1](https://github.com/HoangThanhMan/ledgerly/issues/1)).
+- **Not deployed anywhere.** Images are built locally from source; every number comes from one development machine.
 
 ## Contributing
 
-This is a personal project, but questions, bug reports and suggestions are welcome through [Issues](https://github.com/HoangThanhMan/ledgerly/issues). For a pull request:
-
-- `./gradlew build` must pass. Run `./gradlew spotlessApply` before committing to fix formatting.
-- The PR title follows [Conventional Commits](https://www.conventionalcommits.org/), for example `fix(outbox): ...`.
-- A change in behaviour needs a test.
-
-Releases are described in the [changelog](CHANGELOG.md).
+Issues and suggestions are welcome. A pull request needs `./gradlew build` to pass (run `./gradlew spotlessApply` first) and a test for any change in behaviour. Releases are listed in the [changelog](CHANGELOG.md).
 
 ## Author
 
@@ -525,4 +435,4 @@ Releases are described in the [changelog](CHANGELOG.md).
 
 ## License
 
-The repository has no license file yet, so by default all rights are reserved by the author.
+No license file yet, so all rights are reserved by the author.
