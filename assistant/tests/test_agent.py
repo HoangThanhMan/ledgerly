@@ -138,3 +138,13 @@ def test_injected_event_name_cannot_buy(ledger, toolbox):
 
     assert len(reply.proposals) == 1
     assert orders.call_count == 0
+
+
+@pytest.mark.parametrize("text", ["", None])
+def test_empty_reply_is_replaced_and_stored_as_text(toolbox, text):
+    messages = ask("Chào")
+
+    reply = Agent(FakeLlm([say(text)])).reply(messages, toolbox)
+
+    assert reply.text == GAVE_UP
+    assert messages[-1] == {"role": "assistant", "content": GAVE_UP}

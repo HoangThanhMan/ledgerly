@@ -27,7 +27,11 @@ class LlmTurn:
 
 
 class LlmUnavailable(Exception):
-    """The model could not answer: unreachable, overloaded or out of quota."""
+    """The model could not answer. `status` is the provider's HTTP status, None when it could not be reached."""
+
+    def __init__(self, message: str, status: int | None = None):
+        super().__init__(message)
+        self.status = status
 
 
 class LlmClient(Protocol):
@@ -48,8 +52,12 @@ class OpenAICompatClient:
             response = self._client.chat.completions.create(
                 model=self._model, messages=messages, tools=tools, tool_choice="auto", temperature=0
             )
-        except (openai.APIConnectionError, openai.RateLimitError, openai.InternalServerError) as error:
+        except openai.APIConnectionError as error:
             raise LlmUnavailable(str(error)) from error
+        except openai.APIStatusError as error:
+            # 429 and 5xx after the SDK's retries, but also 400 (a tool call the provider could not parse),
+            # 413 (a conversation over the free tier's token limit), 401 or 404 (a wrong key or model name).
+            raise LlmUnavailable(str(error), error.status_code) from error
 
         choice = response.choices[0]
         calls = [

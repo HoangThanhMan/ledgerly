@@ -32,13 +32,21 @@ class Clock:
 
 
 class Unavailable:
+    def __init__(self, status=429):
+        self.status = status
+
     def complete(self, messages, tools):
-        raise LlmUnavailable("quota")
+        raise LlmUnavailable("quota", self.status)
 
 
 @pytest.fixture
 def clock():
     return Clock()
+
+
+@pytest.fixture(autouse=True)
+def signed_in(ledger):
+    ledger.get("/v1/wallets").respond(200, json={"items": [wallet_json()]})
 
 
 @pytest.fixture
@@ -144,6 +152,27 @@ def test_chat_llm_unavailable_returns_503(http, proposals):
 
     assert response.status_code == 503
     assert "quá tải" in response.json()["title"]
+
+
+@pytest.mark.parametrize(
+    ("status", "words"),
+    [(413, "quá dài"), (400, "nói lại"), (401, "cấu hình"), (404, "cấu hình"), (None, "quá tải")],
+)
+def test_llm_errors_have_vietnamese_titles(http, proposals, status, words):
+    response = chat(make_client(http, proposals, Unavailable(status)), "Chào")
+
+    assert response.status_code == 503
+    assert words in response.json()["title"]
+
+
+def test_forged_token_never_reaches_the_llm(ledger, http, proposals):
+    ledger.get("/v1/wallets").respond(401, json=problem_json(401, "unauthenticated", "Unauthenticated"))
+    llm = FakeLlm([say("Chào")])
+
+    response = chat(make_client(http, proposals, llm), "Chào")
+
+    assert response.status_code == 401
+    assert llm.requests == []
 
 
 def test_failed_turn_leaves_history_clean(http, proposals):

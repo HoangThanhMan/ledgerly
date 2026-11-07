@@ -44,6 +44,7 @@ class Agent:
         input_tokens = output_tokens = steps = 0
         tools_called: list[str] = []
         text = GAVE_UP
+        closing: dict = {"role": "assistant", "content": GAVE_UP}
 
         while steps < self._max_steps:
             turn = self._llm.complete(messages, TOOLS)
@@ -52,11 +53,13 @@ class Agent:
             output_tokens += turn.output_tokens
             if turn.finish in ("length", "content_filter"):
                 text = STOPPED
+                closing = {"role": "assistant", "content": STOPPED}
+                break
+            if not turn.tool_calls:
+                if turn.text:
+                    text, closing = turn.text, turn.message
                 break
             messages.append(turn.message)
-            if not turn.tool_calls:
-                text = turn.text or ""
-                break
             for tool_call in turn.tool_calls:
                 tools_called.append(tool_call.name)
                 messages.append(
@@ -67,8 +70,9 @@ class Agent:
                     }
                 )
 
-        if text in (GAVE_UP, STOPPED):
-            messages.append({"role": "assistant", "content": text})
+        # Every turn ends with a plain assistant message. A cut-off or empty answer is replaced by our own text:
+        # stored as is, content null would make the provider reject every later turn of the conversation.
+        messages.append(closing)
         log.info(
             "reply steps=%d tools=%s input_tokens=%d output_tokens=%d seconds=%.2f",
             steps,

@@ -22,6 +22,8 @@ from assistant.proposals import ProposalStore
 from assistant.settings import Settings
 from assistant.tools import ToolBox
 
+log = logging.getLogger(__name__)
+
 
 class ChatRequest(BaseModel):
     conversationId: str | None = None
@@ -81,11 +83,17 @@ def create_app(
     @app.post("/assistant/chat")
     def chat(request: ChatRequest, authorization: Annotated[str | None, Header()] = None):
         token, sub = _caller(authorization)
+        ledger = ledger_for(token)
+        try:
+            # The token is only decoded here, so let ledger-app verify it before it costs any LLM quota.
+            ledger.list_wallets()
+        except (LedgerError, LedgerUnavailable) as error:
+            raise _translate(error) from error
         conversation_id, messages = conversations.get_or_create(request.conversationId, sub)
         before = len(messages)
         messages.append(user_message(request.message, today()))
         try:
-            reply = agent.reply(messages, ToolBox(ledger_for(token), proposals, sub))
+            reply = agent.reply(messages, ToolBox(ledger, proposals, sub))
         except Exception as error:
             # A turn that failed half way is dropped, so the conversation stays valid for the next one.
             del messages[before:]
@@ -123,11 +131,22 @@ def create_app(
 def _translate(error: Exception) -> Exception:
     if isinstance(error, LedgerError) and error.status == 401:
         return _Problem(401, "unauthenticated", "Phiên đăng nhập đã hết hạn")
-    if isinstance(error, LedgerUnavailable):
+    if isinstance(error, LedgerUnavailable | LedgerError):
         return _Problem(502, "ledgerly-unavailable", "Không kết nối được tới Ledgerly, thử lại sau")
     if isinstance(error, LlmUnavailable):
-        return _Problem(503, "assistant-unavailable", "Trợ lý đang quá tải, thử lại sau ít phút")
+        return _llm_problem(error)
     return error
+
+
+def _llm_problem(error: LlmUnavailable) -> _Problem:
+    if error.status == 413:
+        return _Problem(503, "conversation-too-long", "Cuộc trò chuyện đã quá dài, hãy tải lại trang để bắt đầu lại")
+    if error.status == 400:
+        return _Problem(503, "assistant-failed", "Trợ lý chưa xử lý được câu này, bạn thử nói lại nhé")
+    if error.status in (401, 403, 404):
+        log.error("the LLM provider refused the configuration: %s", error)
+        return _Problem(503, "assistant-misconfigured", "Trợ lý đang bị cấu hình sai, hãy báo người quản trị")
+    return _Problem(503, "assistant-unavailable", "Trợ lý đang quá tải, thử lại sau ít phút")
 
 
 def main() -> None:

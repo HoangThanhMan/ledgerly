@@ -117,3 +117,13 @@ def test_only_llm_module_imports_openai():
         if "import openai" in path.read_text() or "from openai" in path.read_text()
     )
     assert importers == ["llm.py"]
+
+
+@pytest.mark.parametrize("status", [400, 401, 404, 413])
+def test_other_provider_errors_raise_unavailable_with_status(llm, completions, status):
+    completions.respond(status, json={"error": {"message": "nope", "code": "tool_use_failed"}})
+
+    with pytest.raises(LlmUnavailable) as error:
+        llm.complete([], [])
+
+    assert error.value.status == status

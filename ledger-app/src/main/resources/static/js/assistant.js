@@ -4,6 +4,8 @@
 import { api, formatVnd, problemMessage, requireSignIn, show } from "./api.js";
 
 const ASSISTANT = window.LEDGERLY_ASSISTANT_URL ?? `${location.protocol}//${location.hostname}:8090`;
+// Answers to a confirmation that a later press can change: in progress, rate limited, a service down.
+const RETRYABLE = new Set([409, 429, 502, 503]);
 
 export function startAssistant(main) {
   requireSignIn();
@@ -87,7 +89,12 @@ function proposalCard(proposal) {
         return;
       }
       show(status, problemMessage(response), "error");
-      button.disabled = response.status === 404;
+      // Ledgerly keeps a refusal (not enough money, sold out...) under the proposal's Idempotency-Key, so pressing
+      // again would only replay it. Only a busy or unreachable service is worth another press.
+      button.disabled = !RETRYABLE.has(response.status);
+      if (button.disabled) {
+        status.append(" Hãy nhờ trợ lý chuẩn bị một đề xuất mới.");
+      }
     } catch {
       show(status, "Không kết nối được tới trợ lý. Bấm lại để thử lần nữa: bạn sẽ không bị trừ tiền hai lần.", "error");
       button.disabled = false;
