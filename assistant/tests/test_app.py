@@ -75,12 +75,14 @@ def stored_proposal(proposals, user_sub="u1"):
         user_sub=user_sub,
         event_id="e1",
         event_name="Ledgerly Live",
+        starts_at="2027-03-01T12:00:00Z",
         ticket_class_id="tc1",
         class_name="Thường",
         wallet_id="w1",
         quantity=2,
         unit_price=300_000,
         total=600_000,
+        balance_after=400_000,
         idempotency_key="key-1",
         created_at=proposals.now(),
     )
@@ -109,7 +111,31 @@ def test_chat_returns_reply_and_proposals(ledger, http, proposals):
     assert body["conversationId"]
     assert [(p["className"], p["quantity"], p["total"]) for p in body["proposals"]] == [("VIP", 2, 200_000)]
     assert "idempotencyKey" not in body["proposals"][0]
-    assert llm.requests[0]["messages"][1]["content"] == "[Hôm nay: 2026-11-07]\nMua 2 vé VIP"
+    assert llm.requests[0]["messages"][1]["content"] == "[Hôm nay: 2026-11-07. Trả lời bằng tiếng Việt.]\nMua 2 vé VIP"
+
+
+def test_chat_passes_language(http, proposals):
+    llm = FakeLlm([say("Hello")])
+    client = make_client(http, proposals, llm)
+
+    response = client.post("/assistant/chat", json={"message": "Hi", "language": "en"}, headers=auth())
+
+    assert response.status_code == 200
+    assert llm.requests[0]["messages"][1]["content"].startswith("[Today: 2026-11-07. Reply in English.]")
+
+
+def test_problems_use_ledger_style_types(ledger, http, proposals):
+    no_token = make_client(http, proposals, FakeLlm([])).post("/assistant/chat", json={"message": "x"})
+    unavailable = chat(make_client(http, proposals, Unavailable()), "x")
+    ledger.get("/v1/wallets").mock(side_effect=httpx.ConnectError("refused"))
+    down = chat(make_client(http, proposals, FakeLlm([])), "x")
+
+    for response, slug in [
+        (no_token, "unauthenticated"),
+        (unavailable, "assistant-unavailable"),
+        (down, "ledgerly-unavailable"),
+    ]:
+        assert response.json()["type"] == f"/problems/{slug}"
 
 
 def test_chat_requires_bearer(http, proposals):
@@ -151,18 +177,24 @@ def test_chat_llm_unavailable_returns_503(http, proposals):
     response = chat(make_client(http, proposals, Unavailable()), "Chào")
 
     assert response.status_code == 503
-    assert "quá tải" in response.json()["title"]
+    assert response.json()["type"] == "/problems/assistant-unavailable"
 
 
 @pytest.mark.parametrize(
-    ("status", "words"),
-    [(413, "quá dài"), (400, "nói lại"), (401, "cấu hình"), (404, "cấu hình"), (None, "quá tải")],
+    ("status", "slug"),
+    [
+        (413, "conversation-too-long"),
+        (400, "assistant-failed"),
+        (401, "assistant-misconfigured"),
+        (404, "assistant-misconfigured"),
+        (None, "assistant-unavailable"),
+    ],
 )
-def test_llm_errors_have_vietnamese_titles(http, proposals, status, words):
+def test_llm_errors_have_their_own_types(http, proposals, status, slug):
     response = chat(make_client(http, proposals, Unavailable(status)), "Chào")
 
     assert response.status_code == 503
-    assert words in response.json()["title"]
+    assert response.json()["type"] == f"/problems/{slug}"
 
 
 def test_forged_token_never_reaches_the_llm(ledger, http, proposals):

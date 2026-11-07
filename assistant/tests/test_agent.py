@@ -21,8 +21,31 @@ def ask(text):
     return [user_message(text, "2026-11-07")]
 
 
-def test_user_message_carries_date():
-    assert user_message("Chào", "2026-11-07") == {"role": "user", "content": "[Hôm nay: 2026-11-07]\nChào"}
+def test_user_message_names_the_reply_language():
+    assert user_message("Chào", "2026-11-07") == {
+        "role": "user",
+        "content": "[Hôm nay: 2026-11-07. Trả lời bằng tiếng Việt.]\nChào",
+    }
+    assert user_message("Hi", "2026-11-07", "en") == {
+        "role": "user",
+        "content": "[Today: 2026-11-07. Reply in English.]\nHi",
+    }
+
+
+def test_fixed_replies_follow_language(ledger, toolbox):
+    ledger.get("/v1/wallets").respond(200, json={"items": []})
+    llm = FakeLlm([call((f"c{i}", "list_wallets", {})) for i in range(8)])
+
+    reply = Agent(llm).reply(ask("Wallets?"), toolbox, "en")
+    stopped = Agent(FakeLlm([say("cut", finish="length")])).reply(ask("Long"), toolbox, "en")
+
+    assert reply.text == GAVE_UP["en"]
+    assert stopped.text == STOPPED["en"]
+    assert set(GAVE_UP) == set(STOPPED) == {"vi", "en"}
+
+
+def test_system_prompt_does_not_fix_a_language():
+    assert "Always answer in Vietnamese" not in SYSTEM_PROMPT
 
 
 def test_first_message_is_system_prompt(toolbox):
@@ -115,9 +138,9 @@ def test_stops_after_max_steps(ledger, toolbox):
 
     reply = Agent(llm, max_steps=8).reply(messages, toolbox)
 
-    assert reply.text == GAVE_UP
+    assert reply.text == GAVE_UP["vi"]
     assert reply.steps == 8
-    assert messages[-1] == {"role": "assistant", "content": GAVE_UP}
+    assert messages[-1] == {"role": "assistant", "content": GAVE_UP["vi"]}
 
 
 @pytest.mark.parametrize("finish", ["length", "content_filter"])
@@ -126,8 +149,8 @@ def test_length_and_content_filter_return_fixed_message(toolbox, finish):
 
     reply = Agent(FakeLlm([say("Một đoạn bị cắt", finish=finish)])).reply(messages, toolbox)
 
-    assert reply.text == STOPPED
-    assert messages[-1] == {"role": "assistant", "content": STOPPED}
+    assert reply.text == STOPPED["vi"]
+    assert messages[-1] == {"role": "assistant", "content": STOPPED["vi"]}
 
 
 def test_injected_event_name_cannot_buy(ledger, toolbox):
@@ -146,8 +169,8 @@ def test_empty_reply_is_replaced_and_stored_as_text(toolbox, text):
 
     reply = Agent(FakeLlm([say(text)])).reply(messages, toolbox)
 
-    assert reply.text == GAVE_UP
-    assert messages[-1] == {"role": "assistant", "content": GAVE_UP}
+    assert reply.text == GAVE_UP["vi"]
+    assert messages[-1] == {"role": "assistant", "content": GAVE_UP["vi"]}
 
 
 def test_markdown_is_removed_from_replies(toolbox):

@@ -124,6 +124,15 @@ def test_propose_computes_total_and_stores(ledger, toolbox, store):
     assert toolbox.created == [proposal]
 
 
+def test_propose_reports_start_and_balance_after(ledger, toolbox):
+    args, _ = purchase_setup(ledger)
+
+    summary = run(toolbox, "propose_purchase", **args)["proposal"]
+
+    assert summary["startsAt"] == "2027-03-01T12:00:00Z"
+    assert summary["balanceAfter"] == 400_000
+
+
 @pytest.mark.parametrize(
     ("setup", "change", "message"),
     [

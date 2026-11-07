@@ -5,6 +5,7 @@ import logging
 import re
 import time
 from dataclasses import dataclass
+from typing import Literal
 
 from assistant.ledger_client import LedgerError
 from assistant.llm import LlmClient
@@ -12,8 +13,20 @@ from assistant.prompts import SYSTEM_PROMPT
 from assistant.proposals import Proposal
 from assistant.tools import TOOLS, ToolBox, ToolError
 
-GAVE_UP = "Mình chưa xử lý xong yêu cầu này, bạn thử nói cụ thể hơn nhé."
-STOPPED = "Mình không thể trả lời yêu cầu này, bạn thử hỏi cách khác nhé."
+Language = Literal["vi", "en"]
+
+GAVE_UP: dict[Language, str] = {
+    "vi": "Mình chưa xử lý xong yêu cầu này, bạn thử nói cụ thể hơn nhé.",
+    "en": "I couldn't finish that request. Could you say it more specifically?",
+}
+STOPPED: dict[Language, str] = {
+    "vi": "Mình không thể trả lời yêu cầu này, bạn thử hỏi cách khác nhé.",
+    "en": "I can't answer that request. Could you ask it another way?",
+}
+_PREFIX: dict[Language, str] = {
+    "vi": "[Hôm nay: {today}. Trả lời bằng tiếng Việt.]",
+    "en": "[Today: {today}. Reply in English.]",
+}
 
 log = logging.getLogger(__name__)
 
@@ -35,9 +48,9 @@ class AgentReply:
     steps: int
 
 
-def user_message(text: str, today: str) -> dict:
-    """The date goes in the user's message, so the system prompt never changes."""
-    return {"role": "user", "content": f"[Hôm nay: {today}]\n{text}"}
+def user_message(text: str, today: str, language: Language = "vi") -> dict:
+    """The date and the reply language go in the user's message, so the system prompt never changes."""
+    return {"role": "user", "content": _PREFIX[language].format(today=today) + "\n" + text}
 
 
 class Agent:
@@ -45,15 +58,15 @@ class Agent:
         self._llm = llm
         self._max_steps = max_steps
 
-    def reply(self, messages: list[dict], toolbox: ToolBox) -> AgentReply:
+    def reply(self, messages: list[dict], toolbox: ToolBox, language: Language = "vi") -> AgentReply:
         """Answers the last user message. Appends every turn to `messages`, which is the conversation."""
         if not messages or messages[0]["role"] != "system":
             messages.insert(0, {"role": "system", "content": SYSTEM_PROMPT})
         started = time.monotonic()
         input_tokens = output_tokens = steps = 0
         tools_called: list[str] = []
-        text = GAVE_UP
-        closing: dict = {"role": "assistant", "content": GAVE_UP}
+        text = GAVE_UP[language]
+        closing: dict = {"role": "assistant", "content": text}
 
         while steps < self._max_steps:
             turn = self._llm.complete(messages, TOOLS)
@@ -61,8 +74,8 @@ class Agent:
             input_tokens += turn.input_tokens
             output_tokens += turn.output_tokens
             if turn.finish in ("length", "content_filter"):
-                text = STOPPED
-                closing = {"role": "assistant", "content": STOPPED}
+                text = STOPPED[language]
+                closing = {"role": "assistant", "content": text}
                 break
             if not turn.tool_calls:
                 if turn.text:

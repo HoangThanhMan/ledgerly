@@ -4,7 +4,7 @@ import json
 import logging
 from collections.abc import Callable
 from datetime import date
-from typing import Annotated
+from typing import Annotated, Literal
 
 import httpx
 import uvicorn
@@ -28,6 +28,7 @@ log = logging.getLogger(__name__)
 class ChatRequest(BaseModel):
     conversationId: str | None = None
     message: Annotated[str, Field(min_length=1, max_length=2000)]
+    language: Literal["vi", "en"] = "vi"
 
 
 class _Problem(Exception):
@@ -37,7 +38,7 @@ class _Problem(Exception):
 
 def _problem(status: int, slug: str, title: str) -> JSONResponse:
     return JSONResponse(
-        {"type": f"https://ledgerly.dev/problems/{slug}", "title": title, "status": status},
+        {"type": f"/problems/{slug}", "title": title, "status": status},
         status_code=status,
         media_type="application/problem+json",
     )
@@ -46,11 +47,11 @@ def _problem(status: int, slug: str, title: str) -> JSONResponse:
 def _caller(authorization: str | None) -> tuple[str, str]:
     scheme, _, token = (authorization or "").partition(" ")
     if scheme.lower() != "bearer" or not token:
-        raise _Problem(401, "unauthenticated", "Bạn cần đăng nhập")
+        raise _Problem(401, "unauthenticated", "Sign in first")
     try:
         return token, subject_of(token)
     except ValueError as error:
-        raise _Problem(401, "unauthenticated", "Bạn cần đăng nhập") from error
+        raise _Problem(401, "unauthenticated", "Sign in first") from error
 
 
 def create_app(
@@ -91,9 +92,9 @@ def create_app(
             raise _translate(error) from error
         conversation_id, messages = conversations.get_or_create(request.conversationId, sub)
         before = len(messages)
-        messages.append(user_message(request.message, today()))
+        messages.append(user_message(request.message, today(), request.language))
         try:
-            reply = agent.reply(messages, ToolBox(ledger, proposals, sub))
+            reply = agent.reply(messages, ToolBox(ledger, proposals, sub), request.language)
         except Exception as error:
             # A turn that failed half way is dropped, so the conversation stays valid for the next one.
             del messages[before:]
@@ -109,7 +110,7 @@ def create_app(
         token, sub = _caller(authorization)
         proposal = proposals.get(proposal_id, sub)
         if proposal is None:
-            raise _Problem(404, "proposal-not-found", "Đề xuất không còn hiệu lực, hãy hỏi lại trợ lý")
+            raise _Problem(404, "proposal-not-found", "The proposal has expired")
         try:
             # The proposal's own key: confirming it again replays the first result instead of charging twice.
             outcome = ledger_for(token).create_order(
@@ -130,9 +131,9 @@ def create_app(
 
 def _translate(error: Exception) -> Exception:
     if isinstance(error, LedgerError) and error.status == 401:
-        return _Problem(401, "unauthenticated", "Phiên đăng nhập đã hết hạn")
+        return _Problem(401, "unauthenticated", "The session has expired")
     if isinstance(error, LedgerUnavailable | LedgerError):
-        return _Problem(502, "ledgerly-unavailable", "Không kết nối được tới Ledgerly, thử lại sau")
+        return _Problem(502, "ledgerly-unavailable", "Ledgerly could not be reached")
     if isinstance(error, LlmUnavailable):
         return _llm_problem(error)
     return error
@@ -140,13 +141,13 @@ def _translate(error: Exception) -> Exception:
 
 def _llm_problem(error: LlmUnavailable) -> _Problem:
     if error.status == 413:
-        return _Problem(503, "conversation-too-long", "Cuộc trò chuyện đã quá dài, hãy tải lại trang để bắt đầu lại")
+        return _Problem(503, "conversation-too-long", "The conversation is too long for the model")
     if error.status == 400:
-        return _Problem(503, "assistant-failed", "Trợ lý chưa xử lý được câu này, bạn thử nói lại nhé")
+        return _Problem(503, "assistant-failed", "The model could not handle this message")
     if error.status in (401, 403, 404):
         log.error("the LLM provider refused the configuration: %s", error)
-        return _Problem(503, "assistant-misconfigured", "Trợ lý đang bị cấu hình sai, hãy báo người quản trị")
-    return _Problem(503, "assistant-unavailable", "Trợ lý đang quá tải, thử lại sau ít phút")
+        return _Problem(503, "assistant-misconfigured", "The assistant is misconfigured")
+    return _Problem(503, "assistant-unavailable", "The assistant is busy")
 
 
 def main() -> None:

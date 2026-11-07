@@ -12,12 +12,15 @@ class Proposal:
     user_sub: str
     event_id: str
     event_name: str
+    starts_at: str
     ticket_class_id: str
     class_name: str
     wallet_id: str
     quantity: int
     unit_price: int
     total: int
+    # What the wallet would hold after this order, at the time it was proposed.
+    balance_after: int
     # Sent with every confirmation of this proposal, so confirming twice charges once.
     idempotency_key: str
     created_at: datetime
@@ -28,12 +31,14 @@ class Proposal:
             "id": self.id,
             "eventId": self.event_id,
             "eventName": self.event_name,
+            "startsAt": self.starts_at,
             "ticketClassId": self.ticket_class_id,
             "className": self.class_name,
             "walletId": self.wallet_id,
             "quantity": self.quantity,
             "unitPrice": self.unit_price,
             "total": self.total,
+            "balanceAfter": self.balance_after,
             "currency": "VND",
         }
 
