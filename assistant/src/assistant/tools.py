@@ -11,8 +11,8 @@ from assistant.ledger_client import LedgerClient
 from assistant.proposals import Proposal, ProposalStore
 
 MAX_QUANTITY = 4
-SEARCH_PAGES = 5
-SEARCH_PAGE_SIZE = 100
+SEARCH_PAGES = 10
+SEARCH_PAGE_SIZE = 50  # the most GET /v1/events accepts
 SEARCH_RESULTS = 10
 
 

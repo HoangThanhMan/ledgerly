@@ -1,5 +1,6 @@
 import json
 
+import httpx
 import pytest
 
 from assistant.ledger_client import LedgerClient
@@ -14,7 +15,7 @@ from assistant.tools import (
     ToolError,
 )
 from tests.conftest import LEDGER_URL
-from tests.factories import event_json, event_page_json, ticket_class_json, wallet_json
+from tests.factories import event_json, event_page_json, problem_json, ticket_class_json, wallet_json
 
 
 @pytest.fixture
@@ -55,16 +56,22 @@ def test_search_filters_by_text_price_and_date(ledger, toolbox):
     assert by_text["events"][0]["minPrice"] == 300_000
 
 
-def test_search_reads_at_most_five_pages_and_returns_ten(ledger, toolbox):
-    pages = ledger.get("/v1/events").mock(
-        side_effect=lambda request: __import__("httpx").Response(
-            200, json=event_page_json([event_json(f"E{i}") for i in range(100)], total=10_000)
-        )
-    )
+def test_search_pages_stay_within_the_api_limit_and_return_ten(ledger, toolbox):
+    sizes = []
+
+    def page(request):
+        size = int(request.url.params["size"])
+        sizes.append(size)
+        if not 1 <= size <= 50:  # GET /v1/events answers 400 outside 1..50
+            return httpx.Response(400, json=problem_json(400, "validation-error", "Request is not valid"))
+        return httpx.Response(200, json=event_page_json([event_json(f"E{i}") for i in range(size)], total=10_000))
+
+    ledger.get("/v1/events").mock(side_effect=page)
 
     result = run(toolbox, "search_events", **search_args())
 
-    assert pages.call_count == 5
+    assert len(sizes) == 10
+    assert set(sizes) == {50}
     assert len(result["events"]) == 10
     assert result["matches"] == 500
 
