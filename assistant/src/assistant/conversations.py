@@ -23,6 +23,8 @@ class Conversation:
     messages: list[dict] = field(default_factory=list)
     # What the page shows: {"role": "user" | "assistant", "text": ..., "proposalIds": [...]}.
     transcript: list[dict] = field(default_factory=list)
+    # True once the user named the conversation.
+    renamed: bool = False
 
 
 def _utc_now() -> datetime:
@@ -56,8 +58,10 @@ class ConversationStore:
             first = next((t["text"] for t in conversation.transcript if t["role"] == "user"), "")
             conversation.title = _shorten(first)
         self._db.execute(
-            "INSERT OR REPLACE INTO conversations (id, user_sub, title, messages, transcript, created_at, updated_at)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO conversations (id, user_sub, title, messages, transcript, created_at, updated_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO UPDATE SET"
+            " title = CASE WHEN renamed = 1 THEN title ELSE excluded.title END,"
+            " messages = excluded.messages, transcript = excluded.transcript, updated_at = excluded.updated_at",
             (
                 conversation.id,
                 conversation.user_sub,
@@ -82,6 +86,14 @@ class ConversationStore:
             "SELECT * FROM conversations WHERE user_sub = ? ORDER BY updated_at DESC LIMIT ?", (user_sub, limit)
         )
         return [_from_row(row) for row in rows]
+
+    def rename(self, conversation_id: str, user_sub: str, title: str) -> bool:
+        """Names the user's conversation. Its place in the history does not change. False when it is not theirs."""
+        rows = self._db.execute(
+            "UPDATE conversations SET title = ?, renamed = 1 WHERE id = ? AND user_sub = ? RETURNING id",
+            (title, conversation_id, user_sub),
+        )
+        return bool(rows)
 
     def delete(self, conversation_id: str, user_sub: str) -> bool:
         """Deletes the user's conversation. False when there is none of theirs with that id."""
@@ -120,4 +132,5 @@ def _from_row(row) -> Conversation:
         updated_at=datetime.fromisoformat(row["updated_at"]),
         messages=json.loads(row["messages"]),
         transcript=json.loads(row["transcript"]),
+        renamed=bool(row["renamed"]),
     )

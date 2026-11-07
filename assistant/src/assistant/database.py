@@ -20,7 +20,8 @@ CREATE TABLE IF NOT EXISTS conversations (
     messages    TEXT NOT NULL,              -- what the model is sent, as JSON
     transcript  TEXT NOT NULL,              -- what the page shows, as JSON
     created_at  TEXT NOT NULL,
-    updated_at  TEXT NOT NULL
+    updated_at  TEXT NOT NULL,
+    renamed     INTEGER NOT NULL DEFAULT 0  -- 1 once the user named it: its title is then never replaced
 );
 CREATE INDEX IF NOT EXISTS conversations_by_user ON conversations (user_sub, updated_at);
 """
@@ -34,6 +35,10 @@ class Database:
         self._lock = Lock()
         with self._lock:
             self._connection.executescript(_SCHEMA)
+            # Files made before conversations could be renamed lack the column.
+            columns = {row["name"] for row in self._connection.execute("PRAGMA table_info(conversations)")}
+            if "renamed" not in columns:
+                self._connection.execute("ALTER TABLE conversations ADD COLUMN renamed INTEGER NOT NULL DEFAULT 0")
 
     def execute(self, sql: str, params: tuple = ()) -> list[sqlite3.Row]:
         with self._lock:

@@ -11,7 +11,7 @@ import uvicorn
 from fastapi import FastAPI, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StringConstraints
 
 from assistant.agent import Agent, user_message
 from assistant.auth import subject_of
@@ -21,9 +21,14 @@ from assistant.ledger_client import LedgerClient, LedgerError, LedgerUnavailable
 from assistant.llm import LlmClient, LlmUnavailable, OpenAICompatClient
 from assistant.proposals import ProposalStore
 from assistant.settings import Settings
+from assistant.titles import TitleWriter
 from assistant.tools import ToolBox
 
 log = logging.getLogger(__name__)
+
+
+class RenameRequest(BaseModel):
+    title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)]
 
 
 class ChatRequest(BaseModel):
@@ -62,7 +67,10 @@ def create_app(
     proposals: ProposalStore | None = None,
     conversations: ConversationStore | None = None,
     today: Callable[[], str] = lambda: date.today().isoformat(),
+    titles: Callable[[str, str, str], str | None] | None = None,
 ) -> FastAPI:
+    # Names a new conversation from its first question and answer; None leaves the shortened question.
+    titles = titles or TitleWriter(llm)
     if proposals is None or conversations is None:
         db = Database(settings.database_path)
         proposals = proposals or ProposalStore(db)
@@ -72,7 +80,7 @@ def create_app(
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[settings.allowed_origin],
-        allow_methods=["GET", "POST", "DELETE"],
+        allow_methods=["GET", "POST", "PATCH", "DELETE"],
         allow_headers=["Authorization", "Content-Type"],
         expose_headers=["Retry-After"],
     )
@@ -105,6 +113,8 @@ def create_app(
             except Exception as error:
                 # Nothing is saved: a turn that failed half way is dropped, so the conversation stays valid.
                 raise _translate(error) from error
+            if not conversation.transcript and not conversation.renamed:
+                conversation.title = titles(request.message, reply.text, request.language) or ""
             conversation.transcript.append({"role": "user", "text": request.message, "proposalIds": []})
             conversation.transcript.append(
                 {"role": "assistant", "text": reply.text, "proposalIds": [p.id for p in reply.proposals]}
@@ -114,6 +124,7 @@ def create_app(
             conversations.end(conversation.id)
         return {
             "conversationId": conversation.id,
+            "title": conversation.title,
             "reply": reply.text,
             "proposals": [{**p.summary(), "status": "open"} for p in reply.proposals],
         }
@@ -145,6 +156,15 @@ def create_app(
                 for entry in conversation.transcript
             ],
         }
+
+    @app.patch("/assistant/conversations/{conversation_id}")
+    def rename_conversation(
+        conversation_id: str, request: RenameRequest, authorization: Annotated[str | None, Header()] = None
+    ):
+        _, sub = verified(authorization)
+        if not conversations.rename(conversation_id, sub, request.title):
+            raise _Problem(404, "conversation-not-found", "No such conversation")
+        return {"id": conversation_id, "title": request.title}
 
     @app.delete("/assistant/conversations/{conversation_id}", status_code=204)
     def delete_conversation(conversation_id: str, authorization: Annotated[str | None, Header()] = None):

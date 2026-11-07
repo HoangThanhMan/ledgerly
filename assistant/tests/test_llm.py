@@ -131,3 +131,13 @@ def test_other_provider_errors_raise_unavailable_with_status(llm, completions, s
 
 def test_timeout_is_configurable():
     assert OpenAICompatClient(BASE_URL, "k", "m", timeout=300)._client.timeout == 300
+
+
+def test_no_tools_sends_no_tool_fields(llm, completions):
+    completions.respond(200, json=completion({"content": "Sự kiện phần mềm"}))
+
+    llm.complete([{"role": "user", "content": "x"}], [])
+
+    body = json.loads(completions.requests[-1].content)
+    assert "tools" not in body
+    assert "tool_choice" not in body

@@ -111,7 +111,7 @@ async function loadHistory(root) {
         closeHistory(root);
       });
       const li = element("li", "history-item");
-      li.append(link, itemMenu(root, item));
+      li.append(link, itemMenu(root, item, li));
       ul.append(li);
     }
     sections.push(heading, ul);
@@ -133,11 +133,13 @@ function startNew(root) {
 
 const ICON_MORE =
   '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>';
+const ICON_PENCIL =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
 const ICON_TRASH =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>';
 
-/** The "⋯" button of a history item, and the menu it opens. */
-function itemMenu(root, item) {
+/** The "⋯" button of a history item, and the menu it opens: rename or delete. */
+function itemMenu(root, item, li) {
   const box = element("div", "history-more");
   const button = element("button", "icon-button");
   button.type = "button";
@@ -148,12 +150,17 @@ function itemMenu(root, item) {
   const menu = element("div", "history-menu");
   menu.setAttribute("role", "menu");
   menu.hidden = true;
+  const rename = element("button", "history-menu-item");
+  rename.type = "button";
+  rename.setAttribute("role", "menuitem");
+  rename.innerHTML = ICON_PENCIL;
+  rename.append(element("span", "", t("assistant.rename")));
   const remove = element("button", "history-menu-item danger-text");
   remove.type = "button";
   remove.setAttribute("role", "menuitem");
   remove.innerHTML = ICON_TRASH;
   remove.append(element("span", "", t("assistant.delete")));
-  menu.append(remove);
+  menu.append(rename, remove);
   box.append(button, menu);
 
   button.addEventListener("click", (event) => {
@@ -163,14 +170,66 @@ function itemMenu(root, item) {
     menu.hidden = !open;
     button.setAttribute("aria-expanded", String(open));
     if (open) {
-      remove.focus();
+      rename.focus();
     }
+  });
+  rename.addEventListener("click", () => {
+    closeMenus();
+    startRename(item, li, button);
   });
   remove.addEventListener("click", () => {
     closeMenus();
     confirmDelete(root, item, button);
   });
   return box;
+}
+
+/** Turns the item's name into a field: Enter or leaving it saves, Escape keeps the old name. */
+function startRename(item, li, button) {
+  const link = li.querySelector("a");
+  const input = element("input", "history-rename");
+  input.value = item.title;
+  input.maxLength = 60;
+  input.setAttribute("aria-label", t("assistant.renameLabel"));
+  link.hidden = true;
+  li.insertBefore(input, link);
+  input.focus();
+  input.select();
+  let finished = false;
+  const finish = async (save) => {
+    if (finished) {
+      return;
+    }
+    finished = true;
+    const title = input.value.trim();
+    input.remove();
+    link.hidden = false;
+    button.focus();
+    if (!save || !title || title === item.title) {
+      return;
+    }
+    link.textContent = title; // shown at once, put back if the assistant refuses it
+    const response = await call("PATCH", `/assistant/conversations/${encodeURIComponent(item.id)}`, { title });
+    if (response?.status === 200) {
+      item.title = response.body.title;
+      button.setAttribute("aria-label", t("assistant.more", { title: item.title }));
+    } else {
+      show(document.querySelector("[data-message]"), failure(response), "error");
+    }
+    link.textContent = item.title;
+  };
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      finish(true);
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      finish(false);
+    }
+  });
+  input.addEventListener("blur", () => finish(true));
+  input.addEventListener("click", (event) => event.stopPropagation());
 }
 
 function closeMenus() {

@@ -56,6 +56,8 @@ def proposals(clock):
 
 
 def make_client(http, proposals, llm, **kwargs):
+    # Titles are written by the model too; tests that are not about them keep the plain fallback.
+    kwargs.setdefault("titles", lambda question, answer, language: None)
     app = create_app(SETTINGS, llm, http, proposals=proposals, today=lambda: "2026-11-07", **kwargs)
     return TestClient(app)
 
@@ -553,3 +555,62 @@ def test_cors_allows_delete(http, proposals):
     )
 
     assert "DELETE" in preflight.headers["access-control-allow-methods"]
+
+
+def test_new_conversation_gets_a_written_title(http, proposals):
+    from assistant.titles import TitleWriter
+
+    llm = FakeLlm([say("Có 7 sự kiện sắp tới."), say("Sự kiện sắp tới"), say("Còn nữa.")])
+    client = make_client(http, proposals, llm, titles=TitleWriter(llm), conversations=ConversationStore())
+
+    first = chat(client, "Có những sự kiện nào sắp diễn ra trong vài tháng tới vậy?").json()
+    second = chat(client, "Còn gì nữa?", first["conversationId"]).json()
+
+    assert first["title"] == "Sự kiện sắp tới"
+    assert second["title"] == "Sự kiện sắp tới"
+    assert len(llm.requests) == 3  # no new title for later turns
+    assert history(client).json()["items"][0]["title"] == "Sự kiện sắp tới"
+
+
+def test_title_falls_back_to_the_question(http, proposals):
+    client = make_client(http, proposals, FakeLlm([say("Chào")]))
+
+    body = chat(client, "Mua 2 vé hạng B Ledgerly Live").json()
+
+    assert body["title"] == "Mua 2 vé hạng B Ledgerly Live"
+
+
+def rename(client, conversation_id, title, sub="u1"):
+    return client.patch(f"/assistant/conversations/{conversation_id}", json={"title": title}, headers=auth(sub))
+
+
+def test_rename_conversation(ledger, http, proposals):
+    conversations = ConversationStore()
+    client, cid, _ = propose(ledger, http, proposals, conversations)
+
+    response = rename(client, cid, "  Vé VIP cho nhóm  ")
+
+    assert response.status_code == 200
+    assert response.json()["title"] == "Vé VIP cho nhóm"
+    assert history(client).json()["items"][0]["title"] == "Vé VIP cho nhóm"
+    assert conversations.find(cid, "u1").renamed is True
+
+
+@pytest.mark.parametrize("title", ["", "   ", "x" * 61])
+def test_rename_rejects_bad_titles(ledger, http, proposals, title):
+    client, cid, _ = propose(ledger, http, proposals, ConversationStore())
+
+    assert rename(client, cid, title).status_code == 422
+
+
+def test_rename_other_users_conversation_is_404(ledger, http, proposals):
+    client, cid, _ = propose(ledger, http, proposals, ConversationStore())
+
+    assert rename(client, cid, "x", sub="u2").status_code == 404
+
+
+def test_rename_requires_a_verified_token(ledger, http, proposals):
+    client, cid, _ = propose(ledger, http, proposals, ConversationStore())
+    ledger.get("/v1/wallets").respond(401, json=problem_json(401, "unauthenticated", "Unauthenticated"))
+
+    assert rename(client, cid, "x").status_code == 401

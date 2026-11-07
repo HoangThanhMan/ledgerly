@@ -84,3 +84,24 @@ def test_delete_removes_only_the_users_own_conversation():
     assert store.delete(mine.id, "u1") is True
     assert store.find(mine.id, "u1") is None
     assert store.delete(mine.id, "u1") is False
+
+
+def test_rename_marks_the_title_and_keeps_the_order():
+    clock = Clock()
+    store = ConversationStore(clock=clock)
+    first = store.get_or_create(None, "u1")
+    store.save(first)
+    clock.now += timedelta(minutes=1)
+    second = store.get_or_create(None, "u1")
+    store.save(second)
+    clock.now += timedelta(minutes=1)
+
+    assert store.rename(first.id, "u2", "x") is False
+    assert store.rename(first.id, "u1", "Vé jazz") is True
+
+    renamed = store.find(first.id, "u1")
+    assert (renamed.title, renamed.renamed) == ("Vé jazz", True)
+    assert [c.id for c in store.recent("u1")] == [second.id, first.id]
+    renamed.title = "auto"
+    store.save(renamed)
+    assert store.find(first.id, "u1").renamed is True

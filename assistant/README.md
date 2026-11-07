@@ -15,8 +15,9 @@ uv run --env-file .env assistant   # http://localhost:8090, next to ledger-app o
 `POST /assistant/proposals/{id}/confirm` buys a proposal and passes Ledgerly's answer through unchanged; its final
 answer (bought or refused) is kept, so confirming again returns it without asking Ledgerly twice.
 `GET /assistant/conversations` lists the caller's conversations, and `GET /assistant/conversations/{id}` returns one
-with the current state of each proposal (`open`, `confirmed`, `refused` or `expired`). `DELETE /assistant/conversations/{id}`
-deletes one. Chat takes `"language": "vi"`
+with the current state of each proposal (`open`, `confirmed`, `refused` or `expired`). `PATCH /assistant/conversations/{id}`
+renames one (`{"title": "..."}`, at most 60 characters) and `DELETE` deletes it. A new conversation is named
+by the model from its first question and answer (one short extra request); a name the user gave is never replaced. Chat takes `"language": "vi"`
 or `"en"`. Every request is checked with ledger-app first, using the caller's own token.
 
 Conversations and proposals are kept for 30 days in a SQLite file (`ASSISTANT_DB_PATH`); only the last ten turns of a
