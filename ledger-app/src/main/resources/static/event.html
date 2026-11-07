@@ -3,9 +3,23 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script>
+      // Theme and language before anything is drawn, so the page does not flash. ?theme= and ?lang= are for screenshots.
+      (() => {
+        const root = document.documentElement;
+        const asked = new URLSearchParams(location.search);
+        try {
+          const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+          root.dataset.theme = asked.get("theme") || localStorage.getItem("theme") || (dark ? "dark" : "light");
+          root.lang = (asked.get("lang") || localStorage.getItem("lang")) === "en" ? "en" : "vi";
+        } catch {
+          root.dataset.theme = "light";
+        }
+      })();
+    </script>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect x=%222%22 y=%228%22 width=%2228%22 height=%2216%22 rx=%223%22 fill=%22%235b2a86%22/%3E%3Ccircle cx=%2222%22 cy=%228%22 r=%223%22 fill=%22%23f6eef2%22/%3E%3Ccircle cx=%2222%22 cy=%2224%22 r=%223%22 fill=%22%23f6eef2%22/%3E%3C/svg%3E">
     <link rel="stylesheet" href="css/app.css">
-    <title>Sự kiện – TicketBox</title>
+    <title>Sự kiện – Ledgerly</title>
     <script src="vendor/stomp.umd.min.js"></script>
   </head>
   <body>

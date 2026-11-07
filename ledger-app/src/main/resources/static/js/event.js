@@ -20,7 +20,7 @@ export async function showEvent(root) {
     return;
   }
   const event = response.body;
-  document.title = `${event.name} – TicketBox`;
+  document.title = `${event.name} – Ledgerly`;
   root.querySelector("[data-name]").textContent = event.name;
   root.querySelector("[data-starts-at]").textContent = formatDateTime(event.startsAt);
   root.querySelector("[data-starts-at]").dateTime = event.startsAt;
