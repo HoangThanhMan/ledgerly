@@ -29,5 +29,12 @@ The first run found a real bug: models send dates as timestamps (`2027-04-01T00:
 against the schema before the service sees them, so `format: date` turned two cases into provider errors. The date
 arguments are now plain strings in the schema and are cut to their date part when validated.
 
+A first end-to-end run against the real ledger-app showed the model writing "Đặt hàng thành công" (order succeeded)
+after only preparing a proposal, and replying in Markdown, which the page shows as raw asterisks. The grader now fails
+a reply that claims a purchase or uses Markdown, the prompt says so, and the service strips Markdown emphasis from
+replies. With the stricter grader and before the stripping, `gpt-oss-120b` passed 12/15: no purchase claims, two
+Markdown replies (now stripped), and `buy-no-accents`, where the model narrowed its own search to the next month and
+missed the event; that case passed in the run above, so it varies from run to run.
+
 `qwen2:7b` on Ollama was also tried. It calls tools, but on a laptop with a 4 GB GPU it read prompts at about 5 tokens
 per second, several minutes per answer, so it was not run through the cases.

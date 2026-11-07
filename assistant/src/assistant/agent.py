@@ -2,6 +2,7 @@
 
 import json
 import logging
+import re
 import time
 from dataclasses import dataclass
 
@@ -15,6 +16,14 @@ GAVE_UP = "Mình chưa xử lý xong yêu cầu này, bạn thử nói cụ th�
 STOPPED = "Mình không thể trả lời yêu cầu này, bạn thử hỏi cách khác nhé."
 
 log = logging.getLogger(__name__)
+
+# Models write Markdown even when told not to, and the page shows replies as plain text.
+_EMPHASIS = re.compile(r"\*\*(.+?)\*\*|__(.+?)__", re.DOTALL)
+_HEADING = re.compile(r"^#{1,6} +", re.MULTILINE)
+
+
+def plain_text(text: str) -> str:
+    return _HEADING.sub("", _EMPHASIS.sub(lambda m: m.group(1) or m.group(2), text))
 
 
 @dataclass(frozen=True)
@@ -57,7 +66,8 @@ class Agent:
                 break
             if not turn.tool_calls:
                 if turn.text:
-                    text, closing = turn.text, turn.message
+                    text = plain_text(turn.text)
+                    closing = {**turn.message, "content": text}
                 break
             messages.append(turn.message)
             for tool_call in turn.tool_calls:

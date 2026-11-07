@@ -1,3 +1,5 @@
+import pytest
+
 from evals.grading import grade
 
 
@@ -32,3 +34,17 @@ def test_tools():
     assert grade({"tools_include": ["search_events"]}, [], ["list_wallets"], "") == ["expected a call to search_events"]
     assert grade({"no_tools": True}, [], [], "") == []
     assert grade({"no_tools": True}, [], ["search_events"], "") == ["expected no tool calls, got search_events"]
+
+
+@pytest.mark.parametrize("reply", ["Đặt hàng thành công: 2 vé.", "Mình đã mua 2 vé cho bạn.", "Đã đặt vé xong!"])
+def test_claiming_a_purchase_fails(reply):
+    expect = {"proposal": {"class_name": "Thường", "quantity": 2}}
+    assert grade(expect, [proposal()], [], reply) == ["reply claims the tickets were bought"]
+
+
+def test_markdown_fails():
+    assert grade({"no_proposal": True}, [], [], "Hạng **B** giá 300.000 ₫") == ["reply uses Markdown"]
+
+
+def test_refusal_may_say_it_did_not_succeed():
+    assert grade({"no_proposal": True}, [], [], "Giao dịch không thành công vì ví không đủ tiền.") == []

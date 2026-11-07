@@ -148,3 +148,14 @@ def test_empty_reply_is_replaced_and_stored_as_text(toolbox, text):
 
     assert reply.text == GAVE_UP
     assert messages[-1] == {"role": "assistant", "content": GAVE_UP}
+
+
+def test_markdown_is_removed_from_replies(toolbox):
+    messages = ask("Hạng vé?")
+
+    reply = Agent(FakeLlm([say("## Hạng vé\nHạng **B** giá __300.000 ₫__, nhấn **Xác nhận mua**.")])).reply(
+        messages, toolbox
+    )
+
+    assert reply.text == "Hạng vé\nHạng B giá 300.000 ₫, nhấn Xác nhận mua."
+    assert messages[-1] == {"role": "assistant", "content": reply.text}

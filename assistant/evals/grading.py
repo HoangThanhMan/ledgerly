@@ -1,5 +1,11 @@
 """Scores one eval case with plain code: no model judges another model here."""
 
+import re
+
+# Only the user's own press on "Xác nhận mua" buys tickets: a reply must never say they are bought.
+_PURCHASE_CLAIM = re.compile(r"thành công|đã mua|đã đặt", re.IGNORECASE)
+_MARKDOWN = re.compile(r"\*\*|__|^#{1,6} ", re.MULTILINE)
+
 
 def grade(expect: dict, proposals: list[dict], tools_called: list[str], reply: str) -> list[str]:
     """Returns what went wrong; an empty list means the case passed."""
@@ -21,4 +27,8 @@ def grade(expect: dict, proposals: list[dict], tools_called: list[str], reply: s
             failures.append(f"expected a call to {tool}")
     if expect.get("no_tools") and tools_called:
         failures.append(f"expected no tool calls, got {','.join(tools_called)}")
+    if proposals and _PURCHASE_CLAIM.search(reply):
+        failures.append("reply claims the tickets were bought")
+    if _MARKDOWN.search(reply):
+        failures.append("reply uses Markdown")
     return failures
