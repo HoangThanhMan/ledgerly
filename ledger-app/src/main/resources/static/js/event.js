@@ -2,6 +2,8 @@
 
 import { api, formatDateTime, formatVnd, newKey, problemMessage, show, token } from "./api.js";
 import { escapeHtml } from "./auth.js";
+import { t } from "./i18n.js";
+import { posterElement } from "./poster.js";
 
 const LOW = 0.1;
 
@@ -16,11 +18,12 @@ export async function showEvent(root) {
   const response = id ? await api("GET", `/v1/events/${encodeURIComponent(id)}`) : { status: 404, body: null };
   if (response.status !== 200) {
     root.querySelector("[data-event]").hidden = true;
-    show(message, response.status === 404 ? "Không tìm thấy sự kiện này." : problemMessage(response), "error");
+    show(message, response.status === 404 ? t("problem.event-not-found") : problemMessage(response), "error");
     return;
   }
   const event = response.body;
-  document.title = `${event.name} – Ledgerly`;
+  document.title = t("title.event", { name: event.name });
+  root.querySelector("[data-banner]").prepend(posterElement(event, "banner"));
   root.querySelector("[data-name]").textContent = event.name;
   root.querySelector("[data-starts-at]").textContent = formatDateTime(event.startsAt);
   root.querySelector("[data-starts-at]").dateTime = event.startsAt;
@@ -44,11 +47,11 @@ function stub(ticketClass) {
     <li class="stub" data-class="${ticketClass.id}">
       <div class="stub-main">
         <h3 class="stub-name">${escapeHtml(ticketClass.name)}</h3>
-        <span class="stub-price">${formatVnd(ticketClass.price)} <span class="muted small">một vé</span></span>
+        <span class="stub-price">${formatVnd(ticketClass.price)} <span class="muted small">${escapeHtml(t("event.perTicket"))}</span></span>
       </div>
       <div class="stub-tear" aria-live="polite">
         <span class="stub-count"></span>
-        <span class="stub-of">còn lại / ${ticketClass.totalQty}</span>
+        <span class="stub-of">${escapeHtml(t("event.leftOf", { total: ticketClass.totalQty }))}</span>
       </div>
     </li>`;
 }
@@ -59,7 +62,7 @@ function render(id, remaining, stamped) {
   ticketClass.remaining = remaining;
   const element = ticketClass.element;
   const count = element.querySelector(".stub-count");
-  count.textContent = remaining === 0 ? "Hết vé" : String(remaining);
+  count.textContent = remaining === 0 ? t("event.soldOut") : String(remaining);
   count.classList.toggle("is-long", remaining >= 1000);
   element.classList.toggle("is-sold-out", remaining === 0);
   element.classList.toggle("is-low", remaining > 0 && remaining <= ticketClass.totalQty * LOW);
@@ -85,7 +88,7 @@ function watch(eventId, indicator) {
   let connectedBefore = false;
   client.onConnect = async () => {
     indicator.classList.add("is-on");
-    indicator.textContent = "Số vé cập nhật trực tiếp";
+    indicator.textContent = t("event.live");
     for (const id of classes.keys()) {
       client.subscribe(`/topic/ticket-classes/${id}`, (frame) => {
         const { remaining } = JSON.parse(frame.body);
@@ -107,24 +110,25 @@ function watch(eventId, indicator) {
   };
   client.onWebSocketClose = () => {
     indicator.classList.remove("is-on");
-    indicator.textContent = "Mất kết nối, đang thử lại…";
+    indicator.textContent = t("event.reconnecting");
   };
   client.activate();
 }
 
 function optionLabel(ticketClass) {
-  const left = ticketClass.remaining === 0 ? "hết vé" : `còn ${ticketClass.remaining}`;
-  return `${ticketClass.name}, ${formatVnd(ticketClass.price)} (${left})`;
+  const left =
+    ticketClass.remaining === 0 ? t("event.optionSoldOut") : t("event.optionLeft", { count: ticketClass.remaining });
+  return t("event.option", { name: ticketClass.name, price: formatVnd(ticketClass.price), left });
 }
 
 async function setUpOrderForm(panel) {
   if (!token()) {
     panel.innerHTML = `
-      <h2>Mua vé</h2>
-      <p>Đăng nhập để mua vé bằng ví của bạn.</p>
+      <h2>${escapeHtml(t("event.buy"))}</h2>
+      <p>${escapeHtml(t("event.signInToBuy"))}</p>
       <div class="actions"><a class="button" href="login.html?next=${encodeURIComponent(
         location.pathname + location.search,
-      )}">Đăng nhập</a></div>`;
+      )}">${escapeHtml(t("nav.signIn"))}</a></div>`;
     return;
   }
   const form = panel.querySelector("form");
@@ -161,17 +165,22 @@ async function setUpOrderForm(panel) {
 async function send(form, message, resend) {
   const buttons = [form.querySelector("button[type=submit]"), resend];
   buttons.forEach((button) => (button.disabled = true));
-  show(message, "Đang gửi…");
+  show(message, t("event.sending"));
   try {
     const response = await api("POST", "/v1/orders", { body: lastOrder.body, idempotencyKey: lastOrder.key });
     const replayed = response.headers.get("Idempotent-Replayed") === "true";
-    const prefix = replayed ? "Đã trả lại kết quả cũ, không mua thêm. " : "";
+    const prefix = replayed ? t("event.replayed") + " " : "";
     if (response.status === 201) {
       const order = response.body;
       const ticketClass = classes.get(order.ticketClassId);
       show(
         message,
-        `${prefix}Đã mua ${order.quantity} vé ${ticketClass ? ticketClass.name : ""}, trả ${formatVnd(order.amount)}.`,
+        prefix +
+          t("event.bought", {
+            quantity: order.quantity,
+            name: ticketClass ? ticketClass.name : "",
+            amount: formatVnd(order.amount),
+          }),
         "ok",
       );
     } else {
@@ -179,7 +188,7 @@ async function send(form, message, resend) {
     }
     await loadWallets(form.wallet);
   } catch {
-    show(message, "Không gửi được: mất kết nối tới máy chủ. Bấm “Gửi lại (cùng key)” để thử lại an toàn.", "error");
+    show(message, t("event.sendFailed"), "error");
   } finally {
     buttons.forEach((button) => (button.disabled = false));
     resend.hidden = false;
@@ -201,7 +210,7 @@ async function loadWallets(select, panel) {
   }
   const chosen = select.value;
   select.innerHTML = wallets
-    .map((w) => `<option value="${w.id}">Ví …${w.id.slice(-4)}: ${formatVnd(w.balance)}</option>`)
+    .map((w) => `<option value="${w.id}">${escapeHtml(t("event.walletOption", { tail: w.id.slice(-4), balance: formatVnd(w.balance) }))}</option>`)
     .join("");
   if (chosen) {
     select.value = chosen;

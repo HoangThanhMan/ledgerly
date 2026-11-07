@@ -27,26 +27,28 @@
     <main>
       <div role="alert" class="notice" data-page-message></div>
       <div data-event>
-        <div class="page-head">
-          <p><a href="events.html">Tất cả sự kiện</a></p>
-          <h1 data-name></h1>
-          <p class="lead"><time data-starts-at></time></p>
-          <p class="live" data-live>Đang kết nối…</p>
+        <p class="back"><a href="events.html" data-i18n="event.all"></a></p>
+        <div class="event-banner" data-banner>
+          <div class="poster-caption">
+            <h1 data-name></h1>
+            <p><time data-starts-at></time></p>
+          </div>
         </div>
+        <p class="live event-live" data-live data-i18n="event.connecting"></p>
         <div class="event-layout">
           <section aria-labelledby="classes-title">
-            <h2 id="classes-title" class="visually-hidden">Hạng vé</h2>
+            <h2 id="classes-title" class="visually-hidden" data-i18n="event.classes"></h2>
             <ul class="stubs" data-stubs></ul>
           </section>
-          <section class="panel" aria-labelledby="order-title" data-order>
-            <h2 id="order-title">Mua vé</h2>
+          <section class="panel order-panel" aria-labelledby="order-title" data-order>
+            <h2 id="order-title" data-i18n="event.buy"></h2>
             <form class="form" novalidate>
               <div class="field">
-                <label for="ticketClass">Hạng vé</label>
+                <label for="ticketClass" data-i18n="event.class"></label>
                 <select id="ticketClass" name="ticketClass"></select>
               </div>
               <div class="field">
-                <label for="quantity">Số lượng</label>
+                <label for="quantity" data-i18n="event.quantity"></label>
                 <select id="quantity" name="quantity">
                   <option>1</option>
                   <option>2</option>
@@ -55,15 +57,15 @@
                 </select>
               </div>
               <div class="field">
-                <label for="wallet">Trả bằng ví</label>
+                <label for="wallet" data-i18n="event.wallet"></label>
                 <select id="wallet" name="wallet"></select>
               </div>
               <div class="actions">
-                <button class="button" type="submit">Mua</button>
-                <button class="button quiet" type="button" data-resend hidden>Gửi lại (cùng key)</button>
+                <button class="button" type="submit" data-i18n="event.submit"></button>
+                <button class="button quiet" type="button" data-resend hidden data-i18n="event.resend"></button>
               </div>
             </form>
-            <p data-no-wallet hidden>Bạn chưa có ví. <a href="wallet.html">Mở ví và nạp tiền</a> để mua vé.</p>
+            <p data-no-wallet hidden><span data-i18n="event.noWallet"></span> <a href="wallet.html" data-i18n="event.openWallet"></a>.</p>
             <div role="status" class="notice" data-message></div>
           </section>
         </div>
@@ -72,7 +74,9 @@
     <script type="module">
       import { renderTopbar } from "./js/auth.js";
       import { showEvent } from "./js/event.js";
+      import { translatePage } from "./js/i18n.js";
 
+      translatePage();
       renderTopbar();
       showEvent(document.querySelector("main"));
     </script>
