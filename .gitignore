@@ -44,3 +44,9 @@ Thumbs.db
 
 # jqwik: failed samples kept between runs
 .jqwik-database
+
+### Python ###
+__pycache__/
+.venv/
+.pytest_cache/
+.ruff_cache/
