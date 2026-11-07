@@ -31,7 +31,7 @@ export async function startAssistant(root) {
     closeHistory(root);
     input.focus();
   });
-  setUpHistoryDrawer(root);
+  setUpSidebar(root);
   showSuggestions(root, (text) => send(root, text));
 
   form.addEventListener("submit", (event) => {
@@ -159,32 +159,63 @@ async function openConversation(root, id) {
   turns.lastElementChild?.scrollIntoView({ block: "end" });
 }
 
-function setUpHistoryDrawer(root) {
-  const button = root.querySelector("[data-history-toggle]");
-  const drawer = root.querySelector("[data-history]");
-  button.addEventListener("click", (event) => {
-    event.stopPropagation();
-    const open = !root.classList.contains("is-history-open");
-    root.classList.toggle("is-history-open", open);
-    button.setAttribute("aria-expanded", String(open));
-  });
-  // On narrow screens the history is a drawer over the chat: a click beside it or Escape closes it.
-  document.addEventListener("click", (event) => {
-    if (root.classList.contains("is-history-open") && !drawer.contains(event.target)) {
-      closeHistory(root);
+// The sidebar. On wide screens it can be collapsed to a narrow rail, and that choice is remembered; on narrow
+// screens it is a drawer over the chat.
+
+const SIDEBAR = "assistantSidebar";
+
+function storedSidebar() {
+  try {
+    return localStorage.getItem(SIDEBAR);
+  } catch {
+    return null;
+  }
+}
+
+function setUpSidebar(root) {
+  const collapse = root.querySelector("[data-collapse]");
+  const open = root.querySelector("[data-open]");
+  const apply = (collapsed) => {
+    root.classList.toggle("is-collapsed", collapsed);
+    collapse.setAttribute("aria-expanded", String(!collapsed));
+    collapse.setAttribute("aria-label", t(collapsed ? "assistant.expand" : "assistant.collapse"));
+    collapse.title = collapse.getAttribute("aria-label");
+  };
+  // In the rail the new-conversation button is an icon alone: its name shows on hover.
+  root.querySelector("[data-new]").title = t("assistant.new");
+  apply(storedSidebar() === "collapsed");
+  collapse.addEventListener("click", () => {
+    const collapsed = !root.classList.contains("is-collapsed");
+    apply(collapsed);
+    try {
+      localStorage.setItem(SIDEBAR, collapsed ? "collapsed" : "open");
+    } catch {
+      // Without storage the choice lasts until the page is left.
     }
   });
+  open.addEventListener("click", () => {
+    root.classList.add("is-history-open");
+    open.setAttribute("aria-expanded", "true");
+    // The drawer is hidden until the class above takes effect, and a hidden element takes no focus.
+    requestAnimationFrame(() => requestAnimationFrame(() => root.querySelector("[data-new]").focus()));
+  });
+  root.querySelector("[data-close]").addEventListener("click", () => closeHistory(root, true));
+  root.querySelector("[data-backdrop]").addEventListener("click", () => closeHistory(root));
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && root.classList.contains("is-history-open")) {
-      closeHistory(root);
-      button.focus();
+      closeHistory(root, true);
     }
   });
 }
 
-function closeHistory(root) {
+/** Closes the drawer of narrow screens; `returnFocus` puts the focus back on the button that opened it. */
+function closeHistory(root, returnFocus = false) {
+  const open = root.querySelector("[data-open]");
   root.classList.remove("is-history-open");
-  root.querySelector("[data-history-toggle]").setAttribute("aria-expanded", "false");
+  open.setAttribute("aria-expanded", "false");
+  if (returnFocus) {
+    open.focus();
+  }
 }
 
 // Chat
