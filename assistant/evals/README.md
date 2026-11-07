@@ -16,4 +16,18 @@ the default model passes fewer than 90% of the cases.
 
 ## Results
 
-Not run yet.
+2026-11-07, Groq free tier, Ledgerly mocked, `temperature=0`:
+
+| Model | Passed | p50 latency | Tokens |
+|---|---|---|---|
+| `openai/gpt-oss-120b` | 15/15 | 8.2 s | 53,311 |
+| `openai/gpt-oss-20b` | 11/15 | 6.7 s | 36,671 |
+
+`gpt-oss-20b` prepared no proposal in four of the five clear purchase cases, so `gpt-oss-120b` is the default.
+
+The first run found a real bug: models send dates as timestamps (`2027-04-01T00:00:00Z`), and Groq checks tool calls
+against the schema before the service sees them, so `format: date` turned two cases into provider errors. The date
+arguments are now plain strings in the schema and are cut to their date part when validated.
+
+`qwen2:7b` on Ollama was also tried. It calls tools, but on a laptop with a 4 GB GPU it read prompts at about 5 tokens
+per second, several minutes per answer, so it was not run through the cases.
