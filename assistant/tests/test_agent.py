@@ -182,3 +182,32 @@ def test_markdown_is_removed_from_replies(toolbox):
 
     assert reply.text == "Hạng vé\nHạng B giá 300.000 ₫, nhấn Xác nhận mua."
     assert messages[-1] == {"role": "assistant", "content": reply.text}
+
+
+def test_context_keeps_last_ten_turns_whole(toolbox):
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    for i in range(11):
+        messages.append({"role": "user", "content": f"turn {i}"})
+        if i == 2:
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {"id": "t", "type": "function", "function": {"name": "list_wallets", "arguments": "{}"}}
+                    ],
+                }
+            )
+            messages.append({"role": "tool", "tool_call_id": "t", "content": "{}"})
+        messages.append({"role": "assistant", "content": f"answer {i}"})
+    messages.append({"role": "user", "content": "turn 11"})
+    llm = FakeLlm([say("ok")])
+
+    Agent(llm).reply(messages, toolbox)
+
+    sent = llm.requests[0]["messages"]
+    assert sent[0]["role"] == "system"
+    assert sent[1] == {"role": "user", "content": "turn 2"}
+    assert sent[2]["tool_calls"][0]["id"] == "t"
+    assert sum(m["role"] == "user" for m in sent) == 10
+    assert messages[1] == {"role": "user", "content": "turn 0"}  # the stored conversation keeps everything

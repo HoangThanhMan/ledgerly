@@ -12,6 +12,7 @@ class Settings:
     llm_api_key: str
     # Local models (Ollama) can take minutes per answer; hosted APIs take seconds.
     llm_timeout_seconds: float = 60
+    database_path: str = "assistant.db"
 
     @staticmethod
     def from_env(env: Mapping[str, str] = os.environ) -> "Settings":
@@ -25,4 +26,5 @@ class Settings:
             llm_model=env.get("LLM_MODEL", "openai/gpt-oss-120b"),
             llm_api_key=api_key,
             llm_timeout_seconds=float(env.get("LLM_TIMEOUT_SECONDS", "60")),
+            database_path=env.get("ASSISTANT_DB_PATH", "assistant.db"),
         )

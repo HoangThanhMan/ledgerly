@@ -245,16 +245,6 @@ def test_conversation_of_other_user_is_new(http, proposals):
     assert [m["role"] for m in llm.requests[1]["messages"]] == ["system", "user"]
 
 
-def test_conversations_expire(clock):
-    store = ConversationStore(ttl=timedelta(minutes=30), clock=clock)
-    conversation_id, messages = store.get_or_create(None, "u1")
-    messages.append({"role": "user", "content": "x"})
-
-    assert store.get_or_create(conversation_id, "u1") == (conversation_id, messages)
-    clock.now += timedelta(minutes=31)
-    assert store.get_or_create(conversation_id, "u1")[0] != conversation_id
-
-
 def confirm(client, proposal_id="p1", sub="u1"):
     return client.post(f"/assistant/proposals/{proposal_id}/confirm", headers=auth(sub))
 
@@ -369,3 +359,8 @@ def test_only_confirm_posts_orders():
 def test_settings_llm_timeout():
     assert Settings.from_env({"LLM_API_KEY": "k"}).llm_timeout_seconds == 60
     assert Settings.from_env({"LLM_API_KEY": "k", "LLM_TIMEOUT_SECONDS": "300"}).llm_timeout_seconds == 300
+
+
+def test_settings_database_path():
+    assert Settings.from_env({"LLM_API_KEY": "k"}).database_path == "assistant.db"
+    assert Settings.from_env({"LLM_API_KEY": "k", "ASSISTANT_DB_PATH": "/data/a.db"}).database_path == "/data/a.db"

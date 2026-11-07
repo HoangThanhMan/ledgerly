@@ -1,6 +1,7 @@
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
-from assistant.proposals import Proposal, ProposalStore
+from assistant.proposals import Proposal, ProposalState, ProposalStore
 
 
 class Clock:
@@ -49,3 +50,35 @@ def test_summary_hides_the_idempotency_key():
     assert "k1" not in summary.values()
     assert summary["total"] == 600_000
     assert summary["className"] == "Thường"
+
+
+def test_proposals_survive_a_new_store_on_the_same_file(tmp_path):
+    from assistant.database import Database
+
+    path = str(tmp_path / "a.db")
+    first = ProposalStore(Database(path))
+    first.add(proposal(first))
+
+    again = ProposalStore(Database(path))
+
+    assert again.get("p1", "u1").total == 600_000
+
+
+def test_record_and_state():
+    clock = Clock()
+    store = ProposalStore(ttl=timedelta(minutes=10), clock=clock)
+    for pid in ("open", "bought", "refused", "old"):
+        store.add(replace(proposal(store), id=pid))
+    store.record("bought", "confirmed", 201, {"id": "o1"})
+    store.record("refused", "refused", 422, {"type": "/problems/insufficient-funds"})
+    clock.now += timedelta(minutes=11)
+    store.add(replace(proposal(store), id="open"))  # made again, so still fresh
+
+    assert store.state("open", "u1")[1].status == "open"
+    assert store.state("bought", "u1")[1] == ProposalState("confirmed", 201, {"id": "o1"})
+    assert store.state("refused", "u1")[1].body == {"type": "/problems/insufficient-funds"}
+    assert store.state("old", "u1")[1].status == "expired"
+    assert store.state("bought", "u2") is None
+    assert store.get("bought", "u1") is None  # only open proposals can be confirmed
+    assert store.outcome("bought", "u1") == ProposalState("confirmed", 201, {"id": "o1"})
+    assert store.outcome("open", "u1") is None

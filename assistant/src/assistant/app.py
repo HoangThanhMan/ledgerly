@@ -90,17 +90,16 @@ def create_app(
             ledger.list_wallets()
         except (LedgerError, LedgerUnavailable) as error:
             raise _translate(error) from error
-        conversation_id, messages = conversations.get_or_create(request.conversationId, sub)
-        before = len(messages)
-        messages.append(user_message(request.message, today(), request.language))
+        conversation = conversations.get_or_create(request.conversationId, sub)
+        conversation.messages.append(user_message(request.message, today(), request.language))
         try:
-            reply = agent.reply(messages, ToolBox(ledger, proposals, sub), request.language)
+            reply = agent.reply(conversation.messages, ToolBox(ledger, proposals, sub), request.language)
         except Exception as error:
-            # A turn that failed half way is dropped, so the conversation stays valid for the next one.
-            del messages[before:]
+            # Nothing is saved: a turn that failed half way is dropped, so the conversation stays valid.
             raise _translate(error) from error
+        conversations.save(conversation)
         return {
-            "conversationId": conversation_id,
+            "conversationId": conversation.id,
             "reply": reply.text,
             "proposals": [p.summary() for p in reply.proposals],
         }

@@ -39,6 +39,16 @@ def plain_text(text: str) -> str:
     return _HEADING.sub("", _EMPHASIS.sub(lambda m: m.group(1) or m.group(2), text))
 
 
+def context(messages: list[dict], turns: int = 10) -> list[dict]:
+    """What the model is sent: the system prompt and the last `turns` user turns, each kept whole, so that a long
+    conversation stays within the model's limits and no tool call is separated from its results."""
+    starts = [i for i, message in enumerate(messages) if message["role"] == "user"]
+    if len(starts) <= turns:
+        return messages
+    system = messages[:1] if messages and messages[0]["role"] == "system" else []
+    return system + messages[starts[-turns] :]
+
+
 @dataclass(frozen=True)
 class AgentReply:
     text: str
@@ -69,7 +79,7 @@ class Agent:
         closing: dict = {"role": "assistant", "content": text}
 
         while steps < self._max_steps:
-            turn = self._llm.complete(messages, TOOLS)
+            turn = self._llm.complete(context(messages), TOOLS)
             steps += 1
             input_tokens += turn.input_tokens
             output_tokens += turn.output_tokens
