@@ -86,4 +86,6 @@ def _run(toolbox: ToolBox, name: str, arguments: str) -> str:
     except ToolError as error:
         return f"Error: {error}"
     except LedgerError as error:
+        if error.status == 401:
+            raise  # the user's session ended: that is for the user to fix, not the model
         return f"Error: Ledgerly answered {error.status} {error.title}"
