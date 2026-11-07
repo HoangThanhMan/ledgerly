@@ -181,3 +181,22 @@ def test_tool_schemas_come_from_models():
     for tool in TOOLS:
         assert tool["type"] == "function"
         assert tool["function"]["parameters"] == models[tool["function"]["name"]].model_json_schema()
+
+
+def test_search_accepts_datetimes_for_dates(ledger, toolbox):
+    serve_events(ledger, [event_json("Ledgerly Live", "2027-03-01T12:00:00Z")])
+
+    result = run(
+        toolbox,
+        "search_events",
+        **search_args(starts_after="2027-03-01T00:00:00Z", starts_before="2027-03-31T23:59:59Z"),
+    )
+
+    assert [e["name"] for e in result["events"]] == ["Ledgerly Live"]
+
+
+def test_date_schema_is_a_plain_string():
+    # Providers such as Groq check tool calls against the schema before we see them: a `format: date` there turns a
+    # model's "2027-03-01T00:00:00Z" into a provider error instead of something we can accept.
+    schema = SearchEventsArgs.model_json_schema()["properties"]["starts_after"]
+    assert "format" not in json.dumps(schema)

@@ -5,7 +5,7 @@ from datetime import date, datetime
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, ValidationError, WithJsonSchema
 
 from assistant.ledger_client import LedgerClient
 from assistant.proposals import Proposal, ProposalStore
@@ -24,11 +24,24 @@ class _Args(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+def _date_part(value):
+    """Models often send a date as a full timestamp: keep its YYYY-MM-DD part."""
+    return value[:10] if isinstance(value, str) and len(value) > 10 and value[10] in "T " else value
+
+
+# A plain string in the schema: providers that check tool calls against it would reject a timestamp for format: date.
+LenientDate = Annotated[
+    date | None,
+    BeforeValidator(_date_part),
+    WithJsonSchema({"anyOf": [{"type": "string"}, {"type": "null"}]}),
+]
+
+
 class SearchEventsArgs(_Args):
     text: Annotated[str | None, Field(description="Words the event name must contain.")] = None
     max_price: Annotated[int | None, Field(gt=0, description="Highest price of the cheapest ticket, in VND.")] = None
-    starts_after: Annotated[date | None, Field(description="First day the event may start on (YYYY-MM-DD).")] = None
-    starts_before: Annotated[date | None, Field(description="Last day the event may start on (YYYY-MM-DD).")] = None
+    starts_after: Annotated[LenientDate, Field(description="First day the event may start on (YYYY-MM-DD).")] = None
+    starts_before: Annotated[LenientDate, Field(description="Last day the event may start on (YYYY-MM-DD).")] = None
 
 
 class GetEventArgs(_Args):

@@ -1,6 +1,6 @@
 {"id": "buy-clear", "turns": ["Mua 2 vé Thường sự kiện Ledgerly Live"], "expect": {"proposal": {"class_name": "Thường", "quantity": 2}}}
 {"id": "buy-vip", "turns": ["Cho mình 1 vé VIP Ledgerly Live"], "wallets": [5000000], "expect": {"proposal": {"class_name": "VIP", "quantity": 1}}}
-{"id": "buy-no-accents", "turns": ["mua 3 ve thuong dem nhac jazz"], "expect": {"proposal": {"class_name": "Thường", "quantity": 3}}}
+{"id": "buy-no-accents", "turns": ["mua 3 ve thuong dem nhac jazz"], "wallets": [5000000], "expect": {"proposal": {"class_name": "Thường", "quantity": 3}}}
 {"id": "buy-by-price-and-month", "turns": ["Tháng 4 năm sau có sự kiện nào vé dưới 100 nghìn không? Có thì mua luôn 2 vé"], "expect": {"proposal": {"class_name": "Vé vào cửa", "quantity": 2}, "tools_include": ["search_events"]}}
 {"id": "buy-two-turns", "turns": ["Ledgerly Live có những hạng vé nào?", "Lấy 2 vé hạng rẻ nhất nhé"], "expect": {"proposal": {"class_name": "Thường", "quantity": 2}}}
 {"id": "ask-which-wallet", "turns": ["Mua 1 vé Thường Ledgerly Live"], "wallets": [1000000, 2000000], "expect": {"asks_clarification": true}}
