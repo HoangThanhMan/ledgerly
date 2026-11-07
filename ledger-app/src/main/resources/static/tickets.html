@@ -25,32 +25,27 @@
     <header class="topbar"></header>
     <main>
       <div class="page-head">
-        <h1>Vé của tôi</h1>
+        <h1 data-i18n="tickets.title"></h1>
       </div>
       <div role="alert" class="notice" data-message></div>
-      <p data-empty hidden>Bạn chưa mua vé nào. <a href="events.html">Xem các sự kiện sắp diễn ra</a>.</p>
-      <table class="table" data-orders hidden>
-        <thead>
-          <tr>
-            <th scope="col">Sự kiện</th>
-            <th scope="col">Hạng</th>
-            <th scope="col" class="num">Số vé</th>
-            <th scope="col" class="num">Số tiền</th>
-            <th scope="col">Mua lúc</th>
-          </tr>
-        </thead>
-        <tbody data-rows></tbody>
-      </table>
-      <nav class="pager" aria-label="Phân trang" data-pager hidden>
-        <a class="button quiet" data-previous>Trang trước</a>
+      <div class="empty" data-empty hidden>
+        <p class="lead" data-i18n="tickets.empty"></p>
+        <a class="button" href="events.html" data-i18n="tickets.browse"></a>
+      </div>
+      <ul class="orders" data-orders hidden></ul>
+      <nav class="pager" data-pager data-i18n-aria-label="events.pager" hidden>
+        <a class="button quiet" data-previous data-i18n="events.previous"></a>
         <span class="muted" data-where></span>
-        <a class="button quiet" data-next>Trang sau</a>
+        <a class="button quiet" data-next data-i18n="events.next"></a>
       </nav>
     </main>
     <script type="module">
       import { renderTopbar } from "./js/auth.js";
+      import { t, translatePage } from "./js/i18n.js";
       import { showTickets } from "./js/tickets.js";
 
+      document.title = t("title.tickets");
+      translatePage();
       renderTopbar();
       showTickets(document.querySelector("main"));
     </script>
