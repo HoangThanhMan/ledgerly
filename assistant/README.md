@@ -12,7 +12,14 @@ uv run --env-file .env assistant   # http://localhost:8090, next to ledger-app o
 
 `POST /assistant/chat` takes `{"conversationId": null, "message": "..."}` with the user's
 `Authorization: Bearer <token>`, and returns the reply and any proposals.
-`POST /assistant/proposals/{id}/confirm` buys a proposal and passes Ledgerly's answer through unchanged.
+`POST /assistant/proposals/{id}/confirm` buys a proposal and passes Ledgerly's answer through unchanged; its final
+answer (bought or refused) is kept, so confirming again returns it without asking Ledgerly twice.
+`GET /assistant/conversations` lists the caller's conversations, and `GET /assistant/conversations/{id}` returns one
+with the current state of each proposal (`open`, `confirmed`, `refused` or `expired`). Chat takes `"language": "vi"`
+or `"en"`. Every request is checked with ledger-app first, using the caller's own token.
+
+Conversations and proposals are kept for 30 days in a SQLite file (`ASSISTANT_DB_PATH`); only the last ten turns of a
+conversation are sent to the model.
 
 ## Choosing a model
 

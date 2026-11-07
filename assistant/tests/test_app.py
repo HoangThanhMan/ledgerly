@@ -20,6 +20,7 @@ SETTINGS = Settings(
     llm_base_url="http://llm.test/v1",
     llm_model="m",
     llm_api_key="k",
+    database_path=":memory:",
 )
 
 
@@ -269,8 +270,9 @@ def test_confirm_twice_sends_same_key(ledger, http, proposals):
 
     first, second = confirm(client), confirm(client)
 
-    assert [c.request.headers["Idempotency-Key"] for c in orders.calls] == ["key-1", "key-1"]
+    assert [c.request.headers["Idempotency-Key"] for c in orders.calls] == ["key-1"]
     assert first.json() == second.json() == {"id": "o1"}
+    assert second.status_code == 201
 
 
 def test_confirm_passes_ledger_rejection_through(ledger, http, proposals):
@@ -364,3 +366,136 @@ def test_settings_llm_timeout():
 def test_settings_database_path():
     assert Settings.from_env({"LLM_API_KEY": "k"}).database_path == "assistant.db"
     assert Settings.from_env({"LLM_API_KEY": "k", "ASSISTANT_DB_PATH": "/data/a.db"}).database_path == "/data/a.db"
+
+
+def propose(ledger, http, proposals, conversations, clock=None):
+    """Chats once and gets a proposal of 2 VIP tickets. Returns the client, the conversation id and the proposal id."""
+    event = event_json(classes=[ticket_class_json("VIP", 100_000)])
+    wallet = wallet_json()
+    ledger.get(f"/v1/events/{event['id']}").respond(200, json=event)
+    ledger.get("/v1/wallets").respond(200, json={"items": [wallet]})
+    args = {
+        "event_id": event["id"],
+        "ticket_class_id": event["ticketClasses"][0]["id"],
+        "wallet_id": wallet["id"],
+        "quantity": 2,
+    }
+    llm = FakeLlm([call(("c1", "propose_purchase", args)), say("Bấm Xác nhận nhé.")])
+    client = make_client(http, proposals, llm, conversations=conversations)
+    body = chat(client, "Mua 2 vé VIP").json()
+    return client, body["conversationId"], body["proposals"][0]["id"]
+
+
+def history(client, conversation_id=None, sub="u1"):
+    path = "/assistant/conversations" + (f"/{conversation_id}" if conversation_id else "")
+    return client.get(path, headers=auth(sub))
+
+
+def test_history_lists_and_reopens_a_conversation(ledger, http, proposals):
+    client, cid, pid = propose(ledger, http, proposals, ConversationStore())
+
+    listed = history(client).json()["items"]
+    opened = history(client, cid).json()
+
+    assert [(c["id"], c["title"]) for c in listed] == [(cid, "Mua 2 vé VIP")]
+    assert listed[0]["updatedAt"]
+    assert [(m["role"], m["text"]) for m in opened["messages"]] == [
+        ("user", "Mua 2 vé VIP"),
+        ("assistant", "Bấm Xác nhận nhé."),
+    ]
+    card = opened["messages"][1]["proposals"][0]
+    assert (card["id"], card["className"], card["status"]) == (pid, "VIP", "open")
+
+
+def test_history_requires_a_verified_token(ledger, http, proposals):
+    client, cid, _ = propose(ledger, http, proposals, ConversationStore())
+    ledger.get("/v1/wallets").respond(401, json=problem_json(401, "unauthenticated", "Unauthenticated"))
+
+    for response in (history(client), history(client, cid)):
+        assert response.status_code == 401
+        assert "Mua 2 vé" not in response.text
+
+
+def test_history_of_other_user_is_404(ledger, http, proposals):
+    client, cid, _ = propose(ledger, http, proposals, ConversationStore())
+
+    response = history(client, cid, sub="u2")
+
+    assert response.status_code == 404
+    assert response.json()["type"] == "/problems/conversation-not-found"
+    assert history(client, sub="u2").json() == {"items": []}
+
+
+def test_conversation_shows_confirmed_proposal(ledger, http, proposals):
+    client, cid, pid = propose(ledger, http, proposals, ConversationStore())
+    ledger.post("/v1/orders").respond(201, json={"id": "o1"})
+    confirm(client, pid)
+
+    card = history(client, cid).json()["messages"][1]["proposals"][0]
+
+    assert (card["status"], card["orderId"]) == ("confirmed", "o1")
+
+
+def test_conversation_shows_refused_proposal(ledger, http, proposals):
+    client, cid, pid = propose(ledger, http, proposals, ConversationStore())
+    refusal = problem_json(422, "insufficient-funds", "Insufficient funds")
+    orders = ledger.post("/v1/orders").respond(422, json=refusal)
+    first = confirm(client, pid)
+    again = confirm(client, pid)
+
+    card = history(client, cid).json()["messages"][1]["proposals"][0]
+
+    assert (card["status"], card["problem"]["type"]) == ("refused", refusal["type"])
+    assert (first.status_code, again.status_code, again.json()) == (422, 422, refusal)
+    assert orders.call_count == 1
+
+
+def test_confirm_after_success_replays_without_calling_ledger(ledger, http, proposals, clock):
+    stored_proposal(proposals)
+    orders = ledger.post("/v1/orders").respond(201, json={"id": "o1"})
+    client = make_client(http, proposals, FakeLlm([]))
+    confirm(client)
+    clock.now += timedelta(minutes=11)
+
+    again = confirm(client)
+
+    assert (again.status_code, again.json()) == (201, {"id": "o1"})
+    assert orders.call_count == 1
+
+
+def test_temporary_failures_are_not_stored(ledger, http, proposals):
+    stored_proposal(proposals)
+    ledger.post("/v1/orders").mock(
+        side_effect=[
+            httpx.Response(
+                429, json=problem_json(429, "rate-limited", "Too many orders"), headers={"Retry-After": "1"}
+            ),
+            httpx.Response(201, json={"id": "o1"}),
+        ]
+    )
+    client = make_client(http, proposals, FakeLlm([]))
+
+    assert confirm(client).status_code == 429
+    assert confirm(client).status_code == 201
+    assert proposals.state("p1", "u1")[1].status == "confirmed"
+
+
+def test_confirm_requires_a_verified_token(ledger, http, proposals):
+    stored_proposal(proposals)
+    client = make_client(http, proposals, FakeLlm([]))
+    ledger.post("/v1/orders").respond(201, json={"id": "o1"})
+    confirm(client)
+    ledger.get("/v1/wallets").respond(401, json=problem_json(401, "unauthenticated", "Unauthenticated"))
+
+    assert confirm(client).status_code == 401
+
+
+def test_busy_conversation_returns_409(ledger, http, proposals):
+    conversations = ConversationStore()
+    client, cid, _ = propose(ledger, http, proposals, conversations)
+    conversations.begin(cid)
+
+    response = chat(client, "Còn gì nữa?", cid)
+
+    assert response.status_code == 409
+    assert response.json()["type"] == "/problems/conversation-busy"
