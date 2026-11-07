@@ -10,3 +10,8 @@ export function fold(text) {
     .replace(/\s+/g, " ")
     .trim();
 }
+
+/** Whether an event's name contains the search text, ignoring case and accents. An empty search matches all. */
+export function matches(event, query) {
+  return fold(event.name).includes(fold(query));
+}

@@ -25,27 +25,26 @@
     <header class="topbar"></header>
     <main>
       <div class="page-head">
-        <h1>Sắp diễn ra</h1>
-        <p class="muted">Sự kiện gần nhất ở trên cùng.</p>
+        <h1 data-heading data-i18n="events.title"></h1>
+        <p class="muted" data-subtitle data-i18n="events.subtitle"></p>
       </div>
       <div role="status" class="notice" data-message></div>
-      <ol class="listing" data-list></ol>
-      <nav class="pager" aria-label="Phân trang" data-pager>
-        <a class="button quiet" data-previous>Trang trước</a>
+      <ul class="event-grid" data-grid></ul>
+      <nav class="pager" data-pager data-i18n-aria-label="events.pager">
+        <a class="button quiet" data-previous data-i18n="events.previous"></a>
         <span class="muted" data-where></span>
-        <a class="button quiet" data-next>Trang sau</a>
+        <a class="button quiet" data-next data-i18n="events.next"></a>
       </nav>
     </main>
     <script type="module">
       import { renderTopbar } from "./js/auth.js";
       import { showEvents } from "./js/events.js";
+      import { t, translatePage } from "./js/i18n.js";
 
+      document.title = t("title.events");
+      translatePage();
       renderTopbar();
-      showEvents(
-        document.querySelector("[data-list]"),
-        document.querySelector("[data-pager]"),
-        document.querySelector("[data-message]"),
-      );
+      showEvents(document.querySelector("main"));
     </script>
   </body>
 </html>
