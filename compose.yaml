@@ -126,5 +126,27 @@ services:
       retries: 30
       start_period: 10s
 
+  # The chat assistant. It needs a key for an OpenAI-compatible LLM API in assistant/.env (see
+  # assistant/.env.example), so it has a profile of its own: start it with --profile full --profile assistant.
+  assistant:
+    profiles: [assistant]
+    build: ./assistant
+    env_file:
+      - path: assistant/.env
+        required: false
+    environment:
+      LEDGERLY_API_URL: http://ledger-app:8080
+    ports:
+      - "8090:8090"
+    depends_on:
+      ledger-app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8090/health')"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
 volumes:
   postgres-data:

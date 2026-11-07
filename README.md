@@ -39,6 +39,7 @@ The API is documented at http://localhost:8080/swagger-ui.html. To stop everythi
 - **Events:** organizers create events with ticket classes and prices; anyone can browse them.
 - **Tickets:** buy up to 4 tickets of a class, paid from the wallet, and see them under "Vé của tôi" (my tickets).
 - **Live updates:** the number of tickets left updates on every open page as tickets sell.
+- **Assistant:** a chat assistant finds events and prepares orders; only the user can confirm them.
 - **Notifications:** every purchase and transfer creates a notification, through Kafka.
 
 The pages are in Vietnamese and served by the application itself; everything they do is also available as a REST API.
@@ -117,9 +118,47 @@ LEDGERLY_PROFILES=compose,observability docker compose --profile full --profile 
 
 Then open http://localhost:3000 (admin / admin).
 
+## Assistant
+
+A chat assistant (in Vietnamese) finds events, compares ticket classes, checks wallets and prepares orders. It is a
+separate Python service that calls the same REST API as the browser, with the user's own token, so it can do nothing
+the user could not.
+
+**It cannot spend money.** None of the tools the model can call moves money: the most it can do is prepare a
+proposal. Tickets are bought only when the user presses "Xác nhận mua", which confirms that proposal with an
+`Idempotency-Key` fixed when the proposal was made. A prompt injection hidden in an event name can, at worst, show the
+user a proposal they did not ask for; pressing the button twice still buys once.
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant S as assistant
+    participant L as LLM
+    participant A as ledger-app
+
+    U->>S: "Mua 2 vé thường Ledgerly Live"
+    S->>L: conversation + tools
+    L-->>S: call get_event, list_wallets, propose_purchase
+    S->>A: GET the event and wallets (user's token)
+    S-->>U: reply + proposal card
+    U->>S: press "Xác nhận mua"
+    S->>A: POST /v1/orders with the proposal's Idempotency-Key
+```
+
+It works with any OpenAI-compatible chat API. Groq's free tier is the default; get a key at
+https://console.groq.com/keys, then:
+
+```bash
+cp assistant/.env.example assistant/.env    # and set LLM_API_KEY
+docker compose --profile full --profile assistant up -d --wait --build
+```
+
+Open http://localhost:8080/assistant.html. To use another model, change `LLM_BASE_URL`, `LLM_MODEL` and
+`LLM_API_KEY`; see [`assistant`](assistant) for the options, the evaluation and the MCP server.
+
 ## Tech stack
 
-Java 25, Spring Boot 4, PostgreSQL, Kafka, Redis, WebSocket (STOMP), Spring Security with JWT, plain HTML/CSS/JavaScript, JUnit 5, Testcontainers, ArchUnit, k6, OpenTelemetry with Grafana, Docker Compose, GitHub Actions.
+Java 25, Spring Boot 4, Python with FastAPI, PostgreSQL, Kafka, Redis, WebSocket (STOMP), Spring Security with JWT, plain HTML/CSS/JavaScript, JUnit 5, Testcontainers, ArchUnit, k6, OpenTelemetry with Grafana, Docker Compose, GitHub Actions.
 
 ## Project layout
 
@@ -128,6 +167,7 @@ Java 25, Spring Boot 4, PostgreSQL, Kafka, Redis, WebSocket (STOMP), Spring Secu
 | [`ledger-app`](ledger-app) | The main application and its web pages |
 | [`notification-consumer`](notification-consumer) | The notification service |
 | [`ledger-contracts`](ledger-contracts) | Event types shared by both applications |
+| [`assistant`](assistant) | The chat assistant and its MCP server (Python) |
 | [`infra`](infra), [`perf`](perf), [`scripts`](scripts) | Database setup and Grafana dashboard, load tests, helper scripts |
 
 ## Limitations

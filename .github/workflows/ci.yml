@@ -50,6 +50,27 @@ jobs:
           path: "**/build/reports/jacoco/"
           retention-days: 7
 
+  assistant:
+    name: Assistant
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: assistant
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v10
+        with:
+          version: "0.12.7"
+          enable-cache: true
+
+      - name: Lint
+        run: uv run ruff check . && uv run ruff format --check .
+
+      - name: Test
+        run: uv run pytest -q
+
   images:
     name: Container images
     runs-on: ubuntu-latest

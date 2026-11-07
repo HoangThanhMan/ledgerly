@@ -21,6 +21,8 @@ class StaticPagesIT extends AbstractIntegrationTest {
         "/, text/html",
         "/login.html, text/html",
         "/register.html, text/html",
+        "/assistant.html, text/html",
+        "/js/assistant.js, text/javascript",
         "/css/app.css, text/css",
         "/js/api.js, text/javascript",
         "/vendor/stomp.umd.min.js, text/javascript",
