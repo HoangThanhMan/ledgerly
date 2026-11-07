@@ -1068,7 +1068,373 @@ fieldset {
   }
 }
 
-/* Page parts, until each page gets its own section above */
+/* Assistant: past conversations on the left, the chat on the right. */
+
+.assistant {
+  display: grid;
+  grid-template-columns: 16rem minmax(0, 1fr);
+  max-width: var(--page);
+  min-height: calc(100vh - 4.25rem);
+  margin: 0 auto;
+}
+
+.history {
+  display: grid;
+  align-content: start;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 1.25rem 1rem;
+  border-right: 1px solid var(--line);
+}
+
+.new-chat {
+  width: 100%;
+}
+
+.history-group {
+  margin: 0.75rem 0 0.25rem 0.625rem;
+  color: var(--ink-soft);
+  font-size: var(--t-small);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.history-list {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.history-list a {
+  display: block;
+  overflow: hidden;
+  padding: 0.5rem 0.625rem;
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  font-size: 0.9375rem;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-list a:hover,
+.history-list a[aria-current="page"] {
+  background: var(--chip);
+}
+
+.history-list a[aria-current="page"] {
+  color: var(--brand);
+  font-weight: 600;
+}
+
+.history-empty {
+  padding: 0 0.625rem;
+}
+
+.history-button {
+  display: none;
+}
+
+.conversation {
+  display: flex;
+  flex-direction: column;
+  max-width: none;
+  margin: 0;
+  padding: 1.5rem 1.5rem 1rem;
+}
+
+.messages,
+.conversation > .notice,
+.composer {
+  width: 100%;
+  max-width: 46rem;
+  margin-inline: auto;
+}
+
+.messages {
+  flex: 1;
+}
+
+.conversation > .notice {
+  margin-bottom: 0.75rem;
+}
+
+.welcome {
+  display: grid;
+  gap: 0.75rem;
+  padding: 3rem 0 1.5rem;
+}
+
+.suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.chip {
+  padding: 0.5rem 0.875rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--t-small);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.chip:hover {
+  border-color: var(--brand);
+  color: var(--brand);
+}
+
+.turns {
+  display: grid;
+  gap: 1.25rem;
+  margin: 0;
+  padding: 1rem 0;
+  list-style: none;
+}
+
+.turn-user {
+  justify-self: end;
+  max-width: 80%;
+  padding: 0.625rem 0.875rem;
+  border-radius: 1rem 1rem 0.25rem 1rem;
+  background: var(--brand);
+  color: var(--brand-ink);
+}
+
+.turn-assistant {
+  display: grid;
+  grid-template-columns: 1.75rem minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: start;
+}
+
+.turn-mark {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 0.5rem;
+  background: var(--chip);
+  color: var(--brand);
+  font-size: var(--t-small);
+  font-weight: 700;
+}
+
+.turn-body {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.turn-text {
+  max-width: none;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.ticket {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 1rem;
+  max-width: 30rem;
+  padding: 0.875rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.ticket .poster-thumb {
+  width: 5rem;
+}
+
+.ticket-body {
+  display: grid;
+  gap: 0.375rem;
+}
+
+.ticket-event {
+  font-size: 1.0625rem;
+}
+
+.ticket-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  color: var(--ink-soft);
+  font-size: var(--t-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.ticket-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-top: 0.25rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed var(--line);
+}
+
+.ticket-total strong {
+  color: var(--brand);
+  font-size: var(--t-lead);
+}
+
+.ticket-confirm {
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+.ticket-status.ok {
+  color: var(--ok);
+}
+
+.ticket-status.error {
+  color: var(--alert);
+}
+
+.typing {
+  display: flex;
+  gap: 0.3rem;
+  padding: 0.5rem 0 0.5rem 2.5rem;
+}
+
+.typing span[aria-hidden] {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--ink-soft);
+  animation: typing 1.2s infinite ease-in-out;
+}
+
+.typing span[aria-hidden]:nth-of-type(3) {
+  animation-delay: 0.15s;
+}
+
+.typing span[aria-hidden]:nth-of-type(4) {
+  animation-delay: 0.3s;
+}
+
+@keyframes typing {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+  }
+
+  40% {
+    opacity: 1;
+  }
+}
+
+.composer {
+  position: sticky;
+  bottom: 1rem;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: var(--surface);
+}
+
+.composer:focus-within {
+  border-color: var(--brand);
+}
+
+.composer textarea {
+  min-height: 2.5rem;
+  max-height: 10rem;
+  padding: 0.5rem;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  resize: none;
+}
+
+.composer textarea:focus-visible {
+  outline: none;
+}
+
+.send {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 0;
+  border-radius: 0.75rem;
+  background: var(--brand);
+  color: var(--brand-ink);
+  cursor: pointer;
+}
+
+.send:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.send svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.composer-hint {
+  max-width: none;
+  margin-top: 0.5rem;
+  text-align: center;
+}
+
+@media (max-width: 56rem) {
+  .assistant {
+    grid-template-columns: 1fr;
+  }
+
+  .history {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 10;
+    display: none;
+    width: min(85vw, 18rem);
+    overflow-y: auto;
+    border-right: 1px solid var(--line);
+    background: var(--surface);
+  }
+
+  .assistant.is-history-open .history {
+    display: grid;
+  }
+
+  .history-button {
+    display: inline-flex;
+    align-self: flex-start;
+  }
+
+  .conversation {
+    padding-inline: 1rem;
+  }
+}
+
+@media (max-width: 34rem) {
+  .ticket {
+    grid-template-columns: 1fr;
+  }
+
+  .ticket .poster-thumb {
+    display: none;
+  }
+
+  .ticket-row {
+    flex-direction: column;
+    gap: 0;
+  }
+}
 
 /*
  * The ticket stub. A ticket class is printed as a ticket: what it is on the left, how many are left on the
@@ -1223,53 +1589,4 @@ fieldset {
     grid-template-columns: 1fr 20rem;
     align-items: start;
   }
-}
-
-.chat {
-  display: grid;
-  gap: 0.75rem;
-  max-width: 42rem;
-  margin: 1.5rem 0;
-  padding: 0;
-  list-style: none;
-}
-
-.bubble {
-  max-width: 85%;
-  padding: 0.625rem 0.875rem;
-  border-radius: var(--radius);
-  background: var(--surface);
-  border: 1px solid var(--line);
-  white-space: pre-wrap;
-}
-
-.bubble.me {
-  justify-self: end;
-  background: var(--brand);
-  border-color: var(--brand);
-  color: var(--surface);
-}
-
-.proposal {
-  display: grid;
-  gap: 0.5rem;
-  max-width: 85%;
-}
-
-.proposal p {
-  margin: 0;
-}
-
-.proposal-title {
-  font-weight: 600;
-}
-
-.chat-form {
-  display: flex;
-  gap: 0.75rem;
-  max-width: 42rem;
-}
-
-.chat-form input {
-  flex: 1;
 }

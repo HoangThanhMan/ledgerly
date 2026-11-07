@@ -21,29 +21,51 @@
     <link rel="stylesheet" href="css/app.css">
     <title>Trợ lý – Ledgerly</title>
   </head>
-  <body>
+  <body class="assistant-page">
     <header class="topbar"></header>
-    <main>
-      <div class="page-head">
-        <h1>Trợ lý</h1>
-      </div>
-      <p class="lead">Hỏi về sự kiện, giá vé và ví của bạn. Trợ lý có thể chuẩn bị đơn, nhưng chỉ bạn mới mua được vé
-        bằng nút "Xác nhận mua".</p>
-      <ol class="chat" data-log aria-live="polite"></ol>
-      <div role="alert" class="notice" data-message></div>
-      <form class="chat-form" data-form>
-        <label class="visually-hidden" for="message">Tin nhắn</label>
-        <input id="message" name="message" maxlength="2000" autocomplete="off" required
-          placeholder="Ví dụ: Tìm sự kiện tháng 3 dưới 500.000 ₫">
-        <button class="button" type="submit">Gửi</button>
-      </form>
-    </main>
+    <div class="assistant">
+      <aside class="history" id="history" data-history>
+        <button class="button quiet new-chat" type="button" data-new data-i18n="assistant.new"></button>
+        <nav data-i18n-aria-label="assistant.history">
+          <div data-groups></div>
+          <p class="muted small history-empty" data-no-history hidden data-i18n="assistant.noHistory"></p>
+        </nav>
+      </aside>
+      <main class="conversation">
+        <button class="button quiet history-button" type="button" aria-controls="history" aria-expanded="false"
+          data-history-toggle data-i18n="assistant.history"></button>
+        <div class="messages" data-messages>
+          <section class="welcome" data-welcome>
+            <h1 data-i18n="assistant.title"></h1>
+            <p class="muted" data-i18n="assistant.lead"></p>
+            <div class="suggestions" data-suggestions></div>
+          </section>
+          <ol class="turns" data-turns aria-live="polite"></ol>
+          <p class="typing" data-typing hidden><span class="visually-hidden" data-i18n="assistant.typing"></span>
+            <span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span></p>
+        </div>
+        <div role="alert" class="notice" data-message></div>
+        <form class="composer" data-form>
+          <label class="visually-hidden" for="message" data-i18n="assistant.message"></label>
+          <textarea id="message" name="message" rows="1" maxlength="2000" required
+            data-i18n-placeholder="assistant.placeholder"></textarea>
+          <button class="send" type="submit" data-i18n-aria-label="assistant.send">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"
+              stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+          </button>
+        </form>
+        <p class="muted small composer-hint" data-i18n="assistant.hint"></p>
+      </main>
+    </div>
     <script type="module">
-      import { renderTopbar } from "./js/auth.js";
       import { startAssistant } from "./js/assistant.js";
+      import { renderTopbar } from "./js/auth.js";
+      import { t, translatePage } from "./js/i18n.js";
 
+      document.title = t("title.assistant");
+      translatePage();
       renderTopbar();
-      startAssistant(document.querySelector("main"));
+      startAssistant(document.querySelector(".assistant"));
     </script>
   </body>
 </html>
