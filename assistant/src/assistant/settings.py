@@ -10,6 +10,8 @@ class Settings:
     llm_base_url: str
     llm_model: str
     llm_api_key: str
+    # Local models (Ollama) can take minutes per answer; hosted APIs take seconds.
+    llm_timeout_seconds: float = 60
 
     @staticmethod
     def from_env(env: Mapping[str, str] = os.environ) -> "Settings":
@@ -22,4 +24,5 @@ class Settings:
             llm_base_url=env.get("LLM_BASE_URL", "https://api.groq.com/openai/v1"),
             llm_model=env.get("LLM_MODEL", "openai/gpt-oss-120b"),
             llm_api_key=api_key,
+            llm_timeout_seconds=float(env.get("LLM_TIMEOUT_SECONDS", "60")),
         )

@@ -332,3 +332,8 @@ def test_only_confirm_posts_orders():
     }
     assert set(callers) <= {"app.py", "mcp_server.py"}
     assert callers.get("app.py") == 1
+
+
+def test_settings_llm_timeout():
+    assert Settings.from_env({"LLM_API_KEY": "k"}).llm_timeout_seconds == 60
+    assert Settings.from_env({"LLM_API_KEY": "k", "LLM_TIMEOUT_SECONDS": "300"}).llm_timeout_seconds == 300

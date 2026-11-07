@@ -22,7 +22,7 @@ Any OpenAI-compatible chat completions API works. Set three variables:
 |---|---|---|---|
 | Groq (default) | `https://api.groq.com/openai/v1` | `openai/gpt-oss-120b` | Free tier, no card |
 | Gemini | `https://generativelanguage.googleapis.com/v1beta/openai/` | a Gemini Flash model | Free tier |
-| Ollama | `http://localhost:11434/v1` | a local model with tool calling | Runs offline; small models handle Vietnamese and tools poorly |
+| Ollama | `http://localhost:11434/v1` | a local model with tool calling | Runs offline. Set `LLM_TIMEOUT_SECONDS` higher: a 7B model on a 4 GB laptop GPU took minutes per answer |
 | Azure OpenAI | your deployment's `/openai/v1` URL | your deployment | Paid |
 
 [`evals`](evals) compares models on the same cases; pick the default from its numbers.

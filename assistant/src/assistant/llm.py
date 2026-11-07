@@ -39,9 +39,11 @@ class LlmClient(Protocol):
 
 
 class OpenAICompatClient:
-    def __init__(self, base_url: str, api_key: str, model: str, client: openai.OpenAI | None = None):
+    def __init__(
+        self, base_url: str, api_key: str, model: str, client: openai.OpenAI | None = None, timeout: float = 60
+    ):
         self._model = model
-        self._client = client or openai.OpenAI(base_url=base_url, api_key=api_key, timeout=60, max_retries=2)
+        self._client = client or openai.OpenAI(base_url=base_url, api_key=api_key, timeout=timeout, max_retries=2)
 
     @property
     def model(self) -> str:

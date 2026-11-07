@@ -127,3 +127,7 @@ def test_other_provider_errors_raise_unavailable_with_status(llm, completions, s
         llm.complete([], [])
 
     assert error.value.status == status
+
+
+def test_timeout_is_configurable():
+    assert OpenAICompatClient(BASE_URL, "k", "m", timeout=300)._client.timeout == 300

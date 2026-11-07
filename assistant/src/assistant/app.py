@@ -152,6 +152,8 @@ def _llm_problem(error: LlmUnavailable) -> _Problem:
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     settings = Settings.from_env()
-    llm = OpenAICompatClient(settings.llm_base_url, settings.llm_api_key, settings.llm_model)
+    llm = OpenAICompatClient(
+        settings.llm_base_url, settings.llm_api_key, settings.llm_model, timeout=settings.llm_timeout_seconds
+    )
     app = create_app(settings, llm, httpx.Client(timeout=10))
     uvicorn.run(app, host="0.0.0.0", port=8090)
