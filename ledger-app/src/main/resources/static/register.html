@@ -29,7 +29,7 @@
           <h1 data-i18n="auth.registerTitle"></h1>
           <p class="muted" data-i18n="auth.registerLead"></p>
         </div>
-        <form class="form" novalidate>
+        <form class="form" method="post" novalidate>
           <div class="field">
             <label for="email" data-i18n="auth.email"></label>
             <input id="email" name="email" type="email" autocomplete="username" required>
@@ -60,7 +60,8 @@
       document.title = t("title.register");
       translatePage();
       renderTopbar();
-      setUpRegisterForm(document.querySelector("form"));
+      // "main form": the top bar has a search form of its own, which comes first in the page.
+      setUpRegisterForm(document.querySelector("main form"));
     </script>
   </body>
 </html>
