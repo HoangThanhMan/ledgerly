@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from assistant.agent import GAVE_UP, STOPPED, Agent, user_message
+from assistant.agent import GAVE_UP, STOPPED, Agent, plain_text, user_message
 from assistant.ledger_client import LedgerClient
 from assistant.prompts import SYSTEM_PROMPT
 from assistant.proposals import ProposalStore
@@ -211,3 +211,25 @@ def test_context_keeps_last_ten_turns_whole(toolbox):
     assert sent[2]["tool_calls"][0]["id"] == "t"
     assert sum(m["role"] == "user" for m in sent) == 10
     assert messages[1] == {"role": "user", "content": "turn 0"}  # the stored conversation keeps everything
+
+
+def test_plain_text_uses_plain_spaces():
+    # Models write "400.000 ₫"; sent back to gpt-oss, such spaces make it repeat and garble its next reply.
+    assert plain_text("400.000 ₫ và ví này") == "400.000 ₫ và ví này"
+
+
+def test_reply_and_history_get_plain_spaces(toolbox):
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": "a"},
+        {"role": "assistant", "content": "Tổng 400.000 ₫"},
+        {"role": "user", "content": "b"},
+    ]
+    llm = FakeLlm([say("Còn 200.000 ₫")])
+
+    reply = Agent(llm).reply(messages, toolbox)
+
+    sent = llm.requests[0]["messages"]
+    assert sent[2]["content"] == "Tổng 400.000 ₫"
+    assert reply.text == "Còn 200.000 ₫"
+    assert messages[-1]["content"] == "Còn 200.000 ₫"

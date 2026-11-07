@@ -33,20 +33,33 @@ log = logging.getLogger(__name__)
 # Models write Markdown even when told not to, and the page shows replies as plain text.
 _EMPHASIS = re.compile(r"\*\*(.+?)\*\*|__(.+?)__", re.DOTALL)
 _HEADING = re.compile(r"^#{1,6} +", re.MULTILINE)
+# Models write amounts as "400.000\u202f₫". Sent back in the history, such spaces make gpt-oss repeat itself and
+# garble its next reply, so the conversation keeps plain spaces only.
+_ODD_SPACES = re.compile(r"[\u00a0\u2000-\u200a\u202f\u205f\u3000]")
+
+
+def plain_spaces(text: str) -> str:
+    return _ODD_SPACES.sub(" ", text)
 
 
 def plain_text(text: str) -> str:
-    return _HEADING.sub("", _EMPHASIS.sub(lambda m: m.group(1) or m.group(2), text))
+    return plain_spaces(_HEADING.sub("", _EMPHASIS.sub(lambda m: m.group(1) or m.group(2), text)))
 
 
 def context(messages: list[dict], turns: int = 10) -> list[dict]:
     """What the model is sent: the system prompt and the last `turns` user turns, each kept whole, so that a long
     conversation stays within the model's limits and no tool call is separated from its results."""
     starts = [i for i, message in enumerate(messages) if message["role"] == "user"]
-    if len(starts) <= turns:
-        return messages
-    system = messages[:1] if messages and messages[0]["role"] == "system" else []
-    return system + messages[starts[-turns] :]
+    if len(starts) > turns:
+        system = messages[:1] if messages and messages[0]["role"] == "system" else []
+        messages = system + messages[starts[-turns] :]
+    # Conversations saved before replies were cleaned may still hold odd spaces.
+    return [
+        {**m, "content": plain_spaces(m["content"])}
+        if m["role"] == "assistant" and isinstance(m.get("content"), str)
+        else m
+        for m in messages
+    ]
 
 
 @dataclass(frozen=True)
