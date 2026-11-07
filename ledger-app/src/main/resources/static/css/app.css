@@ -1196,8 +1196,21 @@ fieldset {
   list-style: none;
 }
 
+.history-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-sm);
+}
+
+.history-item:hover,
+.history-item:has(a[aria-current="page"]) {
+  background: var(--chip);
+}
+
 .history-list a {
-  display: block;
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   padding: 0.5rem 0.625rem;
   border-radius: var(--radius-sm);
@@ -1208,9 +1221,118 @@ fieldset {
   white-space: nowrap;
 }
 
-.history-list a:hover,
-.history-list a[aria-current="page"] {
-  background: var(--chip);
+/* "⋯" shows on the item under the pointer or the keyboard, on the open one, and always on touch screens. */
+.history-more {
+  position: relative;
+  flex: none;
+  opacity: 0;
+}
+
+.history-item:hover .history-more,
+.history-item:focus-within .history-more,
+.history-item:has(a[aria-current="page"]) .history-more,
+.history-more:has([aria-expanded="true"]) {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .history-more {
+    opacity: 1;
+  }
+}
+
+.history-more .icon-button {
+  width: 2rem;
+  height: 2rem;
+}
+
+.history-more .icon-button svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.history-menu {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  right: 0;
+  z-index: 30;
+  min-width: 9.5rem;
+  padding: 0.25rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.history-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 0.625rem;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  font-size: 0.9375rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.history-menu-item svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.danger-text {
+  color: var(--alert);
+}
+
+.history-menu-item.danger-text:hover {
+  background: var(--alert-wash);
+}
+
+/* The confirmation before a deletion */
+
+.dialog {
+  width: min(calc(100% - 2rem), 26rem);
+  padding: 1.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.dialog::backdrop {
+  background: var(--top);
+  opacity: 0.5;
+}
+
+.dialog form {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.dialog h2 {
+  font-size: var(--t-h3);
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.button.danger {
+  border-color: var(--alert);
+  background: var(--alert);
+  color: var(--brand-ink);
+}
+
+.button.danger:hover {
+  border-color: var(--alert);
+  background: var(--alert);
+  filter: brightness(1.1);
 }
 
 .history-list a[aria-current="page"] {

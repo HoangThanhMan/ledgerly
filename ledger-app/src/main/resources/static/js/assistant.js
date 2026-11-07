@@ -22,16 +22,11 @@ export async function startAssistant(root) {
   const message = root.querySelector("[data-message]");
 
   root.querySelector("[data-new]").addEventListener("click", () => {
-    view += 1;
-    setConversation(null);
-    root.querySelector("[data-turns]").replaceChildren();
-    root.querySelector("[data-welcome]").hidden = false;
-    show(message, "");
-    markCurrent(root);
-    closeHistory(root);
+    startNew(root);
     input.focus();
   });
   setUpSidebar(root);
+  setUpMenus();
   showSuggestions(root, (text) => send(root, text));
 
   form.addEventListener("submit", (event) => {
@@ -115,14 +110,117 @@ async function loadHistory(root) {
         openConversation(root, item.id);
         closeHistory(root);
       });
-      const li = element("li");
-      li.append(link);
+      const li = element("li", "history-item");
+      li.append(link, itemMenu(root, item));
       ul.append(li);
     }
     sections.push(heading, ul);
   }
   groups.replaceChildren(...sections);
   markCurrent(root);
+}
+
+/** Shows an empty conversation, ready for a first message. */
+function startNew(root) {
+  view += 1;
+  setConversation(null);
+  root.querySelector("[data-turns]").replaceChildren();
+  root.querySelector("[data-welcome]").hidden = false;
+  show(root.querySelector("[data-message]"), "");
+  markCurrent(root);
+  closeHistory(root);
+}
+
+const ICON_MORE =
+  '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>';
+const ICON_TRASH =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>';
+
+/** The "⋯" button of a history item, and the menu it opens. */
+function itemMenu(root, item) {
+  const box = element("div", "history-more");
+  const button = element("button", "icon-button");
+  button.type = "button";
+  button.innerHTML = ICON_MORE;
+  button.setAttribute("aria-label", t("assistant.more", { title: item.title }));
+  button.setAttribute("aria-haspopup", "menu");
+  button.setAttribute("aria-expanded", "false");
+  const menu = element("div", "history-menu");
+  menu.setAttribute("role", "menu");
+  menu.hidden = true;
+  const remove = element("button", "history-menu-item danger-text");
+  remove.type = "button";
+  remove.setAttribute("role", "menuitem");
+  remove.innerHTML = ICON_TRASH;
+  remove.append(element("span", "", t("assistant.delete")));
+  menu.append(remove);
+  box.append(button, menu);
+
+  button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const open = menu.hidden;
+    closeMenus();
+    menu.hidden = !open;
+    button.setAttribute("aria-expanded", String(open));
+    if (open) {
+      remove.focus();
+    }
+  });
+  remove.addEventListener("click", () => {
+    closeMenus();
+    confirmDelete(root, item, button);
+  });
+  return box;
+}
+
+function closeMenus() {
+  for (const menu of document.querySelectorAll(".history-menu:not([hidden])")) {
+    menu.hidden = true;
+    menu.previousElementSibling.setAttribute("aria-expanded", "false");
+  }
+}
+
+function setUpMenus() {
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest(".history-menu")) {
+      closeMenus();
+    }
+  });
+  document.addEventListener("keydown", (event) => {
+    const open = document.querySelector(".history-menu:not([hidden])");
+    if (event.key === "Escape" && open) {
+      closeMenus();
+      open.previousElementSibling.focus();
+    }
+  });
+}
+
+/** Asks before deleting, then deletes the conversation and takes it off the list. */
+function confirmDelete(root, item, button) {
+  const dialog = document.querySelector("[data-delete-dialog]");
+  dialog.querySelector("[data-delete-text]").textContent = t("assistant.deleteText", { title: item.title });
+  dialog.returnValue = "";
+  dialog.addEventListener(
+    "close",
+    async () => {
+      if (dialog.returnValue !== "delete") {
+        button.focus();
+        return;
+      }
+      const response = await call("DELETE", `/assistant/conversations/${encodeURIComponent(item.id)}`);
+      if (response?.status !== 204) {
+        show(root.querySelector("[data-message]"), failure(response), "error");
+        return;
+      }
+      if (item.id === conversationId) {
+        startNew(root);
+      }
+      await loadHistory(root);
+      root.querySelector("[data-new]").focus();
+    },
+    { once: true },
+  );
+  dialog.showModal();
 }
 
 function markCurrent(root) {

@@ -72,3 +72,15 @@ def test_begin_is_exclusive():
     assert store.begin("c1") is False
     store.end("c1")
     assert store.begin("c1") is True
+
+
+def test_delete_removes_only_the_users_own_conversation():
+    store = ConversationStore()
+    mine = store.get_or_create(None, "u1")
+    store.save(mine)
+
+    assert store.delete(mine.id, "u2") is False
+    assert store.find(mine.id, "u1") is not None
+    assert store.delete(mine.id, "u1") is True
+    assert store.find(mine.id, "u1") is None
+    assert store.delete(mine.id, "u1") is False

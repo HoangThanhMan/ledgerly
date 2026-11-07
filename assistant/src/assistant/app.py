@@ -72,7 +72,7 @@ def create_app(
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[settings.allowed_origin],
-        allow_methods=["GET", "POST"],
+        allow_methods=["GET", "POST", "DELETE"],
         allow_headers=["Authorization", "Content-Type"],
         expose_headers=["Retry-After"],
     )
@@ -145,6 +145,19 @@ def create_app(
                 for entry in conversation.transcript
             ],
         }
+
+    @app.delete("/assistant/conversations/{conversation_id}", status_code=204)
+    def delete_conversation(conversation_id: str, authorization: Annotated[str | None, Header()] = None):
+        _, sub = verified(authorization)
+        # A turn still running would save the conversation again when it ends.
+        if not conversations.begin(conversation_id):
+            raise _Problem(409, "conversation-busy", "A reply in this conversation is still being written")
+        try:
+            if not conversations.delete(conversation_id, sub):
+                raise _Problem(404, "conversation-not-found", "No such conversation")
+        finally:
+            conversations.end(conversation_id)
+        return Response(status_code=204)
 
     @app.post("/assistant/proposals/{proposal_id}/confirm")
     def confirm(proposal_id: str, authorization: Annotated[str | None, Header()] = None):

@@ -80,6 +80,16 @@
         <p class="muted small composer-hint" data-i18n="assistant.hint"></p>
       </main>
     </div>
+    <dialog class="dialog" data-delete-dialog aria-labelledby="delete-title">
+      <form method="dialog">
+        <h2 id="delete-title" data-i18n="assistant.deleteTitle"></h2>
+        <p class="muted" data-delete-text></p>
+        <div class="dialog-actions">
+          <button class="button quiet" value="cancel" data-i18n="assistant.cancel"></button>
+          <button class="button danger" value="delete" data-i18n="assistant.delete"></button>
+        </div>
+      </form>
+    </dialog>
     <script type="module">
       import { startAssistant } from "./js/assistant.js";
       import { renderTopbar } from "./js/auth.js";

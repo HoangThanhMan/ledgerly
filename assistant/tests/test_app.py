@@ -499,3 +499,57 @@ def test_busy_conversation_returns_409(ledger, http, proposals):
 
     assert response.status_code == 409
     assert response.json()["type"] == "/problems/conversation-busy"
+
+
+def delete(client, conversation_id, sub="u1"):
+    return client.delete(f"/assistant/conversations/{conversation_id}", headers=auth(sub))
+
+
+def test_delete_conversation(ledger, http, proposals):
+    client, cid, _ = propose(ledger, http, proposals, ConversationStore())
+
+    response = delete(client, cid)
+
+    assert response.status_code == 204
+    assert history(client, cid).status_code == 404
+    assert history(client).json() == {"items": []}
+
+
+def test_delete_other_users_conversation_is_404(ledger, http, proposals):
+    client, cid, _ = propose(ledger, http, proposals, ConversationStore())
+
+    response = delete(client, cid, sub="u2")
+
+    assert response.status_code == 404
+    assert response.json()["type"] == "/problems/conversation-not-found"
+    assert history(client, cid).status_code == 200
+
+
+def test_delete_requires_a_verified_token(ledger, http, proposals):
+    client, cid, _ = propose(ledger, http, proposals, ConversationStore())
+    ledger.get("/v1/wallets").respond(401, json=problem_json(401, "unauthenticated", "Unauthenticated"))
+
+    assert delete(client, cid).status_code == 401
+
+
+def test_delete_busy_conversation_is_409(ledger, http, proposals):
+    conversations = ConversationStore()
+    client, cid, _ = propose(ledger, http, proposals, conversations)
+    conversations.begin(cid)
+
+    response = delete(client, cid)
+
+    assert response.status_code == 409
+    conversations.end(cid)
+    assert history(client, cid).status_code == 200
+
+
+def test_cors_allows_delete(http, proposals):
+    client = make_client(http, proposals, FakeLlm([]))
+
+    preflight = client.options(
+        "/assistant/conversations/x",
+        headers={"Origin": "http://localhost:8080", "Access-Control-Request-Method": "DELETE"},
+    )
+
+    assert "DELETE" in preflight.headers["access-control-allow-methods"]

@@ -83,6 +83,13 @@ class ConversationStore:
         )
         return [_from_row(row) for row in rows]
 
+    def delete(self, conversation_id: str, user_sub: str) -> bool:
+        """Deletes the user's conversation. False when there is none of theirs with that id."""
+        rows = self._db.execute(
+            "DELETE FROM conversations WHERE id = ? AND user_sub = ? RETURNING id", (conversation_id, user_sub)
+        )
+        return bool(rows)
+
     def begin(self, conversation_id: str) -> bool:
         """Marks a turn as running. False when one already is: two turns at once would interleave their messages."""
         with self._lock:
