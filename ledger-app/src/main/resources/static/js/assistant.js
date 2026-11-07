@@ -12,6 +12,8 @@ const RETRYABLE = new Set([409, 429, 502, 503]);
 const DAY = 24 * 60 * 60 * 1000;
 
 let conversationId = null;
+// Counts the conversations shown. A reply that arrives after the user opened another one is for a view that is gone.
+let view = 0;
 
 export async function startAssistant(root) {
   requireSignIn();
@@ -20,6 +22,7 @@ export async function startAssistant(root) {
   const message = root.querySelector("[data-message]");
 
   root.querySelector("[data-new]").addEventListener("click", () => {
+    view += 1;
     setConversation(null);
     root.querySelector("[data-turns]").replaceChildren();
     root.querySelector("[data-welcome]").hidden = false;
@@ -133,8 +136,12 @@ function markCurrent(root) {
 }
 
 async function openConversation(root, id) {
+  const shown = ++view;
   const message = root.querySelector("[data-message]");
   const response = await call("GET", `/assistant/conversations/${encodeURIComponent(id)}`);
+  if (shown !== view) {
+    return; // another conversation was opened while this one loaded
+  }
   if (response?.status !== 200) {
     setConversation(null);
     show(message, failure(response), "error");
@@ -205,10 +212,16 @@ async function send(root, text) {
   setBusy(form, true);
   typing.hidden = false;
   typing.scrollIntoView({ block: "end" });
+  const sentFrom = view;
   const response = await call("POST", "/assistant/chat", { conversationId, message: text, language: lang() });
   typing.hidden = true;
   setBusy(form, false);
   form.querySelector("textarea").focus();
+  if (view !== sentFrom) {
+    // The user moved to another conversation meanwhile: the reply is saved there, the history shows it.
+    await loadHistory(root);
+    return;
+  }
   if (response?.status !== 200) {
     show(message, failure(response), "error");
     return;
