@@ -28,7 +28,7 @@ Open http://localhost:8080, then:
 1. Sign up, open a wallet and deposit some demo money.
 2. Open the event *Ledgerly Live* and buy a ticket.
 3. Open the same event in a second tab and buy again: the count of tickets left changes in both tabs.
-4. Press "Gửi lại (cùng key)" to resend the same order. You get the first result back and are not charged again.
+4. Press "Gửi lại (cùng key)" ("Send again (same key)") to resend the same order. You get the first result back and are not charged again.
 
 The API is documented at http://localhost:8080/swagger-ui.html. To stop everything: `docker compose --profile full down`.
 
@@ -37,12 +37,12 @@ The API is documented at http://localhost:8080/swagger-ui.html. To stop everythi
 - **Accounts:** sign up and sign in as a buyer or an organizer.
 - **Wallet:** open a wallet, deposit demo money, see the balance and history, send money to another wallet.
 - **Events:** organizers create events with ticket classes and prices; anyone can browse them.
-- **Tickets:** buy up to 4 tickets of a class, paid from the wallet, and see them under "Vé của tôi" (my tickets).
+- **Tickets:** buy up to 4 tickets of a class, paid from the wallet, and see them under "My tickets".
 - **Live updates:** the number of tickets left updates on every open page as tickets sell.
 - **Assistant:** a chat assistant finds events and prepares orders; only the user can confirm them.
 - **Notifications:** every purchase and transfer creates a notification, through Kafka.
 
-The pages are in Vietnamese and served by the application itself; everything they do is also available as a REST API.
+The pages come in Vietnamese and English, light and dark, and are served by the application itself (plain HTML, CSS and JavaScript, no build step); everything they do is also available as a REST API.
 
 ## Architecture
 
@@ -120,9 +120,11 @@ Then open http://localhost:3000 (admin / admin).
 
 ## Assistant
 
-A chat assistant (in Vietnamese) finds events, compares ticket classes, checks wallets and prepares orders. It is a
-separate Python service that calls the same REST API as the browser, with the user's own token, so it can do nothing
-the user could not.
+A chat assistant (in Vietnamese or English) finds events, compares ticket classes, checks wallets and prepares
+orders, and keeps past conversations in a sidebar. It is a separate Python service that calls the same REST API as the
+browser, with the user's own token, so it can do nothing the user could not.
+
+![The assistant page](assets/assistant.png)
 
 **It cannot spend money.** None of the tools the model can call moves money: the most it can do is prepare a
 proposal. Tickets are bought only when the user presses "Xác nhận mua", which confirms that proposal with an

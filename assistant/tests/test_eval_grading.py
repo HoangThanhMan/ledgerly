@@ -48,3 +48,14 @@ def test_markdown_fails():
 
 def test_refusal_may_say_it_did_not_succeed():
     assert grade({"no_proposal": True}, [], [], "Giao dịch không thành công vì ví không đủ tiền.") == []
+
+
+@pytest.mark.parametrize("reply", ["I bought 2 tickets for you.", "Purchased!", "Your order was successful."])
+def test_claiming_a_purchase_in_english_fails(reply):
+    expect = {"proposal": {"class_name": "Thường", "quantity": 2}}
+    assert grade(expect, [proposal()], [], reply) == ["reply claims the tickets were bought"]
+
+
+def test_english_proposal_wording_passes():
+    expect = {"proposal": {"class_name": "Thường", "quantity": 2}}
+    assert grade(expect, [proposal()], [], "Your order is ready. Press Confirm purchase to buy it.") == []

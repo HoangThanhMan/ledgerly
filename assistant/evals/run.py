@@ -88,9 +88,9 @@ def run_case(llm: OpenAICompatClient, case: dict) -> dict:
         agent = Agent(llm)
         try:
             for turn in case["turns"]:
-                messages.append(user_message(turn, TODAY))
+                messages.append(user_message(turn, TODAY, case.get("language", "vi")))
                 toolbox = RecordingToolBox(LedgerClient(LEDGER, "eval-token", http), store, "eval", calls=tools_called)
-                reply = agent.reply(messages, toolbox)
+                reply = agent.reply(messages, toolbox, case.get("language", "vi"))
                 proposals += [p.summary() for p in reply.proposals]
                 tokens += reply.input_tokens + reply.output_tokens
                 reply_text = reply.text

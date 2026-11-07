@@ -3,7 +3,7 @@
 import re
 
 # Only the user's own press on "Xác nhận mua" buys tickets: a reply must never say they are bought.
-_PURCHASE_CLAIM = re.compile(r"thành công|đã mua|đã đặt", re.IGNORECASE)
+_PURCHASE_CLAIM = re.compile(r"thành công|đã mua|đã đặt|\bbought\b|\bpurchased\b|\bsuccessful", re.IGNORECASE)
 _MARKDOWN = re.compile(r"\*\*|__|^#{1,6} ", re.MULTILINE)
 
 
