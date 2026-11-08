@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from assistant.agent import GAVE_UP, STOPPED, Agent, user_message
+from assistant.agent import GAVE_UP, STOPPED, Agent, plain_text, user_message
 from assistant.ledger_client import LedgerClient
 from assistant.prompts import SYSTEM_PROMPT
 from assistant.proposals import ProposalStore
@@ -21,8 +21,31 @@ def ask(text):
     return [user_message(text, "2026-11-07")]
 
 
-def test_user_message_carries_date():
-    assert user_message("Chào", "2026-11-07") == {"role": "user", "content": "[Hôm nay: 2026-11-07]\nChào"}
+def test_user_message_names_the_reply_language():
+    assert user_message("Chào", "2026-11-07") == {
+        "role": "user",
+        "content": "[Hôm nay: 2026-11-07. Trả lời bằng tiếng Việt.]\nChào",
+    }
+    assert user_message("Hi", "2026-11-07", "en") == {
+        "role": "user",
+        "content": "[Today: 2026-11-07. Reply in English.]\nHi",
+    }
+
+
+def test_fixed_replies_follow_language(ledger, toolbox):
+    ledger.get("/v1/wallets").respond(200, json={"items": []})
+    llm = FakeLlm([call((f"c{i}", "list_wallets", {})) for i in range(8)])
+
+    reply = Agent(llm).reply(ask("Wallets?"), toolbox, "en")
+    stopped = Agent(FakeLlm([say("cut", finish="length")])).reply(ask("Long"), toolbox, "en")
+
+    assert reply.text == GAVE_UP["en"]
+    assert stopped.text == STOPPED["en"]
+    assert set(GAVE_UP) == set(STOPPED) == {"vi", "en"}
+
+
+def test_system_prompt_does_not_fix_a_language():
+    assert "Always answer in Vietnamese" not in SYSTEM_PROMPT
 
 
 def test_first_message_is_system_prompt(toolbox):
@@ -115,9 +138,9 @@ def test_stops_after_max_steps(ledger, toolbox):
 
     reply = Agent(llm, max_steps=8).reply(messages, toolbox)
 
-    assert reply.text == GAVE_UP
+    assert reply.text == GAVE_UP["vi"]
     assert reply.steps == 8
-    assert messages[-1] == {"role": "assistant", "content": GAVE_UP}
+    assert messages[-1] == {"role": "assistant", "content": GAVE_UP["vi"]}
 
 
 @pytest.mark.parametrize("finish", ["length", "content_filter"])
@@ -126,8 +149,8 @@ def test_length_and_content_filter_return_fixed_message(toolbox, finish):
 
     reply = Agent(FakeLlm([say("Một đoạn bị cắt", finish=finish)])).reply(messages, toolbox)
 
-    assert reply.text == STOPPED
-    assert messages[-1] == {"role": "assistant", "content": STOPPED}
+    assert reply.text == STOPPED["vi"]
+    assert messages[-1] == {"role": "assistant", "content": STOPPED["vi"]}
 
 
 def test_injected_event_name_cannot_buy(ledger, toolbox):
@@ -146,8 +169,8 @@ def test_empty_reply_is_replaced_and_stored_as_text(toolbox, text):
 
     reply = Agent(FakeLlm([say(text)])).reply(messages, toolbox)
 
-    assert reply.text == GAVE_UP
-    assert messages[-1] == {"role": "assistant", "content": GAVE_UP}
+    assert reply.text == GAVE_UP["vi"]
+    assert messages[-1] == {"role": "assistant", "content": GAVE_UP["vi"]}
 
 
 def test_markdown_is_removed_from_replies(toolbox):
@@ -159,3 +182,54 @@ def test_markdown_is_removed_from_replies(toolbox):
 
     assert reply.text == "Hạng vé\nHạng B giá 300.000 ₫, nhấn Xác nhận mua."
     assert messages[-1] == {"role": "assistant", "content": reply.text}
+
+
+def test_context_keeps_last_ten_turns_whole(toolbox):
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    for i in range(11):
+        messages.append({"role": "user", "content": f"turn {i}"})
+        if i == 2:
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {"id": "t", "type": "function", "function": {"name": "list_wallets", "arguments": "{}"}}
+                    ],
+                }
+            )
+            messages.append({"role": "tool", "tool_call_id": "t", "content": "{}"})
+        messages.append({"role": "assistant", "content": f"answer {i}"})
+    messages.append({"role": "user", "content": "turn 11"})
+    llm = FakeLlm([say("ok")])
+
+    Agent(llm).reply(messages, toolbox)
+
+    sent = llm.requests[0]["messages"]
+    assert sent[0]["role"] == "system"
+    assert sent[1] == {"role": "user", "content": "turn 2"}
+    assert sent[2]["tool_calls"][0]["id"] == "t"
+    assert sum(m["role"] == "user" for m in sent) == 10
+    assert messages[1] == {"role": "user", "content": "turn 0"}  # the stored conversation keeps everything
+
+
+def test_plain_text_uses_plain_spaces():
+    # Models write "400.000 ₫"; sent back to gpt-oss, such spaces make it repeat and garble its next reply.
+    assert plain_text("400.000 ₫ và ví này") == "400.000 ₫ và ví này"
+
+
+def test_reply_and_history_get_plain_spaces(toolbox):
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": "a"},
+        {"role": "assistant", "content": "Tổng 400.000 ₫"},
+        {"role": "user", "content": "b"},
+    ]
+    llm = FakeLlm([say("Còn 200.000 ₫")])
+
+    reply = Agent(llm).reply(messages, toolbox)
+
+    sent = llm.requests[0]["messages"]
+    assert sent[2]["content"] == "Tổng 400.000 ₫"
+    assert reply.text == "Còn 200.000 ₫"
+    assert messages[-1]["content"] == "Còn 200.000 ₫"

@@ -31,6 +31,13 @@ jobs:
       - name: Build (Spotless, Error Prone, NullAway, unit test, integration test, JaCoCo)
         run: ./gradlew build
 
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+
+      - name: Test the browser pages' modules
+        run: node --test "ledger-app/src/test/js/*.test.mjs"
+
       - name: Coverage summary
         if: always()
         run: python3 scripts/ci/coverage-summary.py >> "$GITHUB_STEP_SUMMARY"

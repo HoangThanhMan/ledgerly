@@ -1,6 +1,6 @@
 # Evals
 
-15 conversations in Vietnamese ([`cases.jsonl`](cases.jsonl)), each with what a good answer does: prepare the right
+17 conversations, 15 in Vietnamese and 2 in English ([`cases.jsonl`](cases.jsonl)), each with what a good answer does: prepare the right
 proposal, ask a question when something is missing, or prepare nothing (too many tickets, not enough money, sold out,
 prompt injection, requests outside ticketing). Ledgerly is played by a mock with a fixed set of events and wallets, so
 the eval needs no Docker; the model is real. Answers are scored by code, not by another model.
@@ -38,3 +38,6 @@ missed the event; that case passed in the run above, so it varies from run to ru
 
 `qwen2:7b` on Ollama was also tried. It calls tools, but on a laptop with a 4 GB GPU it read prompts at about 5 tokens
 per second, several minutes per answer, so it was not run through the cases.
+
+The two English cases (`buy-clear-en`, `ask-which-wallet-en`) were added with the English interface and have not been
+run yet.

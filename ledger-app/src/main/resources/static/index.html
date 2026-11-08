@@ -3,33 +3,62 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script>
+      // Theme and language before anything is drawn, so the page does not flash. ?theme= and ?lang= are for screenshots.
+      (() => {
+        const root = document.documentElement;
+        const asked = new URLSearchParams(location.search);
+        try {
+          const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+          root.dataset.theme = asked.get("theme") || localStorage.getItem("theme") || (dark ? "dark" : "light");
+          root.lang = (asked.get("lang") || localStorage.getItem("lang")) === "en" ? "en" : "vi";
+        } catch {
+          root.dataset.theme = "light";
+        }
+      })();
+    </script>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect x=%222%22 y=%228%22 width=%2228%22 height=%2216%22 rx=%223%22 fill=%22%235b2a86%22/%3E%3Ccircle cx=%2222%22 cy=%228%22 r=%223%22 fill=%22%23f6eef2%22/%3E%3Ccircle cx=%2222%22 cy=%2224%22 r=%223%22 fill=%22%23f6eef2%22/%3E%3C/svg%3E">
     <link rel="stylesheet" href="css/app.css">
-    <title>TicketBox</title>
+    <title>Ledgerly</title>
   </head>
   <body>
     <header class="topbar"></header>
     <main>
-      <section class="hero">
-        <h1>Vé sự kiện, trả bằng ví của bạn.</h1>
-        <p class="lead">
-          Nạp tiền vào ví một lần, rồi mua vé trong vài giây. Số vé còn lại của mỗi hạng cập nhật ngay khi có người
-          mua, không cần tải lại trang.
-        </p>
+      <div role="status" class="notice" data-message></div>
+      <section class="feature" data-feature hidden>
+        <a class="feature-poster" data-poster tabindex="-1"></a>
+        <div class="feature-info">
+          <h1 data-name></h1>
+          <p class="feature-meta"><time data-date></time><br><span data-left></span></p>
+          <p class="feature-price"><span class="muted" data-i18n="home.from"></span> <strong data-price></strong></p>
+          <a class="button" data-buy data-i18n="home.choose"></a>
+        </div>
+      </section>
+      <section data-upcoming hidden>
+        <div class="section-head">
+          <h2 data-i18n="home.upcoming"></h2>
+          <a href="events.html" data-i18n="home.all"></a>
+        </div>
+        <ul class="event-grid" data-grid></ul>
+      </section>
+      <section class="empty" data-empty hidden>
+        <h1 data-i18n="home.emptyTitle"></h1>
+        <p class="lead" data-i18n="home.emptyText"></p>
         <div class="actions">
-          <a class="button" href="events.html">Xem sự kiện</a>
-          <a class="button quiet" href="register.html" data-signed-out>Tạo tài khoản</a>
+          <a class="button" href="register.html" data-i18n="nav.register"></a>
+          <a class="button quiet" href="login.html" data-i18n="nav.signIn"></a>
         </div>
       </section>
     </main>
     <script type="module">
       import { renderTopbar } from "./js/auth.js";
-      import { token } from "./js/api.js";
+      import { showHome } from "./js/home.js";
+      import { t, translatePage } from "./js/i18n.js";
 
+      document.title = t("title.home");
+      translatePage();
       renderTopbar();
-      if (token()) {
-        document.querySelector("[data-signed-out]").hidden = true;
-      }
+      showHome(document.querySelector("main"));
     </script>
   </body>
 </html>

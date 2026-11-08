@@ -1,11 +1,13 @@
 // My wallet: open one, see the balance and every change to it, and deposit demo money.
 
 import { api, formatVnd, newKey, problemMessage, requireSignIn, show } from "./api.js";
+import { escapeHtml } from "./auth.js";
+import { locale, t } from "./i18n.js";
 
 const PAGE = 20;
 const AMOUNT = /^[1-9][0-9]{0,17}$/;
 
-const when = new Intl.DateTimeFormat("vi-VN", { dateStyle: "short", timeStyle: "short" });
+const when = () => new Intl.DateTimeFormat(locale(), { dateStyle: "short", timeStyle: "short" });
 
 let wallet = null;
 let nextCursor = null;
@@ -55,14 +57,14 @@ function showChoice(nav, wallets) {
   nav.querySelector("ul").innerHTML = wallets
     .map((w) => {
       const current = w.id === wallet.id ? ' aria-current="page"' : "";
-      return `<li><a href="wallet.html?id=${w.id}"${current}>Ví …${w.id.slice(-4)}</a></li>`;
+      return `<li><a href="wallet.html?id=${w.id}"${current}>${escapeHtml(t("wallet.tab", { tail: w.id.slice(-4) }))}</a></li>`;
     })
     .join("");
 }
 
 function showBalance(root) {
   root.querySelector("[data-balance]").textContent = formatVnd(wallet.balance);
-  root.querySelector("[data-wallet-id]").textContent = wallet.id;
+  root.querySelector("[data-wallet-id]").textContent = t("wallet.id", { id: wallet.id });
 }
 
 async function refreshBalance(root) {
@@ -74,12 +76,13 @@ async function refreshBalance(root) {
 }
 
 function setUpDeposit(form) {
-  const message = form.querySelector("[data-deposit-message]");
+  // The message sits beside the form, in the same panel.
+  const message = form.closest("section").querySelector("[data-deposit-message]");
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const amount = form.amount.value.trim().replace(/[.\s]/g, "");
     if (!AMOUNT.test(amount)) {
-      show(message, "Nhập một số đồng nguyên dương, tối đa 18 chữ số, không có số 0 ở đầu.", "error");
+      show(message, t("wallet.amountInvalid"), "error");
       form.amount.focus();
       return;
     }
@@ -90,7 +93,7 @@ function setUpDeposit(form) {
       idempotencyKey: newKey(),
     });
     if (response.status === 201) {
-      show(message, `Đã nạp ${formatVnd(amount)}.`, "ok");
+      show(message, t("wallet.deposited", { amount: formatVnd(amount) }), "ok");
       form.reset();
       const root = form.closest("main");
       await refreshBalance(root);
@@ -127,9 +130,9 @@ function entryRow(entry) {
   const signed = (amount > 0n ? "+" : "") + formatVnd(entry.amount);
   return `
     <tr>
-      <td>${when.format(new Date(entry.createdAt))}</td>
-      <td>${amount > 0n ? "Tiền vào" : "Tiền ra"}</td>
-      <td class="num">${signed}</td>
-      <td class="num">${formatVnd(entry.balanceAfter)}</td>
+      <td>${escapeHtml(when().format(new Date(entry.createdAt)))}</td>
+      <td>${escapeHtml(t(amount > 0n ? "wallet.in" : "wallet.out"))}</td>
+      <td class="num ${amount > 0n ? "amount-in" : ""}">${escapeHtml(signed)}</td>
+      <td class="num">${escapeHtml(formatVnd(entry.balanceAfter))}</td>
     </tr>`;
 }

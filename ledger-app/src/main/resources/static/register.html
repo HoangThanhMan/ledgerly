@@ -3,46 +3,65 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script>
+      // Theme and language before anything is drawn, so the page does not flash. ?theme= and ?lang= are for screenshots.
+      (() => {
+        const root = document.documentElement;
+        const asked = new URLSearchParams(location.search);
+        try {
+          const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+          root.dataset.theme = asked.get("theme") || localStorage.getItem("theme") || (dark ? "dark" : "light");
+          root.lang = (asked.get("lang") || localStorage.getItem("lang")) === "en" ? "en" : "vi";
+        } catch {
+          root.dataset.theme = "light";
+        }
+      })();
+    </script>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect x=%222%22 y=%228%22 width=%2228%22 height=%2216%22 rx=%223%22 fill=%22%235b2a86%22/%3E%3Ccircle cx=%2222%22 cy=%228%22 r=%223%22 fill=%22%23f6eef2%22/%3E%3Ccircle cx=%2222%22 cy=%2224%22 r=%223%22 fill=%22%23f6eef2%22/%3E%3C/svg%3E">
     <link rel="stylesheet" href="css/app.css">
-    <title>Đăng ký – TicketBox</title>
+    <title>Đăng ký – Ledgerly</title>
   </head>
   <body>
     <header class="topbar"></header>
-    <main>
-      <div class="page-head">
-        <h1>Tạo tài khoản</h1>
-        <p class="muted">Đã có tài khoản? <a href="login.html">Đăng nhập</a>.</p>
-      </div>
-      <form class="form" novalidate>
-        <div class="field">
-          <label for="email">Email</label>
-          <input id="email" name="email" type="email" autocomplete="username" required>
+    <main class="auth">
+      <div class="panel auth-card">
+        <div class="auth-head">
+          <h1 data-i18n="auth.registerTitle"></h1>
+          <p class="muted" data-i18n="auth.registerLead"></p>
         </div>
-        <div class="field">
-          <label for="password">Mật khẩu</label>
-          <input id="password" name="password" type="password" autocomplete="new-password" minlength="8"
-                 maxlength="72" aria-describedby="password-hint" required>
-          <span class="hint" id="password-hint">Từ 8 đến 72 ký tự.</span>
-        </div>
-        <fieldset class="field">
-          <legend>Bạn dùng TicketBox để</legend>
-          <div class="choices">
-            <label><input type="radio" name="role" value="USER" checked> Mua vé</label>
-            <label><input type="radio" name="role" value="ORGANIZER"> Tổ chức sự kiện</label>
+        <form class="form" method="post" novalidate>
+          <div class="field">
+            <label for="email" data-i18n="auth.email"></label>
+            <input id="email" name="email" type="email" autocomplete="username" required>
           </div>
-        </fieldset>
-        <div role="alert" class="notice" data-message></div>
-        <div class="actions">
-          <button class="button" type="submit">Tạo tài khoản</button>
-        </div>
-      </form>
+          <div class="field">
+            <label for="password" data-i18n="auth.password"></label>
+            <input id="password" name="password" type="password" autocomplete="new-password" minlength="8"
+                   maxlength="72" aria-describedby="password-hint" required>
+            <span class="hint" id="password-hint" data-i18n="auth.passwordHint"></span>
+          </div>
+          <fieldset class="field">
+            <legend data-i18n="auth.role"></legend>
+            <div class="choices">
+              <label><input type="radio" name="role" value="USER" checked> <span data-i18n="auth.roleUser"></span></label>
+              <label><input type="radio" name="role" value="ORGANIZER"> <span data-i18n="auth.roleOrganizer"></span></label>
+            </div>
+          </fieldset>
+          <div role="alert" class="notice" data-message></div>
+          <button class="button" type="submit" data-i18n="auth.registerTitle"></button>
+        </form>
+        <p class="muted auth-switch"><span data-i18n="auth.haveAccount"></span> <a href="login.html" data-i18n="nav.signIn"></a></p>
+      </div>
     </main>
     <script type="module">
       import { renderTopbar, setUpRegisterForm } from "./js/auth.js";
+      import { t, translatePage } from "./js/i18n.js";
 
+      document.title = t("title.register");
+      translatePage();
       renderTopbar();
-      setUpRegisterForm(document.querySelector("form"));
+      // "main form": the top bar has a search form of its own, which comes first in the page.
+      setUpRegisterForm(document.querySelector("main form"));
     </script>
   </body>
 </html>

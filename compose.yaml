@@ -136,6 +136,9 @@ services:
         required: false
     environment:
       LEDGERLY_API_URL: http://ledger-app:8080
+      ASSISTANT_DB_PATH: /data/assistant.db
+    volumes:
+      - assistant-data:/data
     ports:
       - "8090:8090"
     depends_on:
@@ -150,3 +153,4 @@ services:
 
 volumes:
   postgres-data:
+  assistant-data:

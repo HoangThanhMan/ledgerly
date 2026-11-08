@@ -3,69 +3,89 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script>
+      // Theme and language before anything is drawn, so the page does not flash. ?theme= and ?lang= are for screenshots.
+      (() => {
+        const root = document.documentElement;
+        const asked = new URLSearchParams(location.search);
+        try {
+          const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+          root.dataset.theme = asked.get("theme") || localStorage.getItem("theme") || (dark ? "dark" : "light");
+          root.lang = (asked.get("lang") || localStorage.getItem("lang")) === "en" ? "en" : "vi";
+        } catch {
+          root.dataset.theme = "light";
+        }
+      })();
+    </script>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect x=%222%22 y=%228%22 width=%2228%22 height=%2216%22 rx=%223%22 fill=%22%235b2a86%22/%3E%3Ccircle cx=%2222%22 cy=%228%22 r=%223%22 fill=%22%23f6eef2%22/%3E%3Ccircle cx=%2222%22 cy=%2224%22 r=%223%22 fill=%22%23f6eef2%22/%3E%3C/svg%3E">
     <link rel="stylesheet" href="css/app.css">
-    <title>Ví – TicketBox</title>
+    <title>Ví – Ledgerly</title>
   </head>
   <body>
     <header class="topbar"></header>
     <main>
       <div class="page-head">
-        <h1>Ví của tôi</h1>
+        <h1 data-i18n="wallet.title"></h1>
       </div>
       <div role="alert" class="notice" data-message></div>
 
-      <section class="panel" data-open hidden>
-        <h2>Bạn chưa có ví</h2>
-        <p>Mở một ví bằng VND để nạp tiền và mua vé.</p>
-        <div class="actions"><button class="button" type="button">Mở ví</button></div>
+      <section class="panel wallet-none" data-open hidden>
+        <h2 data-i18n="wallet.noneTitle"></h2>
+        <p class="muted" data-i18n="wallet.noneText"></p>
+        <div class="actions"><button class="button" type="button" data-i18n="wallet.open"></button></div>
       </section>
 
       <div data-wallet hidden>
-        <nav class="pager" aria-label="Chọn ví" data-choice hidden><ul class="nav"></ul></nav>
-        <div class="event-layout">
-          <section aria-labelledby="balance-title">
-            <h2 id="balance-title" class="muted small">Số dư</h2>
+        <nav class="wallet-tabs" data-choice data-i18n-aria-label="wallet.choose" hidden><ul></ul></nav>
+        <div class="wallet-top">
+          <section class="panel wallet-balance" aria-labelledby="balance-title">
+            <h2 id="balance-title" class="muted small" data-i18n="wallet.balance"></h2>
             <p class="balance" data-balance></p>
-            <p class="muted small">Mã ví <span data-wallet-id></span></p>
-
-            <h2 class="section-title">Lịch sử</h2>
-            <table class="table">
-              <thead>
-                <tr>
-                  <th scope="col">Thời gian</th>
-                  <th scope="col">Loại</th>
-                  <th scope="col" class="num">Số tiền</th>
-                  <th scope="col" class="num">Số dư sau</th>
-                </tr>
-              </thead>
-              <tbody data-entries></tbody>
-            </table>
-            <p class="muted" data-no-entries hidden>Chưa có giao dịch nào. Nạp tiền để bắt đầu.</p>
-            <div class="pager"><button class="button quiet" type="button" data-more hidden>Xem cũ hơn</button></div>
+            <p class="muted small" data-wallet-id></p>
           </section>
-
           <section class="panel" aria-labelledby="deposit-title">
-            <h2 id="deposit-title">Nạp tiền</h2>
-            <p class="muted small">Tiền thử cho bản demo, không qua ngân hàng.</p>
-            <form class="form" novalidate data-deposit>
+            <div>
+              <h2 id="deposit-title" data-i18n="wallet.deposit"></h2>
+              <p class="muted small" data-i18n="wallet.depositNote"></p>
+            </div>
+            <form class="deposit-form" novalidate data-deposit>
               <div class="field">
-                <label for="amount">Số tiền (đồng)</label>
+                <label for="amount" data-i18n="wallet.amountLabel"></label>
                 <input id="amount" name="amount" inputmode="numeric" autocomplete="off" placeholder="500000"
                        aria-describedby="amount-hint">
-                <span class="hint" id="amount-hint">Số nguyên dương, tối đa 18 chữ số.</span>
+                <span class="hint" id="amount-hint" data-i18n="wallet.amountHint"></span>
               </div>
-              <div role="status" class="notice" data-deposit-message></div>
-              <div class="actions"><button class="button" type="submit">Nạp tiền</button></div>
+              <button class="button" type="submit" data-i18n="wallet.deposit"></button>
             </form>
+            <div role="status" class="notice" data-deposit-message></div>
           </section>
         </div>
+
+        <h2 class="section-title" data-i18n="wallet.history"></h2>
+        <div class="panel table-panel">
+          <table class="table">
+            <thead>
+              <tr>
+                <th scope="col" data-i18n="wallet.time"></th>
+                <th scope="col" data-i18n="wallet.kind"></th>
+                <th scope="col" class="num" data-i18n="wallet.amount"></th>
+                <th scope="col" class="num" data-i18n="wallet.balanceAfter"></th>
+              </tr>
+            </thead>
+            <tbody data-entries></tbody>
+          </table>
+          <p class="muted table-empty" data-no-entries hidden data-i18n="wallet.noEntries"></p>
+        </div>
+        <div class="pager"><button class="button quiet" type="button" data-more hidden data-i18n="wallet.more"></button></div>
       </div>
     </main>
     <script type="module">
       import { renderTopbar } from "./js/auth.js";
+      import { t, translatePage } from "./js/i18n.js";
       import { showWallet } from "./js/wallet.js";
 
+      document.title = t("title.wallet");
+      translatePage();
       renderTopbar();
       showWallet(document.querySelector("main"));
     </script>

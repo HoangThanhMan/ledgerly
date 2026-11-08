@@ -25,6 +25,13 @@ class StaticPagesIT extends AbstractIntegrationTest {
         "/js/assistant.js, text/javascript",
         "/css/app.css, text/css",
         "/js/api.js, text/javascript",
+        "/js/i18n.js, text/javascript",
+        "/js/messages.js, text/javascript",
+        "/js/theme.js, text/javascript",
+        "/js/poster.js, text/javascript",
+        "/js/text.js, text/javascript",
+        "/js/home.js, text/javascript",
+        "/fonts/be-vietnam-pro-latin-700.woff2, font/woff2",
         "/vendor/stomp.umd.min.js, text/javascript",
         "/fonts/be-vietnam-pro-latin-400.woff2, font/woff2"
     })

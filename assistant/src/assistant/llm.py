@@ -51,8 +51,10 @@ class OpenAICompatClient:
 
     def complete(self, messages: list[dict], tools: list[dict]) -> LlmTurn:
         try:
+            # Without tools, no tool fields at all: some providers reject an empty list.
+            with_tools = {"tools": tools, "tool_choice": "auto"} if tools else {}
             response = self._client.chat.completions.create(
-                model=self._model, messages=messages, tools=tools, tool_choice="auto", temperature=0
+                model=self._model, messages=messages, temperature=0, **with_tools
             )
         except openai.APIConnectionError as error:
             raise LlmUnavailable(str(error)) from error
