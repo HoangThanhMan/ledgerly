@@ -6,6 +6,7 @@ const LINKS = [
   { href: "events.html", label: "Sự kiện" },
   { href: "tickets.html", label: "Vé của tôi", signedIn: true },
   { href: "wallet.html", label: "Ví", signedIn: true },
+  { href: "assistant.html", label: "Trợ lý", signedIn: true },
 ];
 
 /** Fills <header class="topbar"> with the wordmark and the links that fit whether the user is signed in. */

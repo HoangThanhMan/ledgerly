@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect x=%222%22 y=%228%22 width=%2228%22 height=%2216%22 rx=%223%22 fill=%22%235b2a86%22/%3E%3Ccircle cx=%2222%22 cy=%228%22 r=%223%22 fill=%22%23f6eef2%22/%3E%3Ccircle cx=%2222%22 cy=%2224%22 r=%223%22 fill=%22%23f6eef2%22/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="css/app.css">
+    <title>Trợ lý – TicketBox</title>
+  </head>
+  <body>
+    <header class="topbar"></header>
+    <main>
+      <div class="page-head">
+        <h1>Trợ lý</h1>
+      </div>
+      <p class="lead">Hỏi về sự kiện, giá vé và ví của bạn. Trợ lý có thể chuẩn bị đơn, nhưng chỉ bạn mới mua được vé
+        bằng nút "Xác nhận mua".</p>
+      <ol class="chat" data-log aria-live="polite"></ol>
+      <div role="alert" class="notice" data-message></div>
+      <form class="chat-form" data-form>
+        <label class="visually-hidden" for="message">Tin nhắn</label>
+        <input id="message" name="message" maxlength="2000" autocomplete="off" required
+          placeholder="Ví dụ: Tìm sự kiện tháng 3 dưới 500.000 ₫">
+        <button class="button" type="submit">Gửi</button>
+      </form>
+    </main>
+    <script type="module">
+      import { renderTopbar } from "./js/auth.js";
+      import { startAssistant } from "./js/assistant.js";
+
+      renderTopbar();
+      startAssistant(document.querySelector("main"));
+    </script>
+  </body>
+</html>

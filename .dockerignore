@@ -9,6 +9,7 @@
 **/bin
 **/.jqwik-database
 assets
+assistant
 docs
 infra
 perf

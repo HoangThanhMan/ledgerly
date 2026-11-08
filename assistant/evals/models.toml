@@ -1,0 +1,21 @@
+# The models the eval compares. A model whose key variable is not set is skipped.
+# `default` is the model the service runs by default; its pass rate decides the exit code.
+default = "groq-gpt-oss-120b"
+
+[[models]]
+name = "groq-gpt-oss-120b"
+base_url = "https://api.groq.com/openai/v1"
+model = "openai/gpt-oss-120b"
+api_key_env = "GROQ_API_KEY"
+
+[[models]]
+name = "groq-gpt-oss-20b"
+base_url = "https://api.groq.com/openai/v1"
+model = "openai/gpt-oss-20b"
+api_key_env = "GROQ_API_KEY"
+
+[[models]]
+name = "gemini-flash"
+base_url = "https://generativelanguage.googleapis.com/v1beta/openai/"
+model = "gemini-flash-latest"
+api_key_env = "GEMINI_API_KEY"
