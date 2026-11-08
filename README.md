@@ -51,6 +51,7 @@ The pages come in Vietnamese and English, light and dark, and are served by the 
 - **`ledger-app`** is a modular monolith holding users, wallets, the ledger, events and orders. Because they share one database, buying a ticket is a single transaction: the tickets, the payment and the order are saved together or not at all.
 - **`notification-consumer`** is a separate service that reads events from Kafka and writes notifications. If it is down, sales continue.
 - **PostgreSQL** is the source of truth. **Redis** only speeds things up; if it fails, the app keeps working without it.
+- **`assistant`** is a Python service with an LLM agent. It calls `ledger-app`'s REST API with the user's own token and keeps its conversations in SQLite. It can prepare a purchase but never make one: only the user's Confirm sends the order.
 
 When someone buys tickets:
 
