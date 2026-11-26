@@ -1,0 +1,16 @@
+k6 exit code: 0
+buyers: 20000, capacity: 1000, rate: 500/s, max VUs: 2000, ticket class: 01a21734-9508-7a85-a90e-da17567b7da6
+dropped iterations: 0
+orders, from k6: won=663 sold_out=19337 shed=0 other=0
+orders, per request: requests=20000 won=663 conflict409=19337 shed=0 other=0 last_win_s=1.704 won_p50=136.2 won_p99=698.6 conflict_p50=1.9 conflict_p99=127.8 max=1048.8
+statuses: 201=663 409=19337 
+ticket class: total 1000, remaining 0, orders 663, tickets in orders 1000, total - remaining = tickets in orders: true
+outbox pending after the run: 0.0
+new notifications: 663, new outbox events: 663 (waited 0 s for the consumer)
+invariants.sql violating rows: 0
+invariants-events.sql violating rows: 0
+memory stall during k6: 31 ms
+cpu stall during k6: 638 ms
+io stall during k6: 901 ms
+swap used before and after: 3389 MB, 3317 MB
+usable: yes

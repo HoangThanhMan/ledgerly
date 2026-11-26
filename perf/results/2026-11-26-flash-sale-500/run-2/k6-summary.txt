@@ -1,0 +1,49 @@
+
+
+  █ THRESHOLDS 
+
+    dropped_iterations
+    ✓ 'count>=0' count=0
+
+    orders_other
+    ✓ 'count>=0' count=0
+
+    orders_shed
+    ✓ 'count>=0' count=0
+
+    orders_sold_out
+    ✓ 'count>=0' count=19337
+
+    orders_won
+    ✓ 'count>=0' count=663
+
+
+  █ TOTAL RESULTS 
+
+    CUSTOM
+    order_sold_out_ms..............: avg=6.09ms  min=1.49ms  med=1.88ms   p(90)=3.61ms   p(95)=10.14ms  p(99)=127.28ms max=1.04s   
+    order_won_ms...................: avg=173.9ms min=6.03ms  med=136.15ms p(90)=428.78ms p(95)=469.55ms p(99)=694.41ms max=966.03ms
+    orders_other...................: 0      0/s
+    orders_shed....................: 0      0/s
+    orders_sold_out................: 19337  483.40353/s
+    orders_won.....................: 663    16.574264/s
+
+    HTTP
+    http_req_duration..............: avg=11.66ms min=1.49ms  med=1.9ms    p(90)=6.53ms   p(95)=23.96ms  p(99)=286.3ms  max=1.04s   
+      { expected_response:true }...: avg=11.66ms min=1.49ms  med=1.9ms    p(90)=6.53ms   p(95)=23.96ms  p(99)=286.3ms  max=1.04s   
+    http_req_failed................: 0.00%  0 out of 20000
+    http_reqs......................: 20000  499.977794/s
+
+    EXECUTION
+    dropped_iterations.............: 0      0/s
+    iteration_duration.............: avg=11.77ms min=11.35µs med=1.99ms   p(90)=6.68ms   p(95)=24.13ms  p(99)=286.4ms  max=1.04s   
+    iterations.....................: 20001  500.002793/s
+    vus............................: 1      min=0          max=119
+    vus_max........................: 500    min=500        max=500
+
+    NETWORK
+    data_received..................: 9.7 MB 242 kB/s
+    data_sent......................: 10 MB  252 kB/s
+
+
+
