@@ -30,8 +30,6 @@ BASE_URL=${BASE_URL:-http://localhost:8080}
 WORK=${WORK:-build/k6-raw}
 K6_IMAGE=${K6_IMAGE:-grafana/k6:2.3.0}
 OUT=perf/results/$NAME
-# The sale lasts BUYERS / RATE seconds (10 by default); a two-minute window holds all of it and its tail.
-WINDOW=2m
 
 mkdir -p "$OUT" "$WORK"
 WORK=$(cd "$WORK" && pwd)
@@ -52,8 +50,8 @@ for run in $(seq "$FIRST_RUN" "$((FIRST_RUN + RUNS - 1))"); do
   rm -f "$WORK/buyers.json" "$WORK/raw-$run.json.gz"
   echo "$(date +%T) run $run: seeding $BUYERS buyers for $CAPACITY tickets"
   if ! python3 -I perf/flash-sale-seed.py --base-url "$BASE_URL" --run-id "$RUN_ID" --buyers "$BUYERS" \
-      --capacity "$CAPACITY" --out "$WORK/buyers.json" > "$R/seed.txt" 2>&1; then
-    echo "seeding failed, see $R/seed.txt" >&2
+      --capacity "$CAPACITY" --out "$WORK/buyers.json" > "$WORK/seed.txt" 2>&1; then
+    echo "seeding failed, see $WORK/seed.txt" >&2
     exit 1
   fi
   CLASS=$(json_field "$WORK/buyers.json" ticketClassId)
@@ -65,6 +63,7 @@ for run in $(seq "$FIRST_RUN" "$((FIRST_RUN + RUNS - 1))"); do
   io_before=$(stall_us io)
   swap_before=$(swap_used_mb)
   echo "$(date +%T) run $run: sale at $RATE buyers per second"
+  sale_start=$(date +%s)
   docker run --rm --network host --user "$(id -u):$(id -g)" -v "$PWD/perf:/perf:ro" -v "$WORK:/out" \
     -e BASE_URL="$BASE_URL" -e RATE="$RATE" -e MAX_VUS="$MAX_VUS" -e RUN_ID="$RUN_ID" \
     -e BUYERS_FILE=/out/buyers.json \
@@ -80,21 +79,10 @@ for run in $(seq "$FIRST_RUN" "$((FIRST_RUN + RUNS - 1))"); do
   fi
   cp "$WORK/summary-$run.json" "$R/summary.json"
   sleep "$METRICS_SETTLE"
+  # From the start of this sale until now: never reaches back into the seeding or into the previous run.
+  WINDOW=$(window_since "$sale_start")
 
-  app='service_name="ledger-app"'
-  {
-    echo "{"
-    echo "  \"ledger_cpu_avg\": $(prom "avg_over_time(process_cpu_usage{$app}[$WINDOW])"),"
-    echo "  \"ledger_cpu_max\": $(prom "max_over_time(process_cpu_usage{$app}[$WINDOW])"),"
-    echo "  \"server_p99_ms\": $(prom "histogram_quantile(0.99, sum by (le) (rate(http_server_requests_milliseconds_bucket{$app,uri=\"/v1/orders\",method=\"POST\"}[$WINDOW])))"),"
-    echo "  \"lock_wait_p99_ms\": $(prom "histogram_quantile(0.99, sum by (le) (rate(ledgerly_posting_lock_wait_milliseconds_bucket{$app}[$WINDOW])))"),"
-    echo "  \"hikari_pending_max\": $(prom "max_over_time(hikaricp_connections_pending{$app}[$WINDOW])"),"
-    echo "  \"hikari_active_max\": $(prom "max_over_time(hikaricp_connections_active{$app}[$WINDOW])"),"
-    echo "  \"purchases_by_outcome\": \"$(prom_by outcome "sum by (outcome) (increase(ledgerly_ticket_purchases_total{$app}[$WINDOW]))")\","
-    echo "  \"outbox_pending_max\": $(prom "max_over_time(ledgerly_outbox_pending[$WINDOW])"),"
-    echo "  \"outbox_oldest_age_max_ms\": $(prom "max_over_time(ledgerly_outbox_oldest_age_milliseconds[$WINDOW])")"
-    echo "}"
-  } > "$R/server-metrics.json"
+  flash_sale_metrics "$WINDOW" > "$R/server-metrics.json"
 
   # Count only once the relay has drained and the consumer has caught up with this run's events, for at most two
   # minutes each.
@@ -118,6 +106,10 @@ for run in $(seq "$FIRST_RUN" "$((FIRST_RUN + RUNS - 1))"); do
   statuses=$(zcat "$R/requests.csv.gz" | awk -F, '$3=="order" {n[$4]++} END {for (s in n) printf "%s=%d ", s, n[s]}')
   dropped=$(json_field "$R/summary.json" metrics.dropped_iterations.count)
   other=$(json_field "$R/summary.json" metrics.orders_other.count)
+  k6_won=$(json_field "$R/summary.json" metrics.orders_won.count)
+  k6_sold_out=$(json_field "$R/summary.json" metrics.orders_sold_out.count)
+  k6_shed=$(json_field "$R/summary.json" metrics.orders_shed.count)
+  conflicts=$(echo "$outcomes" | sed -n 's/.*conflict409=\([0-9]*\).*/\1/p')
   read -r total remaining orders sold <<< "$(psql_count ledger "select c.total_qty, c.remaining, count(o.id), coalesce(sum(o.quantity), 0) from ticket_classes c left join ticket_orders o on o.ticket_class_id = c.id where c.id = '$CLASS' group by c.id" | tr '|' ' ')"
   ledger_violations=$(violations scripts/invariants.sql)
   event_violations=$(violations scripts/invariants-events.sql)
@@ -126,6 +118,8 @@ for run in $(seq "$FIRST_RUN" "$((FIRST_RUN + RUNS - 1))"); do
   [ "$ledger_violations" != "0" ] && reasons="$reasons invariants.sql"
   [ "$event_violations" != "0" ] && reasons="$reasons invariants-events.sql"
   [ "$other" != "0" ] && reasons="$reasons unexpected-statuses"
+  # k6 tells a sold-out 409 from any other 409 by its problem type; the per-request file only has the status.
+  [ "$conflicts" != "$k6_sold_out" ] && reasons="$reasons outcome-mismatch"
   [ "$((dropped * 100))" -gt "$BUYERS" ] && reasons="$reasons dropped-over-1%"
   [ "$((total - remaining))" != "$sold" ] && reasons="$reasons ticket-count"
 
@@ -133,7 +127,8 @@ for run in $(seq "$FIRST_RUN" "$((FIRST_RUN + RUNS - 1))"); do
     echo "k6 exit code: $k6_exit"
     echo "buyers: $BUYERS, capacity: $CAPACITY, rate: $RATE/s, max VUs: $MAX_VUS, ticket class: $CLASS"
     echo "dropped iterations: $dropped"
-    echo "orders: $outcomes"
+    echo "orders, from k6: won=$k6_won sold_out=$k6_sold_out shed=$k6_shed other=$other"
+    echo "orders, per request: $outcomes"
     echo "statuses: $statuses"
     echo "ticket class: total $total, remaining $remaining, orders $orders, tickets in orders $sold, total - remaining = tickets in orders: $([ "$((total - remaining))" = "$sold" ] && echo true || echo false)"
     echo "outbox pending after the run: $pending"

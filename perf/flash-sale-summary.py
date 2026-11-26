@@ -3,9 +3,10 @@
 
     python3 -I perf/flash-sale-summary.py perf/results/<name>/run-1/requests.csv.gz
 
-Prints one line: how many orders were won (201), lost because the class was sold out (409), shed (503) or answered
-otherwise; when the last order was won, in seconds since the first request; and latency percentiles of winners
-and losers, nearest rank, in milliseconds.
+Prints one line: how many orders were won (201), refused with 409, shed (503) or answered otherwise; when the last
+order was won, in seconds since the first request; and latency percentiles of winners and of 409s, nearest rank, in
+milliseconds. The file holds statuses only, so a 409 here is any conflict: perf/run-flash-sale.sh compares the count
+with k6's, which checks that each one was a sold-out answer.
 """
 
 import csv
@@ -22,7 +23,7 @@ def percentile(values: list[float], q: float) -> str:
 
 
 def summarize(path: str) -> str:
-    won, lost, shed, other, durations = [], [], 0, 0, []
+    won, conflicts, shed, other, durations = [], [], 0, 0, []
     last_win = None
     with gzip.open(path, "rt", encoding="utf-8", newline="") as file:
         for row in csv.DictReader(file):
@@ -34,16 +35,16 @@ def summarize(path: str) -> str:
                 won.append(duration)
                 last_win = row["t_seconds"]
             elif row["status"] == "409":
-                lost.append(duration)
+                conflicts.append(duration)
             elif row["status"] == "503":
                 shed += 1
             else:
                 other += 1
     return (
-        f"requests={len(durations)} won={len(won)} sold_out={len(lost)} shed={shed} other={other}"
+        f"requests={len(durations)} won={len(won)} conflict409={len(conflicts)} shed={shed} other={other}"
         f" last_win_s={last_win or 'null'}"
         f" won_p50={percentile(won, 0.50)} won_p99={percentile(won, 0.99)}"
-        f" lost_p50={percentile(lost, 0.50)} lost_p99={percentile(lost, 0.99)}"
+        f" conflict_p50={percentile(conflicts, 0.50)} conflict_p99={percentile(conflicts, 0.99)}"
         f" max={max(durations):.1f}" if durations else "requests=0"
     )
 
